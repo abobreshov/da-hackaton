@@ -73,11 +73,16 @@ export class DrizzleUnreadRepository implements UnreadRepositoryPort {
   }
 
   async unreadDmsFor(userId: number): Promise<DmUnread[]> {
-    const rows: Array<{ dmId: number; count: number | string }> = await executeRows(
+    const rows: Array<{
+      dmId: number;
+      peerUserId: number;
+      count: number | string;
+    }> = await executeRows(
       this.db,
       sql`
           SELECT
             dc.id AS "dmId",
+            CASE WHEN dc.user_low = ${userId} THEN dc.user_high ELSE dc.user_low END AS "peerUserId",
             LEAST(
               (
                 SELECT COUNT(*)
@@ -97,7 +102,11 @@ export class DrizzleUnreadRepository implements UnreadRepositoryPort {
         `,
     );
 
-    return rows.map((r) => ({ dmId: r.dmId, count: toInt(r.count) }));
+    return rows.map((r) => ({
+      dmId: r.dmId,
+      peerUserId: r.peerUserId,
+      count: toInt(r.count),
+    }));
   }
 
   async countSince(input: CountSinceInput): Promise<number> {

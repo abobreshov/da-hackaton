@@ -59,7 +59,13 @@ export class UnreadSubscriber implements OnApplicationBootstrap {
       ) {
         return;
       }
-      await this.publishUnreadChanged(event.peerUserId, { dmId: event.dmId });
+      // From the recipient's perspective, the other side of the DM is the
+      // author — include it in the scope so FE can key its DM unread map
+      // by peer userId without a dm_channels lookup.
+      await this.publishUnreadChanged(event.peerUserId, {
+        dmId: event.dmId,
+        peerUserId: event.authorId,
+      });
       return;
     }
   }
@@ -83,11 +89,16 @@ export class UnreadSubscriber implements OnApplicationBootstrap {
 
   private async publishUnreadChanged(
     userId: number,
-    scope: { roomId: number } | { dmId: number },
+    scope: { roomId: number } | { dmId: number; peerUserId: number },
   ): Promise<void> {
+    // UnreadService.countSince only needs { roomId } or { dmId } — strip
+    // peerUserId before delegating (it's a client-addressing hint, not a
+    // query input).
+    const countScope: { roomId?: number; dmId?: number } =
+      'roomId' in scope ? { roomId: scope.roomId } : { dmId: scope.dmId };
     let count: number;
     try {
-      count = await this.unread.countSince({ userId, ...scope });
+      count = await this.unread.countSince({ userId, ...countScope });
     } catch (err) {
       this.logger.warn(`unread.subscriber countSince(${userId}) failed: ${(err as Error).message}`);
       return;

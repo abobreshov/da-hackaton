@@ -10,7 +10,9 @@ import {
 } from '@/lib/friends';
 import { ApiError } from '@/lib/api-client';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
+import { useUnread } from '@/hooks/useUnread';
 import { PresenceDot } from '@/components/presence-dot';
+import { UnreadBadge } from '@/components/unread-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +48,7 @@ export function ContactsRoute() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
   const presence = usePresenceMap();
+  const { dms: dmUnread } = useUnread();
 
   const load = useCallback(async () => {
     setState({ status: 'loading' });
@@ -216,14 +219,20 @@ export function ContactsRoute() {
                         <span className="font-body text-body-md text-on-surface">{f.username}</span>
                       </span>
                     </UserPopover>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={mutating}
-                      onClick={() => void runMutation(() => removeFriend(f.userId))}
-                    >
-                      Remove
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <UnreadBadge
+                        count={dmUnread.get(f.userId) ?? 0}
+                        label={`${dmUnread.get(f.userId) ?? 0} unread from ${f.username}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={mutating}
+                        onClick={() => void runMutation(() => removeFriend(f.userId))}
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>

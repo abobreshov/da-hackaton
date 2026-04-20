@@ -5,6 +5,7 @@ import { WsEvent } from '@/lib/ws-events';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
 import { PresenceDot } from '@/components/presence-dot';
 import { useMessages } from '@/hooks/useMessages';
+import { useAutoMarkRead } from '@/hooks/useAutoMarkRead';
 import { useSession } from '@/hooks/useSession';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageComposer } from '@/components/chat/message-composer';
@@ -93,6 +94,13 @@ export function RoomRoute() {
   const { messages, sendMessage, loadOlder, hasMore } = useMessages({
     roomId: roomIdForMessages,
   });
+
+  // Mark-read upshot of having messages visible: the newest rendered message
+  // id is our "last read" watermark for this scope (AC-09-06). `useMessages`
+  // keeps `messages` sorted ascending, so the tail is the newest.
+  const lastReadId =
+    state.status === 'ok' && messages.length > 0 ? String(messages[messages.length - 1].id) : null;
+  useAutoMarkRead({ kind: 'room', roomId: Number.isFinite(roomId) ? roomId : -1 }, lastReadId);
 
   useEffect(() => {
     if (!Number.isFinite(roomId)) {

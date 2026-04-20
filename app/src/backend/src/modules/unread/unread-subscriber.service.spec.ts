@@ -151,7 +151,7 @@ describe('UnreadSubscriber', () => {
       expect(redis.publishes[0].channel).toBe(RedisChannel.user(20));
       expect(JSON.parse(redis.publishes[0].payload)).toEqual({
         event: 'unread.changed',
-        scope: { dmId: 3 },
+        scope: { dmId: 3, peerUserId: 10 },
         count: 3,
       });
     });

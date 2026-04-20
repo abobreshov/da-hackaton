@@ -112,14 +112,14 @@ describe('UnreadService', () => {
         { roomId: 1, count: 5 },
         { roomId: 2, count: 0 },
       ]);
-      repo.dmUnreads.set(USER, [{ dmId: 11, count: 3 }]);
+      repo.dmUnreads.set(USER, [{ dmId: 11, peerUserId: 77, count: 3 }]);
 
       const out = await svc.getUnreadCounts({ userId: USER });
       expect(out.rooms).toEqual([
         { roomId: 1, count: 5 },
         { roomId: 2, count: 0 },
       ]);
-      expect(out.dms).toEqual([{ dmId: 11, count: 3 }]);
+      expect(out.dms).toEqual([{ dmId: 11, peerUserId: 77, count: 3 }]);
     });
 
     it('returns empty arrays when there is nothing unread', async () => {

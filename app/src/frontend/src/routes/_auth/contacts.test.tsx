@@ -19,6 +19,28 @@ vi.mock('@/lib/socket', () => ({
   disconnect: vi.fn(),
 }));
 
+// Isolate from the unread hook so contacts tests don't have to mock the
+// GET /api/v1/unread round-trip. The badge component itself is tested
+// separately.
+vi.mock('@/hooks/useUnread', () => ({
+  useUnread: () => ({ rooms: new Map(), dms: new Map(), hydrated: true }),
+  UNREAD_BADGE_CAP: 99,
+  unreadStore: {
+    getState: () => ({
+      rooms: new Map(),
+      dms: new Map(),
+      hydrated: true,
+      setRoom: () => {},
+      setDm: () => {},
+      clearRoom: () => {},
+      clearDm: () => {},
+      hydrate: () => {},
+      reset: () => {},
+    }),
+    subscribe: () => () => {},
+  },
+}));
+
 const getComponent = () =>
   (Route as unknown as { options: { component: () => JSX.Element } }).options.component;
 
