@@ -70,6 +70,44 @@ Rules:
 - When tasks depend on each other (B needs A's output), run sequentially, not parallel.
 - Foreground parallel fan-out is fine for small batches (≤5); for larger batches use background + continue other work.
 
+## Memory formation principles (auto-memory at `~/.claude/projects/.../memory/`)
+
+Keep the index thin and the detail deep. Every entry worth remembering lives in its own file; `MEMORY.md` is a reading map, not a content store.
+
+**File layout**
+- One `.md` file per discrete memory. Name it by topic (`feedback_commit_style.md`, `project_security_posture.md`, `reference_incident_tracker.md`).
+- Frontmatter is required:
+
+  ```yaml
+  ---
+  name: <short human title>
+  description: <one line that makes future-you decide "relevant or skip">
+  type: feedback | project | user | reference
+  ---
+  ```
+- Body structure by type:
+  - **feedback** (how the user wants to collaborate) — rule first, then `**Why:**` (the reason the user gave — often a past incident or strong preference) and `**How to apply:**` (when/where this kicks in).
+  - **project** (facts about ongoing work) — fact or decision first, then `**Why:**` and `**How to apply:**`. Convert relative dates (“Thursday”) to absolute (`2026-04-25`) at write time.
+  - **user** (role/goals/knowledge) — short profile, what they already know, what they care about.
+  - **reference** (pointers to external systems) — what lives where, when to consult it.
+
+**`MEMORY.md` (the index)**
+- Lines only. Each line: `- [Title](file.md) — one-line hook ≤ 150 chars.`
+- Group by type under `## Feedback`, `## Project`, `## User`, `## Reference` — makes recall fast.
+- No frontmatter, no prose, no memory content inline. Stays short enough to load every session (cut off past 200 lines).
+
+**What NOT to save**
+- Code patterns, file paths, architecture decisions derivable from the tree — read the code.
+- Git history / authorship — `git log` / `git blame` is the source of truth.
+- Ephemeral task state or debug recipes — that belongs in a plan or commit message.
+- Anything already covered in this `CLAUDE.md` or `app/CLAUDE.md`.
+
+**Discipline**
+- Before writing a new file, grep existing memories for overlap and **update** rather than duplicate.
+- When a memory turns out stale, edit or delete — don't stack contradictions.
+- Never echo secrets or PII into a memory file, even if the user just shared them.
+- After saving a file, add or fix its line in `MEMORY.md` in the same edit.
+
 ## OpenViking memory
 
 - Session hooks: `.claude/settings.json` → `$CLAUDE_PROJECT_DIR/app/claude-memory-plugin/hooks/*.sh`
