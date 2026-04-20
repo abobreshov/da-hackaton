@@ -4,8 +4,19 @@ export interface Session {
   adminId?: number;
   userId?: number;
   email: string;
+  name: string;
   type: 'admin' | 'user';
+  scopes: string[];
 }
+
+export const hasScope = (session: Session | null | undefined, scope: string): boolean =>
+  !!session?.scopes?.includes(scope);
+
+export const hasAnyScope = (session: Session | null | undefined, scopes: string[]): boolean =>
+  !!scopes.some((s) => session?.scopes?.includes(s));
+
+export const hasAllScopes = (session: Session | null | undefined, scopes: string[]): boolean =>
+  !!scopes.every((s) => session?.scopes?.includes(s));
 
 export const fetchSession = (): Promise<Session> =>
   apiFetch('/api/v1/auth/session');

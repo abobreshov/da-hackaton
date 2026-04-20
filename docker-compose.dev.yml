@@ -1,0 +1,135 @@
+version: '3.9'
+
+# Dev: services isolated on internal network. Only frontend + BFF exposed to host.
+# auth-service and backend have NO host ports — only reachable from BFF internally.
+
+networks:
+  app-internal:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'        # exposed for dev DB tools
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    networks: [app-internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'        # exposed for dev Redis tools
+    networks: [app-internal]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ./src/auth-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src/auth-service/src:/app/src:ro
+    environment:
+      PORT: 3003
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_ADMIN_SECRET: dev-admin-secret-min-32-characters-ok
+      JWT_CUSTOMER_SECRET: dev-customer-secret-min-32-chars-ok
+      JWT_ACCESS_TOKEN_EXPIRATION: 15m
+      JWT_REFRESH_TOKEN_EXPIRATION: 24h
+      SESSION_MAX_DURATION_DAYS: 7
+      ALLOWED_ORIGINS: http://localhost:3007
+      ALLOW_PASSWORD_ONLY_ADMIN_LOGIN: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [app-internal]
+    # NO host port — only BFF can reach auth-service
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src/backend/src:/app/src:ro
+    environment:
+      PORT: 3004
+      TCP_PORT: 4004
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
+      AUTH_SERVICE_URL: http://auth-service:3003
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      ALLOWED_ORIGINS: http://localhost:3006,http://localhost:3007
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks: [app-internal]
+    # NO host ports — only BFF can reach backend
+    restart: unless-stopped
+
+  bff:
+    build:
+      context: ./src/bff
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src/bff/src:/app/src:ro
+    environment:
+      PORT: 3006
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      AUTH_SERVICE_URL: http://auth-service:3003
+      BACKEND_TCP_HOST: backend
+      BACKEND_TCP_PORT: 4004
+      JWT_SECRET: dev-bff-jwt-secret-min-32-characters-ok
+      SESSION_COOKIE_SECRET: dev-session-cookie-secret-min-32-chars
+      COOKIE_SECRET: dev-cookie-secret-min-32-characters-long
+      SESSION_COOKIE_TTL: 3600
+      REFRESH_COOKIE_TTL: 172800
+      ALLOWED_ORIGINS: http://localhost:3007
+    ports:
+      - '3006:3006'        # exposed: API testing + Vite proxy target
+    depends_on:
+      - auth-service
+      - backend
+    networks: [app-internal]
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src/frontend/src:/app/src:ro
+      - ./src/frontend/index.html:/app/index.html:ro
+    environment:
+      BFF_URL: http://bff:3006
+    ports:
+      - '3007:3007'        # exposed: user browser access
+    depends_on:
+      - bff
+    networks: [app-internal]
+    restart: unless-stopped
+
+volumes:
+  pgdata_dev:

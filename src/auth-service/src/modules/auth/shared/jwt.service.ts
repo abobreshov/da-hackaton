@@ -13,6 +13,7 @@ export interface UserJwtPayload {
   userId: number;
   email: string;
   role: string;
+  scopes: string[];
   iat?: number;
   exp?: number;
 }

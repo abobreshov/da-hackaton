@@ -6,7 +6,9 @@ export interface SessionPayload {
   adminId?: number;
   userId?: number;
   email: string;
+  name: string;
   type: 'admin' | 'user';
+  scopes: string[];
   iat?: number;
   exp?: number;
 }

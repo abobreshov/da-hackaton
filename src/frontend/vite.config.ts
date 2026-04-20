@@ -9,9 +9,10 @@ export default defineConfig({
   },
   server: {
     port: 3007,
+    host: '0.0.0.0',
     proxy: {
-      '/api': { target: 'http://localhost:3006', changeOrigin: true },
-      '/auth': { target: 'http://localhost:3006', changeOrigin: true },
+      '/api': { target: process.env.BFF_URL ?? 'http://localhost:3006', changeOrigin: true },
+      '/auth': { target: process.env.BFF_URL ?? 'http://localhost:3006', changeOrigin: true },
     },
   },
 });

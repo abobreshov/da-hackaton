@@ -8,11 +8,33 @@ export const Route = createFileRoute('/_auth/dashboard')({
 function Dashboard() {
   const { session } = useSession();
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
-      <p className="text-gray-600">
-        Welcome, {session?.email} ({session?.type})
+    <div className="max-w-2xl">
+      <h1 className="text-3xl font-bold text-gray-900 mb-3">
+        Hello, {session?.name ?? session?.email}!
+      </h1>
+      <p className="text-gray-500 text-sm mb-6">
+        Signed in as <span className="font-medium text-gray-700">{session?.email}</span>
+        {' '}·{' '}
+        <span className="capitalize">{session?.type}</span>
       </p>
+
+      <section>
+        <h2 className="text-sm font-semibold text-gray-900 mb-2">Scopes</h2>
+        {session?.scopes?.length ? (
+          <div className="flex flex-wrap gap-2">
+            {session.scopes.map((scope) => (
+              <span
+                key={scope}
+                className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-mono text-blue-700 ring-1 ring-inset ring-blue-200"
+              >
+                {scope}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">No scopes assigned.</p>
+        )}
+      </section>
     </div>
   );
 }

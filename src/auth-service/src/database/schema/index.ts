@@ -21,6 +21,7 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   role: roleEnum('role').default('USER'),
+  scopes: text('scopes').array().notNull().default([]),
   twoFactorEnabled: boolean('two_factor_enabled').default(false),
   twoFactorSecret: text('two_factor_secret'),
   accessStatus: accessStatusEnum('access_status').default('ACTIVE'),

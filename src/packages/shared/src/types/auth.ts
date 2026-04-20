@@ -9,6 +9,7 @@ export interface UserJwtPayload {
   userId: number;
   email: string;
   role: string;
+  scopes: string[];
   iat?: number;
   exp?: number;
 }
@@ -17,7 +18,9 @@ export interface Session {
   adminId?: number;
   userId?: number;
   email: string;
+  name: string;
   type: 'admin' | 'user';
+  scopes: string[];
 }
 
 export interface LoginResponse {
@@ -30,5 +33,5 @@ export interface AdminLoginResponse extends LoginResponse {
 }
 
 export interface UserLoginResponse extends LoginResponse {
-  user: { id: number; email: string; name: string; role: string };
+  user: { id: number; email: string; name: string; role: string; scopes: string[] };
 }

@@ -17,12 +17,12 @@ export class AuthController {
 
     if (isAdmin) {
       const { admin, refreshToken } = await this.authService.loginAdmin(dto.email, dto.password, dto.totpCode);
-      this.cookieService.setSessionCookie(reply, { adminId: admin.id, email: admin.email, type: 'admin' });
+      this.cookieService.setSessionCookie(reply, { adminId: admin.id, email: admin.email, name: admin.name, type: 'admin', scopes: [] });
       this.cookieService.setRefreshCookie(reply, refreshToken);
       return { admin };
     } else {
       const { user, refreshToken } = await this.authService.loginUser(dto.email, dto.password, dto.totpCode);
-      this.cookieService.setSessionCookie(reply, { userId: user.id, email: user.email, type: 'user' });
+      this.cookieService.setSessionCookie(reply, { userId: user.id, email: user.email, name: user.name, type: 'user', scopes: user.scopes ?? [] });
       this.cookieService.setRefreshCookie(reply, refreshToken);
       return { user };
     }

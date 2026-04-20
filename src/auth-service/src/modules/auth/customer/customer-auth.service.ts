@@ -36,11 +36,16 @@ export class CustomerAuthService {
       }
     }
 
-    const accessToken = this.jwtService.signUser({ userId: user.id, email: user.email, role: user.role ?? 'USER' });
+    const accessToken = this.jwtService.signUser({
+      userId: user.id,
+      email: user.email,
+      role: user.role ?? 'USER',
+      scopes: user.scopes ?? [],
+    });
     const refreshToken = await this.refreshTokenService.create('u', user.id);
 
     return {
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, scopes: user.scopes ?? [] },
       accessToken,
       refreshToken,
     };
@@ -55,10 +60,15 @@ export class CustomerAuthService {
     if (!user || user.accessStatus !== 'ACTIVE') throw new UnauthorizedException();
 
     const newRefreshToken = await this.refreshTokenService.validateAndRotate('u', userId, token);
-    const accessToken = this.jwtService.signUser({ userId: user.id, email: user.email, role: user.role ?? 'USER' });
+    const accessToken = this.jwtService.signUser({
+      userId: user.id,
+      email: user.email,
+      role: user.role ?? 'USER',
+      scopes: user.scopes ?? [],
+    });
 
     return {
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, scopes: user.scopes ?? [] },
       accessToken,
       refreshToken: newRefreshToken,
     };
@@ -75,7 +85,12 @@ export class CustomerAuthService {
   async validateToken(token: string) {
     try {
       const payload = this.jwtService.verifyUser(token);
-      return { userId: payload.userId, email: payload.email, role: payload.role };
+      return {
+        userId: payload.userId,
+        email: payload.email,
+        role: payload.role,
+        scopes: payload.scopes ?? [],
+      };
     } catch {
       throw new UnauthorizedException('Invalid token');
     }

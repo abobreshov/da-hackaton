@@ -8,7 +8,8 @@
     "start:dev": "nest start --watch",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "seed": "npx ts-node --project tsconfig.json -r tsconfig-paths/register scripts/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -38,6 +39,8 @@
     "@types/pg": "^8.0.0",
     "@types/qrcode": "^1.5.0",
     "drizzle-kit": "^0.30.0",
+    "ts-node": "^10.9.0",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.0.0"
   }
 }

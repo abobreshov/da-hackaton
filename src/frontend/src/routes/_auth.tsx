@@ -29,7 +29,7 @@ function AuthLayout() {
       <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <span className="font-semibold text-gray-900">App</span>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">{session?.email}</span>
+          <span className="text-sm text-gray-600">{session?.name ?? session?.email}</span>
           <button
             onClick={handleLogout}
             className="text-sm text-red-600 hover:text-red-700 font-medium"

@@ -32,15 +32,16 @@ export class SessionGuard implements CanActivate {
       if (refreshToken.startsWith('a:')) {
         result = await this.authService.refreshAdmin(refreshToken);
         const { admin, refreshToken: newRefresh } = result;
-        this.cookieService.setSessionCookie(reply, { adminId: admin.id, email: admin.email, type: 'admin' });
+        this.cookieService.setSessionCookie(reply, { adminId: admin.id, email: admin.email, name: admin.name, type: 'admin', scopes: [] });
         this.cookieService.setRefreshCookie(reply, newRefresh);
-        req.session = { adminId: admin.id, email: admin.email, type: 'admin' };
+        req.session = { adminId: admin.id, email: admin.email, name: admin.name, type: 'admin', scopes: [] };
       } else {
         result = await this.authService.refreshUser(refreshToken);
         const { user, refreshToken: newRefresh } = result;
-        this.cookieService.setSessionCookie(reply, { userId: user.id, email: user.email, type: 'user' });
+        const scopes = user.scopes ?? [];
+        this.cookieService.setSessionCookie(reply, { userId: user.id, email: user.email, name: user.name, type: 'user', scopes });
         this.cookieService.setRefreshCookie(reply, newRefresh);
-        req.session = { userId: user.id, email: user.email, type: 'user' };
+        req.session = { userId: user.id, email: user.email, name: user.name, type: 'user', scopes };
       }
       return true;
     } catch {

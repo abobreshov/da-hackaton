@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  scopes: string[];
   accessStatus: AccessStatus;
   createdAt: Date;
   updatedAt: Date;
