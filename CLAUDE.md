@@ -108,6 +108,27 @@ Keep the index thin and the detail deep. Every entry worth remembering lives in 
 - Never echo secrets or PII into a memory file, even if the user just shared them.
 - After saving a file, add or fix its line in `MEMORY.md` in the same edit.
 
+### Dual-source recall — auto-memory + OpenViking in parallel
+
+This project has **two** memory stores; always consult both on non-trivial work, in parallel:
+
+- **Auto-memory** (`~/.claude/projects/<project>/memory/`, loaded at session start) — short, hand-curated; user preferences, process rules, current project posture.
+- **OpenViking** (`Skill: ov-search`, `Skill: memory-recall`) — long-term semantic index over `mng/` specs, past sessions, reviews. Good for "what did we decide two weeks ago?" / "where's the rule about X?".
+
+**Recall pattern:**
+1. Read `MEMORY.md` + follow links for hand-curated context.
+2. In the same turn, dispatch `memory-recall` (prior-session extracts) **and** `ov-search` (ingested docs) — parallel tool calls so neither blocks the other.
+3. For "what's the preference on X", auto-memory wins. For "what does the spec say about Y", OpenViking. For "is this file still there", grep live tree.
+
+**Conflict resolution (memories disagree with each other or with live state):**
+1. Both stores are *point-in-time claims*, not truth.
+2. Live code / `git log` / current docs outrank any memory when state is easy to re-check.
+3. Most recent user instruction supersedes older feedback — edit the older auto-memory file to mark the supersession; never leave two files saying opposite things.
+4. For project state, re-ingest the authoritative doc into OpenViking (`Skill: ov-ingest`) and/or edit the auto-memory file. Record the reconciliation in the commit message that forced it.
+5. When a memory names a specific file / function / flag and the user is about to act on that recommendation, verify existence first.
+
+`ov-ingest` after creating or updating any spec, ADR, or review so OpenViking stays current; `MEMORY.md` only grows when something is worth hand-curating for future sessions.
+
 ## OpenViking memory
 
 - Session hooks: `.claude/settings.json` → `$CLAUDE_PROJECT_DIR/app/claude-memory-plugin/hooks/*.sh`
