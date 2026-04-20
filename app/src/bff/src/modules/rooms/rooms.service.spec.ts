@@ -15,15 +15,16 @@ jest.mock('../../config/environment', () => ({
   },
 }));
 
-import { of, throwError } from 'rxjs';
-import { NotFoundException } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { RoomsService } from './rooms.service';
+import { RpcProxyService } from '../../common/proxy/rpc-proxy.service';
 
 function makeClient() {
-  return {
-    send: jest.fn(),
-  };
+  return { send: jest.fn() };
+}
+
+function makeProxy() {
+  return { forward: jest.fn() } as unknown as jest.Mocked<RpcProxyService>;
 }
 
 function makeUsers() {
@@ -36,55 +37,55 @@ function makeUsers() {
 
 describe('RoomsService (BFF)', () => {
   let client: ReturnType<typeof makeClient>;
+  let proxy: jest.Mocked<RpcProxyService>;
   let users: ReturnType<typeof makeUsers>;
   let service: RoomsService;
 
   beforeEach(() => {
     client = makeClient();
+    proxy = makeProxy();
     users = makeUsers();
-    service = new RoomsService(client as any, users as any);
+    service = new RoomsService(client as any, proxy as any, users as any);
   });
 
   describe('catalog()', () => {
-    it('sends rooms.catalog with _sys envelope and returns upstream list', async () => {
+    it('forwards rooms.catalog via RpcProxy', async () => {
       const list = [{ id: 1, name: 'general', visibility: 'public' }];
-      client.send.mockReturnValueOnce(of(list));
+      (proxy.forward as jest.Mock).mockResolvedValueOnce(list);
 
       const result = await service.catalog();
 
-      expect(client.send).toHaveBeenCalledWith(
-        { cmd: 'rooms.catalog' },
-        expect.objectContaining({ _sys: 'test-sys-key' }),
-      );
+      expect(proxy.forward).toHaveBeenCalledWith(client, { cmd: 'rooms.catalog' }, {});
       expect(result).toEqual(list);
     });
 
     it('propagates RpcException from upstream', async () => {
       const rpc = new RpcException({ status: 502, message: 'upstream down' });
-      client.send.mockReturnValueOnce(throwError(() => rpc));
+      (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(service.catalog()).rejects.toBe(rpc);
     });
   });
 
   describe('listMy(userId)', () => {
-    it('sends rooms.listMy with userId payload', async () => {
+    it('forwards rooms.listMy with userId payload', async () => {
       const rooms = [{ id: 3, name: 'mine' }];
-      client.send.mockReturnValueOnce(of(rooms));
+      (proxy.forward as jest.Mock).mockResolvedValueOnce(rooms);
 
       const result = await service.listMy(42);
 
-      expect(client.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        client,
         { cmd: 'rooms.listMy' },
-        expect.objectContaining({ _sys: 'test-sys-key', userId: 42 }),
+        { userId: 42 },
       );
       expect(result).toEqual(rooms);
     });
   });
 
   describe('create(input)', () => {
-    it('sends rooms.create with full payload', async () => {
+    it('forwards rooms.create with full payload', async () => {
       const created = { id: 7, name: 'hackers', visibility: 'public' };
-      client.send.mockReturnValueOnce(of(created));
+      (proxy.forward as jest.Mock).mockResolvedValueOnce(created);
 
       const result = await service.create({
         ownerId: 11,
@@ -93,29 +94,29 @@ describe('RoomsService (BFF)', () => {
         description: 'a room',
       });
 
-      expect(client.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        client,
         { cmd: 'rooms.create' },
-        expect.objectContaining({
-          _sys: 'test-sys-key',
+        {
           ownerId: 11,
           name: 'hackers',
           visibility: 'public',
           description: 'a room',
-        }),
+        },
       );
       expect(result).toEqual(created);
     });
 
-    it('omits description when not supplied (still sends an object)', async () => {
-      client.send.mockReturnValueOnce(of({ id: 8 }));
+    it('omits description when not supplied (still passes object)', async () => {
+      (proxy.forward as jest.Mock).mockResolvedValueOnce({ id: 8 });
       await service.create({ ownerId: 1, name: 'x', visibility: 'private' });
-      const [, payload] = client.send.mock.calls[0];
-      expect(payload).toMatchObject({ ownerId: 1, name: 'x', visibility: 'private' });
+      const [, , payload] = (proxy.forward as jest.Mock).mock.calls[0];
+      expect(payload).toEqual({ ownerId: 1, name: 'x', visibility: 'private' });
     });
 
     it('propagates CONFLICT RpcException', async () => {
       const rpc = new RpcException({ status: 409, message: 'name taken' });
-      client.send.mockReturnValueOnce(throwError(() => rpc));
+      (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(
         service.create({ ownerId: 1, name: 'dup', visibility: 'public' }),
       ).rejects.toBe(rpc);
@@ -123,67 +124,64 @@ describe('RoomsService (BFF)', () => {
   });
 
   describe('join({userId,roomId})', () => {
-    it('sends rooms.join with payload', async () => {
-      client.send.mockReturnValueOnce(of({ ok: true }));
+    it('forwards rooms.join with payload', async () => {
+      (proxy.forward as jest.Mock).mockResolvedValueOnce({ ok: true });
 
       await service.join({ userId: 42, roomId: 5 });
 
-      expect(client.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        client,
         { cmd: 'rooms.join' },
-        expect.objectContaining({ _sys: 'test-sys-key', userId: 42, roomId: 5 }),
+        { userId: 42, roomId: 5 },
       );
     });
 
     it('propagates FORBIDDEN (banned)', async () => {
       const rpc = new RpcException({ status: 403, message: 'banned' });
-      client.send.mockReturnValueOnce(throwError(() => rpc));
+      (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(service.join({ userId: 1, roomId: 2 })).rejects.toBe(rpc);
     });
   });
 
   describe('leave({userId,roomId})', () => {
-    it('sends rooms.leave with payload', async () => {
-      client.send.mockReturnValueOnce(of({ ok: true }));
+    it('forwards rooms.leave with payload', async () => {
+      (proxy.forward as jest.Mock).mockResolvedValueOnce({ ok: true });
 
       const result = await service.leave({ userId: 42, roomId: 5 });
 
-      expect(client.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        client,
         { cmd: 'rooms.leave' },
-        expect.objectContaining({ _sys: 'test-sys-key', userId: 42, roomId: 5 }),
+        { userId: 42, roomId: 5 },
       );
       expect(result).toEqual({ ok: true });
     });
 
     it('propagates NOT_FOUND', async () => {
       const rpc = new RpcException({ status: 404, message: 'no such room' });
-      client.send.mockReturnValueOnce(throwError(() => rpc));
+      (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(service.leave({ userId: 1, roomId: 2 })).rejects.toBe(rpc);
     });
   });
 
-  describe('invite({inviterId,inviteeId,roomId})', () => {
-    it('sends rooms.invite with payload when inviteeId pre-supplied', async () => {
-      client.send.mockReturnValueOnce(of({ id: 99, status: 'pending' }));
+  describe('invite({inviterId,inviteeId|username,roomId})', () => {
+    it('forwards rooms.invite when inviteeId is pre-supplied (no resolver call)', async () => {
+      (proxy.forward as jest.Mock).mockResolvedValueOnce({ id: 99, status: 'pending' });
 
       const result = await service.invite({ inviterId: 3, inviteeId: 4, roomId: 5 });
 
-      expect(client.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        client,
         { cmd: 'rooms.invite' },
-        expect.objectContaining({
-          _sys: 'test-sys-key',
-          inviterId: 3,
-          inviteeId: 4,
-          roomId: 5,
-        }),
+        { inviterId: 3, inviteeId: 4, roomId: 5 },
       );
-      // When id is supplied directly, we must not waste an RPC resolving.
       expect(users.resolveUserIdByUsername).not.toHaveBeenCalled();
-      expect(result).toEqual({ id: 99, status: 'pending' });
+      expect(result).toEqual({ queued: false, invited: { id: 99, status: 'pending' } });
     });
 
     it('resolves {username} → inviteeId via UsersService before forwarding', async () => {
-      users.resolveUserIdByUsername.mockResolvedValueOnce(42);
-      client.send.mockReturnValueOnce(of({ id: 7, status: 'pending' }));
+      users.resolveUserIdByUsername.mockResolvedValueOnce({ userId: 42, found: true });
+      (proxy.forward as jest.Mock).mockResolvedValueOnce({ id: 7, status: 'pending' });
 
       const result = await service.invite({
         inviterId: 3,
@@ -192,32 +190,27 @@ describe('RoomsService (BFF)', () => {
       });
 
       expect(users.resolveUserIdByUsername).toHaveBeenCalledWith('alice');
-      expect(client.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        client,
         { cmd: 'rooms.invite' },
-        expect.objectContaining({
-          _sys: 'test-sys-key',
-          inviterId: 3,
-          inviteeId: 42,
-          roomId: 5,
-        }),
+        { inviterId: 3, inviteeId: 42, roomId: 5 },
       );
-      expect(result).toEqual({ id: 7, status: 'pending' });
+      expect(result).toEqual({ queued: false, invited: { id: 7, status: 'pending' } });
     });
 
-    it('surfaces NotFoundException from resolver when username is unknown', async () => {
-      users.resolveUserIdByUsername.mockRejectedValueOnce(
-        new NotFoundException('user "ghost" not found'),
-      );
-      await expect(
-        service.invite({ inviterId: 3, username: 'ghost', roomId: 5 }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-      // Backend RPC must not be reached if resolution failed.
-      expect(client.send).not.toHaveBeenCalled();
+    it('returns {queued:true, invited:null} on unknown username — fail-silent (ADR-005)', async () => {
+      users.resolveUserIdByUsername.mockResolvedValueOnce({ userId: null, found: false });
+
+      const result = await service.invite({ inviterId: 3, username: 'ghost', roomId: 5 });
+
+      expect(result).toEqual({ queued: true, invited: null });
+      // Backend RPC must NOT be called when the username does not resolve.
+      expect(proxy.forward).not.toHaveBeenCalled();
     });
 
-    it('propagates CONFLICT (duplicate invite)', async () => {
+    it('propagates CONFLICT (duplicate invite) when backend rejects', async () => {
       const rpc = new RpcException({ status: 409, message: 'already invited' });
-      client.send.mockReturnValueOnce(throwError(() => rpc));
+      (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(
         service.invite({ inviterId: 1, inviteeId: 2, roomId: 3 }),
       ).rejects.toBe(rpc);
@@ -225,9 +218,9 @@ describe('RoomsService (BFF)', () => {
   });
 
   describe('update({roomId, actorId, patch})', () => {
-    it('sends rooms.update with full patch', async () => {
+    it('forwards rooms.update with full patch', async () => {
       const updated = { id: 5, name: 'renamed', description: 'new', visibility: 'private' };
-      client.send.mockReturnValueOnce(of(updated));
+      (proxy.forward as jest.Mock).mockResolvedValueOnce(updated);
 
       const result = await service.update({
         roomId: 5,
@@ -235,24 +228,24 @@ describe('RoomsService (BFF)', () => {
         patch: { name: 'renamed', description: 'new', visibility: 'private' },
       });
 
-      expect(client.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        client,
         { cmd: 'rooms.update' },
-        expect.objectContaining({
-          _sys: 'test-sys-key',
+        {
           roomId: 5,
           actorId: 3,
           patch: { name: 'renamed', description: 'new', visibility: 'private' },
-        }),
+        },
       );
       expect(result).toEqual(updated);
     });
 
-    it('sends rooms.update with partial patch (name only)', async () => {
-      client.send.mockReturnValueOnce(of({ id: 5, name: 'x' }));
+    it('forwards rooms.update with partial patch (name only)', async () => {
+      (proxy.forward as jest.Mock).mockResolvedValueOnce({ id: 5, name: 'x' });
 
       await service.update({ roomId: 5, actorId: 3, patch: { name: 'x' } });
 
-      const [, payload] = client.send.mock.calls[0];
+      const [, , payload] = (proxy.forward as jest.Mock).mock.calls[0];
       expect(payload).toMatchObject({
         roomId: 5,
         actorId: 3,
@@ -262,7 +255,7 @@ describe('RoomsService (BFF)', () => {
 
     it('propagates FORBIDDEN (not the owner)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not the owner' });
-      client.send.mockReturnValueOnce(throwError(() => rpc));
+      (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(
         service.update({ roomId: 5, actorId: 9, patch: { name: 'x' } }),
       ).rejects.toBe(rpc);
@@ -270,7 +263,7 @@ describe('RoomsService (BFF)', () => {
 
     it('propagates CONFLICT (name taken)', async () => {
       const rpc = new RpcException({ status: 409, message: 'name taken' });
-      client.send.mockReturnValueOnce(throwError(() => rpc));
+      (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(
         service.update({ roomId: 5, actorId: 3, patch: { name: 'dup' } }),
       ).rejects.toBe(rpc);

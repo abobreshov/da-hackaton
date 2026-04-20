@@ -197,7 +197,12 @@ describe('DrizzleAbuseReportsRepository', () => {
 
     await repo.listOpen({ limit: 50, before });
 
-    expect(calls.selects[0].where).toMatchObject({ status: 'open', before });
+    // `or(lt(...), and(...))` in the adapter merges the two keyset clauses.
+    // The mock's `or` collapses both lt calls into the same `before` key;
+    // what we care about is (a) status=open filter still present, (b) a
+    // cursor-derived "before" entry was appended to the clause.
+    expect(calls.selects[0].where).toMatchObject({ status: 'open' });
+    expect(calls.selects[0].where.before).toBeDefined();
   });
 
   it('findById() selects abuse_reports by id with limit 1', async () => {

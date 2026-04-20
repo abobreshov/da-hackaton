@@ -68,10 +68,17 @@ export function parseSub(sub: string): { type: AccountType; numericId: number } 
 const SESSION_COOKIE = 'session';
 const REFRESH_COOKIE = 'refresh';
 
+// Secure flag defaults to ON everywhere. Staging / tunnels / any non-prod
+// environment that speaks HTTPS will therefore still get Secure=true without
+// extra config. The ONLY way to turn it off is to explicitly set
+// COOKIE_SECURE_DISABLED=true in the env — intended for the local dev stack
+// which runs plain HTTP. Never set that flag in staging / production.
+const COOKIE_SECURE = !env.COOKIE_SECURE_DISABLED;
+
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'strict' as const,
-  secure: env.NODE_ENV === 'production',
+  secure: COOKIE_SECURE,
   path: '/',
 };
 

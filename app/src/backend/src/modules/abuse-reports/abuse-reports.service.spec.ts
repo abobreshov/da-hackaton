@@ -1,10 +1,14 @@
-jest.mock('../../config/environment', () => ({
-  env: { DATABASE_URL: 'postgres://test', SYSTEM_KEY: 'x'.repeat(32), TLS_ENABLED: false },
-}));
-jest.mock('../../database/connection', () => ({
-  db: {},
-  pool: { end: () => Promise.resolve() },
-}));
+/**
+ * Unit tests for AbuseReportsService (EPIC-06).
+ *
+ * The service depends on `AbuseReportsRepositoryPort` + `IEventPublisher`.
+ * Spec drives a fully in-memory fake repository so the business rules
+ * (reason length, target validation, partial-UNIQUE → CONFLICT, admin
+ * gate, keyset paginator, status transitions) are exercised without
+ * Postgres. The publisher is a `jest.fn()` — assertions confirm the
+ * service emits the right domain event with the right payload (audit
+ * append is the AuditSubscriber's concern, not the service's).
+ */
 
 import {
   BadRequestException,
@@ -13,244 +17,121 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AbuseReportsService } from './abuse-reports.service';
+import type {
+  AbuseReportRow,
+  AbuseReportsRepositoryPort,
+  InsertAbuseReportInput,
+  ListOpenRepoInput,
+  ReportStatus,
+  UserRoleRow,
+} from './abuse-reports.types';
+import type { IEventPublisher } from '../../common/events/event-publisher.interface';
 
-/**
- * In-memory fake modeling:
- *   - abuse_reports rows with id + status + dedup via partial UNIQUE
- *     (reporter_id, target_type, target_id) WHERE status='open'
- *   - users with role (for admin gates)
- */
-interface FakeReport {
-  id: bigint;
-  reporterId: number;
-  targetType: 'message' | 'user';
-  targetId: bigint;
-  reason: string;
-  status: 'open' | 'resolved' | 'dismissed';
-  resolvedBy: number | null;
-  resolvedAt: Date | null;
-  createdAt: Date;
-}
+class FakeAbuseReportsRepository implements AbuseReportsRepositoryPort {
+  byId = new Map<bigint, AbuseReportRow>();
+  users = new Map<number, UserRoleRow>();
+  private nextId = 1n;
+  /** When set, the next insert call rejects with this error. */
+  insertError: any = null;
 
-interface FakeState {
-  reports: Map<string, FakeReport>;
-  byId: Map<bigint, FakeReport>;
-  nextId: bigint;
-  users: Map<number, { id: number; role: 'ADMIN' | 'USER' }>;
-  auditCalls: any[];
-}
+  static openKey(reporterId: number, targetType: string, targetId: bigint): string {
+    return `${reporterId}:${targetType}:${targetId.toString()}`;
+  }
 
-function openKey(reporterId: number, targetType: string, targetId: bigint): string {
-  return `${reporterId}:${targetType}:${targetId.toString()}`;
-}
-
-function makeDb(state: FakeState) {
-  const selectFn = jest.fn(() => {
-    let table: 'abuse_reports' | 'users' | null = null;
-    let whereClause: any = null;
-    let limitVal: number | null = null;
-    const chain: any = {
-      from: jest.fn((t: any) => {
-        const name = t?._sym ?? String(t);
-        if (name.includes('abuse_reports')) table = 'abuse_reports';
-        else if (name.includes('users')) table = 'users';
-        return chain;
-      }),
-      where: jest.fn((c: any) => {
-        whereClause = c;
-        return chain;
-      }),
-      orderBy: jest.fn(() => chain),
-      limit: jest.fn(async (n: number) => {
-        limitVal = n;
-        return runQuery();
-      }),
-    };
-    const runQuery = (): any[] => {
-      if (table === 'abuse_reports') {
-        let rows = [...state.byId.values()];
-        if (whereClause) {
-          if (whereClause.status) rows = rows.filter((r) => r.status === whereClause.status);
-          if (whereClause.id !== undefined) rows = rows.filter((r) => r.id === whereClause.id);
-          if (whereClause.before) {
-            rows = rows.filter((r) => r.createdAt < whereClause.before.createdAt
-              || (r.createdAt.getTime() === whereClause.before.createdAt.getTime() && r.id < whereClause.before.id));
-          }
-        }
-        rows.sort((a, b) => {
-          const ts = b.createdAt.getTime() - a.createdAt.getTime();
-          if (ts !== 0) return ts;
-          return Number(b.id - a.id);
-        });
-        if (limitVal != null) rows = rows.slice(0, limitVal);
-        return rows;
+  private openIndex(): Map<string, AbuseReportRow> {
+    const map = new Map<string, AbuseReportRow>();
+    for (const r of this.byId.values()) {
+      if (r.status === 'open') {
+        map.set(FakeAbuseReportsRepository.openKey(r.reporterId, r.targetType, r.targetId), r);
       }
-      if (table === 'users') {
-        let rows = [...state.users.values()];
-        if (whereClause?.id !== undefined) rows = rows.filter((u) => u.id === whereClause.id);
-        return rows;
-      }
-      return [];
+    }
+    return map;
+  }
+
+  async insert(input: InsertAbuseReportInput): Promise<AbuseReportRow> {
+    if (this.insertError) {
+      const e = this.insertError;
+      this.insertError = null;
+      throw e;
+    }
+    const idx = this.openIndex();
+    if (idx.has(FakeAbuseReportsRepository.openKey(input.reporterId, input.targetType, input.targetId))) {
+      const err: any = new Error('duplicate key value violates unique constraint "abuse_reports_open_dedup_idx"');
+      err.code = '23505';
+      throw err;
+    }
+    const row: AbuseReportRow = {
+      id: this.nextId++,
+      reporterId: input.reporterId,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      reason: input.reason,
+      status: 'open',
+      resolvedBy: null,
+      resolvedAt: null,
+      createdAt: new Date(),
     };
-    const awaitable = new Proxy(chain, {
-      get(t, p) {
-        if (p === 'then') {
-          return (ok: any, err: any) => Promise.resolve(runQuery()).then(ok, err);
-        }
-        return (t as any)[p];
-      },
+    this.byId.set(row.id, row);
+    return row;
+  }
+
+  async findUserById(id: number): Promise<UserRoleRow | null> {
+    return this.users.get(id) ?? null;
+  }
+
+  async listOpen(input: ListOpenRepoInput): Promise<AbuseReportRow[]> {
+    let rows = [...this.byId.values()].filter((r) => r.status === 'open');
+    if (input.before) {
+      rows = rows.filter(
+        (r) =>
+          r.createdAt! < input.before!.createdAt ||
+          (r.createdAt!.getTime() === input.before!.createdAt.getTime() && r.id < input.before!.id),
+      );
+    }
+    rows.sort((a, b) => {
+      const t = b.createdAt!.getTime() - a.createdAt!.getTime();
+      if (t !== 0) return t;
+      return Number(b.id - a.id);
     });
-    return awaitable;
-  });
+    return rows.slice(0, input.limit);
+  }
 
-  const insertFn = jest.fn((table: any) => {
-    const name = table?._sym ?? String(table);
-    return {
-      values: jest.fn((row: any) => {
-        const runInsert = () => {
-          if (name.includes('abuse_reports')) {
-            const k = openKey(row.reporterId, row.targetType, row.targetId);
-            const existing = state.reports.get(k);
-            if (existing && existing.status === 'open') {
-              const err: any = new Error('duplicate key value violates unique constraint "abuse_reports_open_dedup_idx"');
-              err.code = '23505';
-              throw err;
-            }
-            const id = state.nextId++;
-            const created: FakeReport = {
-              id,
-              reporterId: row.reporterId,
-              targetType: row.targetType,
-              targetId: typeof row.targetId === 'bigint' ? row.targetId : BigInt(row.targetId),
-              reason: row.reason,
-              status: 'open',
-              resolvedBy: null,
-              resolvedAt: null,
-              createdAt: new Date(),
-            };
-            state.reports.set(k, created);
-            state.byId.set(id, created);
-            return created;
-          }
-          if (name.includes('audit_log')) {
-            state.auditCalls.push({ via: 'tx', ...row });
-            return {};
-          }
-          return {};
-        };
-        const chainObj: any = {
-          returning: jest.fn(async () => [runInsert()]),
-        };
-        const awaitable = new Proxy(chainObj, {
-          get(t, p) {
-            if (p === 'then') return (ok: any, err: any) => {
-              try { return Promise.resolve(runInsert()).then(ok, err); }
-              catch (e) { return Promise.reject(e).then(ok, err); }
-            };
-            return (t as any)[p];
-          },
-        });
-        return awaitable;
-      }),
-    };
-  });
+  async findById(id: bigint): Promise<AbuseReportRow | null> {
+    return this.byId.get(id) ?? null;
+  }
 
-  const updateFn = jest.fn((table: any) => {
-    const name = table?._sym ?? String(table);
-    return {
-      set: jest.fn((vals: any) => ({
-        where: jest.fn(async (clause: any) => {
-          if (name.includes('abuse_reports')) {
-            const row = state.byId.get(clause.id);
-            if (!row) return [];
-            Object.assign(row, vals);
-            return [row];
-          }
-          return [];
-        }),
-      })),
-    };
-  });
-
-  const db: any = {
-    select: selectFn,
-    insert: insertFn,
-    update: updateFn,
-    transaction: jest.fn(async (cb: (tx: any) => Promise<any>) => cb(db)),
-  };
-  return db;
+  async updateStatus(
+    id: bigint,
+    status: Exclude<ReportStatus, 'open'>,
+    resolvedBy: number,
+    resolvedAt: Date,
+  ): Promise<void> {
+    const row = this.byId.get(id);
+    if (!row) return;
+    row.status = status;
+    row.resolvedBy = resolvedBy;
+    row.resolvedAt = resolvedAt;
+  }
 }
 
-jest.mock('drizzle-orm', () => {
-  return {
-    and: (...parts: any[]) => {
-      const merged: any = { kind: 'and' };
-      for (const p of parts) if (p && typeof p === 'object') Object.assign(merged, p);
-      return merged;
-    },
-    eq: (col: any, val: any) => {
-      const n = col?._name ?? String(col);
-      // id column: pass raw value (users.id is int; abuse_reports.id is bigint)
-      if (n === 'id') return { id: val };
-      if (n === 'status') return { status: val };
-      if (n === 'role') return { role: val };
-      if (n === 'created_at') return { createdAt: val };
-      return { [n]: val };
-    },
-    lt: (_col: any, val: any) => ({ before: val }),
-    sql: Object.assign((..._a: any[]) => ({}), { raw: () => ({}) }),
-    desc: (x: any) => x,
-    asc: (x: any) => x,
-    or: (...parts: any[]) => Object.assign({}, ...parts),
-  };
-});
+function seed(): FakeAbuseReportsRepository {
+  const repo = new FakeAbuseReportsRepository();
+  repo.users.set(1, { id: 1, role: 'ADMIN' });
+  repo.users.set(2, { id: 2, role: 'USER' });
+  repo.users.set(3, { id: 3, role: 'USER' });
+  return repo;
+}
 
-jest.mock('../../database/schema', () => {
-  const mkCol = (name: string) => ({ _name: name });
-  return {
-    abuseReports: {
-      _sym: 'abuse_reports',
-      name: 'abuse_reports',
-      id: mkCol('id'),
-      reporterId: mkCol('reporter_id'),
-      targetType: mkCol('target_type'),
-      targetId: mkCol('target_id'),
-      reason: mkCol('reason'),
-      status: mkCol('status'),
-      resolvedBy: mkCol('resolved_by'),
-      resolvedAt: mkCol('resolved_at'),
-      createdAt: mkCol('created_at'),
-    },
-    auditLog: { _sym: 'audit_log', name: 'audit_log' },
-    users: {
-      _sym: 'users',
-      name: 'users',
-      id: mkCol('id'),
-      role: mkCol('role'),
-    },
-  };
-});
-
-function seed(): FakeState {
-  return {
-    reports: new Map(),
-    byId: new Map(),
-    nextId: 1n,
-    users: new Map([
-      [1, { id: 1, role: 'ADMIN' }],
-      [2, { id: 2, role: 'USER' }],
-      [3, { id: 3, role: 'USER' }],
-    ]),
-    auditCalls: [],
-  };
+function makeEvents(): jest.Mocked<IEventPublisher> {
+  return { emit: jest.fn(), on: jest.fn() } as unknown as jest.Mocked<IEventPublisher>;
 }
 
 describe('AbuseReportsService', () => {
   describe('create()', () => {
-    it('inserts a report with status=open + returns row', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+    it('inserts a report with status=open + emits report.create', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new AbuseReportsService(repo, events);
 
       const row = await svc.create({
         reporterId: 2,
@@ -261,13 +142,18 @@ describe('AbuseReportsService', () => {
 
       expect(row.status).toBe('open');
       expect(row.reporterId).toBe(2);
-      expect(state.byId.size).toBe(1);
+      expect(repo.byId.size).toBe(1);
+      expect(events.emit).toHaveBeenCalledWith('report.create', {
+        actorId: 2,
+        reportId: row.id,
+        targetType: 'message',
+        targetId: 100n,
+      });
     });
 
     it('rejects a duplicate in-flight report (partial UNIQUE -> CONFLICT)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       await svc.create({ reporterId: 2, targetType: 'user', targetId: 3n, reason: 'abuse' });
 
@@ -277,12 +163,11 @@ describe('AbuseReportsService', () => {
     });
 
     it('permits a re-report once the previous was resolved/dismissed', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       const first = await svc.create({ reporterId: 2, targetType: 'user', targetId: 3n, reason: 'r1' });
-      const row = state.byId.get(first.id)!;
+      const row = repo.byId.get(first.id)!;
       row.status = 'resolved';
 
       await expect(
@@ -291,9 +176,8 @@ describe('AbuseReportsService', () => {
     });
 
     it('rejects reason > 500 chars -> VALIDATION_FAILED', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       const longReason = 'x'.repeat(501);
       await expect(
@@ -302,9 +186,8 @@ describe('AbuseReportsService', () => {
     });
 
     it('rejects empty reason', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       await expect(
         svc.create({ reporterId: 2, targetType: 'user', targetId: 3n, reason: '' }),
@@ -312,9 +195,8 @@ describe('AbuseReportsService', () => {
     });
 
     it('rejects invalid targetType', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       await expect(
         svc.create({
@@ -325,37 +207,39 @@ describe('AbuseReportsService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('does not emit report.create on validation failure', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new AbuseReportsService(repo, events);
+
+      await expect(
+        svc.create({ reporterId: 2, targetType: 'user', targetId: 3n, reason: '' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(events.emit).not.toHaveBeenCalled();
+    });
   });
 
   describe('create() — error propagation', () => {
-    it('re-throws non-23505 DB errors (line 116)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      // Override insert.values to throw a non-unique error.
-      const originalInsert = db.insert;
-      db.insert = jest.fn(() => ({
-        values: jest.fn(() => ({
-          returning: jest.fn(async () => {
-            const err: any = new Error('pg busy');
-            throw err;
-          }),
-        })),
-      }));
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+    it('re-throws non-23505 DB errors', async () => {
+      const repo = seed();
+      repo.insertError = Object.assign(new Error('pg busy'), { code: '08006' });
+      const events = makeEvents();
+      const svc = new AbuseReportsService(repo, events);
+
       await expect(
         svc.create({ reporterId: 2, targetType: 'message', targetId: 1n, reason: 'r' }),
       ).rejects.toThrow('pg busy');
-      db.insert = originalInsert;
+      expect(events.emit).not.toHaveBeenCalled();
     });
   });
 
   describe('listOpen()', () => {
     it('admin sees all open reports, keyset-paginated DESC by (createdAt, id)', async () => {
-      const state = seed();
+      const repo = seed();
       for (let i = 0; i < 3; i++) {
-        const id = state.nextId++;
-        const createdAt = new Date(2026, 3, 20, 10, i);
-        const row: FakeReport = {
+        const id = BigInt(i + 1);
+        repo.byId.set(id, {
           id,
           reporterId: 2,
           targetType: 'user',
@@ -364,13 +248,10 @@ describe('AbuseReportsService', () => {
           status: 'open',
           resolvedBy: null,
           resolvedAt: null,
-          createdAt,
-        };
-        state.reports.set(openKey(2, 'user', BigInt(100 + i)), row);
-        state.byId.set(id, row);
+          createdAt: new Date(2026, 3, 20, 10, i),
+        });
       }
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       const rows = await svc.listOpen({ adminId: 1, limit: 10 });
       expect(rows.length).toBe(3);
@@ -378,169 +259,116 @@ describe('AbuseReportsService', () => {
     });
 
     it('non-admin cannot list', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       await expect(svc.listOpen({ adminId: 2, limit: 10 })).rejects.toThrow(ForbiddenException);
     });
 
     it('caps limit at 200', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const listSpy = jest.spyOn(repo, 'listOpen');
+      const svc = new AbuseReportsService(repo, makeEvents());
 
-      const rows = await svc.listOpen({ adminId: 1, limit: 10_000 });
-      expect(Array.isArray(rows)).toBe(true);
-    });
-
-    it('applies the keyset cursor when `before` is supplied (lines 125-134)', async () => {
-      // Use a hand-rolled db that just captures calls — the existing fake's
-      // `or()` helper collapses the two lt clauses in a way that makes it
-      // impossible to express the keyset comparator in-memory. We only need
-      // to assert the branch executed (line 126) and returned whatever the
-      // select chain yielded.
-      const state = seed();
-      const onSelect = jest.fn();
-      const chainForAbuse = (): any => ({
-        from: jest.fn(() => ({
-          where: jest.fn(() => ({
-            orderBy: jest.fn(() => ({
-              limit: jest.fn(async () => []),
-            })),
-          })),
-        })),
-      });
-      const db: any = {
-        select: jest.fn(() => {
-          onSelect();
-          // First call = assertAdmin() on users table
-          if (onSelect.mock.calls.length === 1) {
-            return {
-              from: jest.fn(() => ({
-                where: jest.fn(() => ({
-                  limit: jest.fn(async () => [{ id: 1, role: 'ADMIN' }]),
-                })),
-              })),
-            };
-          }
-          return chainForAbuse();
-        }),
-      };
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
-
-      const rows = await svc.listOpen({
-        adminId: 1,
-        limit: 10,
-        before: { createdAt: new Date(2026, 3, 20, 10, 3), id: 999n },
-      });
-      expect(Array.isArray(rows)).toBe(true);
-      expect(rows).toEqual([]);
-      // assertAdmin + abuseReports select -> 2 calls total
-      expect(onSelect).toHaveBeenCalledTimes(2);
-      // silence unused-var warning
-      void state;
+      await svc.listOpen({ adminId: 1, limit: 10_000 });
+      expect(listSpy).toHaveBeenCalledWith({ limit: 200, before: undefined });
     });
 
     it('floor-caps limit at 1 when caller supplies zero or negative', async () => {
-      const state = seed();
-      const id = state.nextId++;
-      state.byId.set(id, {
-        id, reporterId: 2, targetType: 'user', targetId: 1n,
-        reason: 'r', status: 'open', resolvedBy: null, resolvedAt: null,
-        createdAt: new Date(),
-      });
-      state.reports.set(openKey(2, 'user', 1n), state.byId.get(id)!);
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const listSpy = jest.spyOn(repo, 'listOpen');
+      const svc = new AbuseReportsService(repo, makeEvents());
 
-      const rows = await svc.listOpen({ adminId: 1, limit: 0 });
-      expect(Array.isArray(rows)).toBe(true);
+      await svc.listOpen({ adminId: 1, limit: 0 });
+      expect(listSpy).toHaveBeenCalledWith({ limit: 1, before: undefined });
+    });
+
+    it('forwards the keyset cursor when `before` is supplied', async () => {
+      const repo = seed();
+      const listSpy = jest.spyOn(repo, 'listOpen');
+      const svc = new AbuseReportsService(repo, makeEvents());
+
+      const before = { createdAt: new Date(2026, 3, 20, 10, 3), id: 999n };
+      await svc.listOpen({ adminId: 1, limit: 10, before });
+      expect(listSpy).toHaveBeenCalledWith({ limit: 10, before });
     });
   });
 
   describe('resolve()', () => {
-    it('admin sets status=resolved + writes audit', async () => {
-      const state = seed();
-      const id = state.nextId++;
-      const row: FakeReport = {
-        id, reporterId: 2, targetType: 'user', targetId: 3n,
-        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
-        createdAt: new Date(),
-      };
-      state.byId.set(id, row);
-      state.reports.set(openKey(2, 'user', 3n), row);
-
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new AbuseReportsService(db, audit as any);
-
-      await svc.resolve({ id, adminId: 1, note: 'handled offline' });
-
-      expect(state.byId.get(id)!.status).toBe('resolved');
-      expect(state.byId.get(id)!.resolvedBy).toBe(1);
-      expect(audit.append).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'report.resolve', actorId: 1 }),
-      );
-    });
-
-    it('non-admin cannot resolve', async () => {
-      const state = seed();
-      const id = state.nextId++;
-      state.byId.set(id, {
+    it('admin sets status=resolved + emits report.resolve', async () => {
+      const repo = seed();
+      const id = 42n;
+      repo.byId.set(id, {
         id, reporterId: 2, targetType: 'user', targetId: 3n,
         reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
         createdAt: new Date(),
       });
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const events = makeEvents();
+      const svc = new AbuseReportsService(repo, events);
+
+      await svc.resolve({ id, adminId: 1, note: 'handled offline' });
+
+      expect(repo.byId.get(id)!.status).toBe('resolved');
+      expect(repo.byId.get(id)!.resolvedBy).toBe(1);
+      expect(events.emit).toHaveBeenCalledWith('report.resolve', {
+        actorId: 1,
+        reportId: id,
+        note: 'handled offline',
+      });
+    });
+
+    it('non-admin cannot resolve', async () => {
+      const repo = seed();
+      const id = 7n;
+      repo.byId.set(id, {
+        id, reporterId: 2, targetType: 'user', targetId: 3n,
+        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
+        createdAt: new Date(),
+      });
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       await expect(svc.resolve({ id, adminId: 2 })).rejects.toThrow(ForbiddenException);
     });
 
     it('404 when report does not exist', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       await expect(svc.resolve({ id: 9999n, adminId: 1 })).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('dismiss()', () => {
-    it('admin sets status=dismissed + writes audit', async () => {
-      const state = seed();
-      const id = state.nextId++;
-      const row: FakeReport = {
-        id, reporterId: 2, targetType: 'user', targetId: 3n,
-        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
-        createdAt: new Date(),
-      };
-      state.byId.set(id, row);
-      state.reports.set(openKey(2, 'user', 3n), row);
-
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new AbuseReportsService(db, audit as any);
-
-      await svc.dismiss({ id, adminId: 1 });
-
-      expect(state.byId.get(id)!.status).toBe('dismissed');
-      expect(audit.append).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'report.dismiss', actorId: 1 }),
-      );
-    });
-
-    it('non-admin cannot dismiss', async () => {
-      const state = seed();
-      const id = state.nextId++;
-      state.byId.set(id, {
+    it('admin sets status=dismissed + emits report.dismiss', async () => {
+      const repo = seed();
+      const id = 8n;
+      repo.byId.set(id, {
         id, reporterId: 2, targetType: 'user', targetId: 3n,
         reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
         createdAt: new Date(),
       });
-      const db = makeDb(state);
-      const svc = new AbuseReportsService(db, { append: jest.fn() } as any);
+      const events = makeEvents();
+      const svc = new AbuseReportsService(repo, events);
+
+      await svc.dismiss({ id, adminId: 1 });
+
+      expect(repo.byId.get(id)!.status).toBe('dismissed');
+      expect(events.emit).toHaveBeenCalledWith('report.dismiss', {
+        actorId: 1,
+        reportId: id,
+        note: undefined,
+      });
+    });
+
+    it('non-admin cannot dismiss', async () => {
+      const repo = seed();
+      const id = 9n;
+      repo.byId.set(id, {
+        id, reporterId: 2, targetType: 'user', targetId: 3n,
+        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
+        createdAt: new Date(),
+      });
+      const svc = new AbuseReportsService(repo, makeEvents());
 
       await expect(svc.dismiss({ id, adminId: 2 })).rejects.toThrow(ForbiddenException);
     });

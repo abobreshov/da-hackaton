@@ -1,9 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
 import { TcpCmd } from '@app/contracts';
 import { BACKEND_SERVICE } from '../../common/microservice.module';
-import { withSys } from '../../common/rpc-transport';
+import { RpcProxyService } from '../../common/proxy/rpc-proxy.service';
 import { UsersService } from '../users/users.service';
 
 export interface CreateRoomInput {
@@ -27,6 +26,20 @@ export interface InviteInput {
   roomId: number;
 }
 
+/**
+ * Result of an invite call. Two flavours:
+ *  - Backend accepted the invite — `queued: false`, `invited` is the upstream
+ *    invitation row.
+ *  - Username-based invite where the user does not exist — `{ queued: true,
+ *    invited: null }`. Per ADR-005 (fail-silent / enumeration-safe), we do
+ *    NOT surface a 404 to the inviter; the response is indistinguishable from
+ *    a real queued invite, so an attacker cannot probe for usernames.
+ */
+export interface InviteResult {
+  queued: boolean;
+  invited: unknown | null;
+}
+
 export interface UpdateRoomPatch {
   name?: string;
   description?: string;
@@ -43,51 +56,58 @@ export interface UpdateRoomInput {
 export class RoomsService {
   constructor(
     @Inject(BACKEND_SERVICE) private readonly client: ClientProxy,
+    private readonly proxy: RpcProxyService,
     private readonly users: UsersService,
   ) {}
 
   catalog() {
-    return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.catalog }, withSys({})));
+    return this.proxy.forward(this.client, { cmd: TcpCmd.rooms.catalog }, {});
   }
 
   listMy(userId: number) {
-    return firstValueFrom(
-      this.client.send({ cmd: TcpCmd.rooms.listMy }, withSys({ userId })),
-    );
+    return this.proxy.forward(this.client, { cmd: TcpCmd.rooms.listMy }, { userId });
   }
 
   create(input: CreateRoomInput) {
-    return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.create }, withSys({ ...input })));
+    return this.proxy.forward(this.client, { cmd: TcpCmd.rooms.create }, { ...input });
   }
 
   join(input: JoinLeaveInput) {
-    return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.join }, withSys({ ...input })));
+    return this.proxy.forward(this.client, { cmd: TcpCmd.rooms.join }, { ...input });
   }
 
   leave(input: JoinLeaveInput) {
-    return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.leave }, withSys({ ...input })));
+    return this.proxy.forward(this.client, { cmd: TcpCmd.rooms.leave }, { ...input });
   }
 
   /**
    * Forward an invite to the backend's `rooms.invite` RPC. Accepts either
    * `{inviteeId}` (legacy id-based callers) or `{username}` (FE popover +
-   * manage-room modal) — in the latter case we resolve via
-   * `UsersService.resolveUserIdByUsername` first. Backend API stays
-   * `{inviterId, inviteeId, roomId}` — unchanged.
+   * manage-room modal).
+   *
+   * Username path is enumeration-safe (ADR-005): when the username does not
+   * resolve to a real user, we return `{ queued: true, invited: null }` —
+   * indistinguishable from a successful queue — instead of throwing 404. The
+   * inviter sees the same UX either way; an attacker cannot probe.
    */
-  async invite(input: InviteInput) {
-    const inviteeId =
-      input.inviteeId ??
-      (await this.users.resolveUserIdByUsername(input.username ?? ''));
-    return firstValueFrom(
-      this.client.send(
-        { cmd: TcpCmd.rooms.invite },
-        withSys({ inviterId: input.inviterId, inviteeId, roomId: input.roomId }),
-      ),
+  async invite(input: InviteInput): Promise<InviteResult> {
+    let inviteeId = input.inviteeId;
+    if (inviteeId === undefined) {
+      const resolved = await this.users.resolveUserIdByUsername(input.username ?? '');
+      if (!resolved.found) {
+        return { queued: true, invited: null };
+      }
+      inviteeId = resolved.userId as number;
+    }
+    const invited = await this.proxy.forward(
+      this.client,
+      { cmd: TcpCmd.rooms.invite },
+      { inviterId: input.inviterId, inviteeId, roomId: input.roomId },
     );
+    return { queued: false, invited };
   }
 
   update(input: UpdateRoomInput) {
-    return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.update }, withSys({ ...input })));
+    return this.proxy.forward(this.client, { cmd: TcpCmd.rooms.update }, { ...input });
   }
 }

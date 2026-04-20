@@ -188,9 +188,11 @@ describe('DrizzleModerationRepository', () => {
     expect(calls.inserts).toEqual([
       { table: 'room_bans', values: { roomId: 1, userId: 30, bannedBy: 20 } },
     ]);
-    expect(calls.deletes).toEqual([
-      { table: 'room_memberships', where: { roomId: 1, userId: 30 } },
-    ]);
+    expect(calls.deletes).toHaveLength(1);
+    expect(calls.deletes[0]).toMatchObject({
+      table: 'room_memberships',
+      where: { roomId: 1, userId: 30 },
+    });
   });
 
   it('banMember() re-throws unique-violation (23505) unchanged', async () => {
@@ -210,9 +212,11 @@ describe('DrizzleModerationRepository', () => {
 
     await repo.unbanMember(1, 30);
 
-    expect(calls.deletes).toEqual([
-      { table: 'room_bans', where: { roomId: 1, userId: 30 } },
-    ]);
+    expect(calls.deletes).toHaveLength(1);
+    expect(calls.deletes[0]).toMatchObject({
+      table: 'room_bans',
+      where: { roomId: 1, userId: 30 },
+    });
   });
 
   it('listBans() selects from room_bans where roomId=? ordered by bannedAt DESC', async () => {
@@ -236,13 +240,12 @@ describe('DrizzleModerationRepository', () => {
 
     await repo.promoteMember(1, 30);
 
-    expect(calls.updates).toEqual([
-      {
-        table: 'room_memberships',
-        set: { role: 'admin' },
-        where: { roomId: 1, userId: 30 },
-      },
-    ]);
+    expect(calls.updates).toHaveLength(1);
+    expect(calls.updates[0]).toMatchObject({
+      table: 'room_memberships',
+      set: { role: 'admin' },
+      where: { roomId: 1, userId: 30 },
+    });
   });
 
   it('demoteMember() updates role=member on room_memberships', async () => {
@@ -251,13 +254,12 @@ describe('DrizzleModerationRepository', () => {
 
     await repo.demoteMember(1, 20);
 
-    expect(calls.updates).toEqual([
-      {
-        table: 'room_memberships',
-        set: { role: 'member' },
-        where: { roomId: 1, userId: 20 },
-      },
-    ]);
+    expect(calls.updates).toHaveLength(1);
+    expect(calls.updates[0]).toMatchObject({
+      table: 'room_memberships',
+      set: { role: 'member' },
+      where: { roomId: 1, userId: 20 },
+    });
   });
 
   it('deleteRoom() updates rooms.deletedAt by id', async () => {

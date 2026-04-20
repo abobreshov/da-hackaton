@@ -171,6 +171,8 @@ services:
       REFRESH_COOKIE_TTL: 172800
       ALLOWED_ORIGINS: http://localhost:3007
       SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      # Opt-out of Secure cookie ONLY because dev stack uses plain HTTP. Never set in staging/prod.
+      COOKIE_SECURE_DISABLED: 'true'
       TLS_ENABLED: 'true'
       TLS_CA_PATH: /certs/ca.crt
       TLS_CERT_PATH: /certs/bff.crt

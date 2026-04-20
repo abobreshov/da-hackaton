@@ -22,6 +22,21 @@ const REDACT_PATHS = [
 ];
 
 async function bootstrap() {
+  // trustProxy allowlist — NEVER set to bare `true` in prod. A global-true
+  // lets any caller spoof X-Forwarded-For and bypass the per-IP rate-limit
+  // fallback in ThrottleGuard. In prod we trust only the explicit upstream
+  // proxies listed in TRUSTED_PROXIES (comma-separated IPs / CIDR blocks),
+  // or fall back to loopback-only when none were provided. In dev + test
+  // we don't trust XFF at all — the real req.ip is what we want.
+  const trustProxy: boolean | string[] =
+    env.NODE_ENV === 'production'
+      ? env.TRUSTED_PROXIES
+        ? env.TRUSTED_PROXIES.split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : ['loopback']
+      : false;
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
@@ -30,7 +45,7 @@ async function bootstrap() {
         redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
       },
       bodyLimit: MAX_BODY_BYTES,
-      trustProxy: env.NODE_ENV === 'production',
+      trustProxy,
       disableRequestLogging: false,
     }),
   );

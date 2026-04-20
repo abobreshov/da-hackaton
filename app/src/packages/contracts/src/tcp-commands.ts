@@ -20,6 +20,7 @@ export const TcpCmd = {
   users: {
     list: 'users.list',
     findById: 'users.findById',
+    findByUsername: 'users.findByUsername',
     ban: 'users.ban',
     unban: 'users.unban',
     listBans: 'users.listBans',

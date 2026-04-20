@@ -18,6 +18,14 @@ const schema = z
     REFRESH_COOKIE_TTL: z.coerce.number().default(172800),
     ALLOWED_ORIGINS: z.string().default('http://localhost:3007'),
     SYSTEM_KEY: z.string().min(32),
+    // Comma-separated list of upstream proxy IPs / CIDR blocks Fastify will
+    // trust for X-Forwarded-For. Empty / unset → loopback-only in production.
+    // Never set to a bare wildcard: any value of `true` lets clients spoof
+    // source IPs and bypass the per-IP rate-limit fallback.
+    TRUSTED_PROXIES: z.string().optional(),
+    // Dev-only opt-out for Secure cookie flag (plain HTTP dev stack).
+    // MUST remain false (default) in staging / production.
+    COOKIE_SECURE_DISABLED: z.coerce.boolean().default(false),
     TLS_ENABLED: z
       .string()
       .transform((v) => v === 'true')

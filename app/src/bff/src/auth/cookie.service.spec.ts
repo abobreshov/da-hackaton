@@ -8,12 +8,17 @@
  *
  * env is stubbed so tests don't require a real .env at collection time.
  */
+// Env mock is mutated per-test to exercise COOKIE_SECURE_DISABLED branches.
+const mockEnv: Record<string, unknown> = {
+  NODE_ENV: 'test',
+  SESSION_COOKIE_SECRET: 's'.repeat(32),
+  SESSION_COOKIE_TTL: 900,
+  REFRESH_COOKIE_TTL: 604_800,
+  COOKIE_SECURE_DISABLED: false,
+};
 jest.mock('../config/environment', () => ({
-  env: {
-    NODE_ENV: 'test',
-    SESSION_COOKIE_SECRET: 's'.repeat(32),
-    SESSION_COOKIE_TTL: 900,
-    REFRESH_COOKIE_TTL: 604_800,
+  get env() {
+    return mockEnv;
   },
 }));
 
@@ -88,7 +93,9 @@ describe('CookieService', () => {
         expect.objectContaining({
           httpOnly: true,
           sameSite: 'strict',
-          secure: false, // NODE_ENV=test → not production
+          // Secure now defaults ON regardless of NODE_ENV — explicit
+          // COOKIE_SECURE_DISABLED=true is the only way to turn it off.
+          secure: true,
           signed: true,
           path: '/',
           maxAge: 900,
@@ -230,6 +237,54 @@ describe('CookieService', () => {
       expect(reply.clearCookie).toHaveBeenCalledTimes(2);
       expect(reply.clearCookie).toHaveBeenNthCalledWith(1, 'session', { path: '/' });
       expect(reply.clearCookie).toHaveBeenNthCalledWith(2, 'refresh', { path: '/' });
+    });
+  });
+
+  // COOKIE_SECURE is evaluated at module load (top-level const), so exercising
+  // the COOKIE_SECURE_DISABLED branches requires reloading cookie.service.ts
+  // in isolation with a mutated env mock.
+  describe('COOKIE_SECURE_DISABLED gating', () => {
+    it('default env (COOKIE_SECURE_DISABLED=false) → Secure=true even when NODE_ENV=test', () => {
+      jest.isolateModules(() => {
+        mockEnv.COOKIE_SECURE_DISABLED = false;
+        mockEnv.NODE_ENV = 'test';
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const mod = require('./cookie.service');
+        const localSvc = new mod.CookieService(new JwtService({}));
+        const reply = makeReply();
+        localSvc.setSessionCookie(reply as any, {
+          sub: 'u:1',
+          email: 'x@y.z',
+          name: 'x',
+          type: 'user',
+          scopes: [],
+        });
+        const opts = reply.setCookie.mock.calls[0][2];
+        expect(opts.secure).toBe(true);
+      });
+    });
+
+    it('COOKIE_SECURE_DISABLED=true → Secure=false (dev-only plain-HTTP opt-out)', () => {
+      jest.isolateModules(() => {
+        mockEnv.COOKIE_SECURE_DISABLED = true;
+        mockEnv.NODE_ENV = 'development';
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const mod = require('./cookie.service');
+        const localSvc = new mod.CookieService(new JwtService({}));
+        const reply = makeReply();
+        localSvc.setSessionCookie(reply as any, {
+          sub: 'u:1',
+          email: 'x@y.z',
+          name: 'x',
+          type: 'user',
+          scopes: [],
+        });
+        const opts = reply.setCookie.mock.calls[0][2];
+        expect(opts.secure).toBe(false);
+      });
+      // Restore default for subsequent tests.
+      mockEnv.COOKIE_SECURE_DISABLED = false;
+      mockEnv.NODE_ENV = 'test';
     });
   });
 });
