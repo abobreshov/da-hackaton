@@ -59,6 +59,10 @@ export class UnreadSubscriber implements OnApplicationBootstrap {
       ) {
         return;
       }
+      // Self-DM doesn't exist in the domain (MessagesService rejects it),
+      // but guard the subscriber too — a malformed event must never echo
+      // back to the author as a pseudo-peer.
+      if (event.peerUserId === event.authorId) return;
       // From the recipient's perspective, the other side of the DM is the
       // author — include it in the scope so FE can key its DM unread map
       // by peer userId without a dm_channels lookup.
@@ -70,6 +74,12 @@ export class UnreadSubscriber implements OnApplicationBootstrap {
     }
   }
 
+  /** Per-message room fan-out concurrency. Keeps SQL + Redis pressure
+   *  bounded for large rooms (N members × one countSince + one PUBLISH
+   *  each). 16 matches the default pg pool fan-out sweet spot on a hackathon
+   *  demo box; larger deployments should revisit with a batched SQL. */
+  private static readonly FANOUT_CONCURRENCY = 16;
+
   private async handleRoom(roomId: number, authorId: number): Promise<void> {
     let members: Array<{ userId: number }>;
     try {
@@ -80,11 +90,27 @@ export class UnreadSubscriber implements OnApplicationBootstrap {
       return;
     }
 
-    await Promise.all(
-      members
-        .filter((m) => m.userId !== authorId)
-        .map((m) => this.publishUnreadChanged(m.userId, { roomId })),
+    const recipients = members
+      .filter((m) => m.userId !== authorId)
+      .map((m) => m.userId);
+    await this.runBatched(recipients, UnreadSubscriber.FANOUT_CONCURRENCY, (userId) =>
+      this.publishUnreadChanged(userId, { roomId }),
     );
+  }
+
+  /** Run `task` over `items` in batches of `concurrency`. Errors from each
+   *  task are already swallowed inside `publishUnreadChanged`; this helper
+   *  only bounds the in-flight count so a 10k-member room doesn't open
+   *  10k simultaneous pg connections + PUBLISHes. */
+  private async runBatched<T>(
+    items: T[],
+    concurrency: number,
+    task: (item: T) => Promise<void>,
+  ): Promise<void> {
+    for (let i = 0; i < items.length; i += concurrency) {
+      const slice = items.slice(i, i + concurrency);
+      await Promise.all(slice.map(task));
+    }
   }
 
   private async publishUnreadChanged(

@@ -15,6 +15,11 @@ export type MarkReadScope = { kind: 'room'; roomId: number } | { kind: 'dm'; pee
  * will push a fresh count via WS on the next new message anyway.
  */
 export function useAutoMarkRead(scope: MarkReadScope, lastReadId: string | null | undefined): void {
+  // Flatten the discriminated scope once so the effect's dep array is a
+  // plain tuple of primitives — avoids a conditional expression inside the
+  // deps (which react-hooks/exhaustive-deps can't statically verify).
+  const kind = scope.kind;
+  const scopeId = scope.kind === 'room' ? scope.roomId : scope.peerUserId;
   useEffect(() => {
     if (!lastReadId) return;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
@@ -23,16 +28,16 @@ export function useAutoMarkRead(scope: MarkReadScope, lastReadId: string | null 
       return;
     }
 
-    if (scope.kind === 'room') {
-      unreadStore.getState().clearRoom(scope.roomId);
-      void markRoomRead(scope.roomId, lastReadId).catch(() => {
+    if (kind === 'room') {
+      unreadStore.getState().clearRoom(scopeId);
+      void markRoomRead(scopeId, lastReadId).catch(() => {
         /* fail-open — server is source of truth via WS */
       });
     } else {
-      unreadStore.getState().clearDm(scope.peerUserId);
-      void markDmRead(scope.peerUserId, lastReadId).catch(() => {
+      unreadStore.getState().clearDm(scopeId);
+      void markDmRead(scopeId, lastReadId).catch(() => {
         /* fail-open */
       });
     }
-  }, [scope.kind, scope.kind === 'room' ? scope.roomId : scope.peerUserId, lastReadId]);
+  }, [kind, scopeId, lastReadId]);
 }

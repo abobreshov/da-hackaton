@@ -269,6 +269,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       const attachments = Array.isArray(result?.attachments) ? result.attachments : [];
 
       const target = this.broadcastTarget(message);
+      if (!target) {
+        // Malformed upstream — already logged. Still ack the sender so the
+        // FE clears its composer, but skip fan-out.
+        return { ok: true, message, attachments };
+      }
       if (target.kind === 'dm') {
         // Ensure sender is joined to the DM socket.io room so future
         // broadcasts land on them (first-message-ever path).
@@ -302,7 +307,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         { editorId: userId, id: body.id, body: body.body },
       );
       const target = this.broadcastTarget(message);
-      this.server.to(target.room).emit(WsEvent.server.messageEdited, { message });
+      if (target) {
+        this.server.to(target.room).emit(WsEvent.server.messageEdited, { message });
+      }
       return { ok: true, message };
     } catch (e: any) {
       return { ok: false, error: this.wireError(e) };
@@ -326,7 +333,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         dmId?: number;
       }>(this.backend, { cmd: TcpCmd.messages.delete }, { actorId: userId, id: body.id });
       const target = this.broadcastTarget(result);
-      this.server.to(target.room).emit(WsEvent.server.messageDeleted, result);
+      if (target) {
+        this.server.to(target.room).emit(WsEvent.server.messageDeleted, result);
+      }
       return { ok: true };
     } catch (e: any) {
       return { ok: false, error: this.wireError(e) };
@@ -400,16 +409,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
    */
   private broadcastTarget(
     message: { roomId?: number | string; dmId?: number | string } | null | undefined,
-  ): { kind: 'room' | 'dm'; room: string } {
+  ): { kind: 'room' | 'dm'; room: string } | null {
     if (message?.dmId !== undefined && message.dmId !== null) {
       return { kind: 'dm', room: RedisChannel.dm(message.dmId) };
     }
     if (message?.roomId !== undefined && message.roomId !== null) {
       return { kind: 'room', room: RedisChannel.room(message.roomId) };
     }
-    // Defensive: if the upstream response omitted both, fall back to a
-    // private channel nobody is subscribed to (no broadcast leak).
-    return { kind: 'room', room: RedisChannel.room('orphan') };
+    // Upstream returned a malformed row — log + skip fan-out rather than
+    // emit into a deterministic `room:orphan` channel. Previous behaviour
+    // risked leaking to any client that had joined that named room.
+    this.logger.warn(
+      `broadcastTarget: message missing both roomId and dmId — dropping emit`,
+    );
+    return null;
   }
 
   /**

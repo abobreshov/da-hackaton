@@ -1,8 +1,26 @@
-import { Controller, Inject, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Controller, Inject, NotFoundException } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TcpCmd } from '@app/contracts';
 import { AttachmentsService } from './attachments.service';
 import { ATTACHMENTS_REPOSITORY, AttachmentsRepositoryPort } from './attachments.types';
+
+function assertScopeXor(scope: unknown): asserts scope is { roomId: number } | { dmId: number } {
+  // TCP payloads are unvalidated; an attacker holding `_sys` could send
+  // `{ roomId: 1, dmId: 2 }` and the service's `'roomId' in scope` branch
+  // would silently persist the row with both columns set. Enforce XOR here
+  // so the DB CHECK never has to carry the load alone.
+  if (!scope || typeof scope !== 'object') {
+    throw new BadRequestException('attachments.upload: scope is required');
+  }
+  const s = scope as { roomId?: unknown; dmId?: unknown };
+  const hasRoom = typeof s.roomId === 'number' && Number.isFinite(s.roomId);
+  const hasDm = typeof s.dmId === 'number' && Number.isFinite(s.dmId);
+  if (hasRoom === hasDm) {
+    throw new BadRequestException(
+      'attachments.upload: exactly one of scope.roomId or scope.dmId must be set',
+    );
+  }
+}
 
 /**
  * TCP-facing controller for BFF -> backend attachments RPC (EPIC-08).
@@ -48,6 +66,7 @@ export class AttachmentsTcpController {
 
   @MessagePattern({ cmd: TcpCmd.attachments.upload })
   async upload(@Payload() data: UploadPayload) {
+    assertScopeXor(data.scope);
     const attachment = await this.service.upload({
       uploaderId: data.uploaderId,
       scope: data.scope,
