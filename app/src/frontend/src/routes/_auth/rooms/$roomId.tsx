@@ -91,7 +91,7 @@ export function RoomRoute() {
   const currentUserId = session?.type === 'user' ? (session.id ?? null) : null;
 
   const roomIdForMessages = Number.isFinite(roomId) ? roomId : undefined;
-  const { messages, sendMessage, loadOlder, hasMore } = useMessages({
+  const { messages, sendMessage, loadOlder, hasMore, attachmentsOf } = useMessages({
     roomId: roomIdForMessages,
   });
 
@@ -264,12 +264,14 @@ export function RoomRoute() {
               currentUserId={currentUserId}
               hasMore={hasMore}
               onLoadOlder={loadOlder}
+              attachmentsOf={attachmentsOf}
             />
           </div>
           <div className="border-0 px-4 pb-4 pt-2">
             <MessageComposer
-              onSubmit={async (body) => {
-                await sendMessage({ body });
+              attachmentTarget={Number.isFinite(roomId) ? { kind: 'room', roomId } : undefined}
+              onSubmit={async (body, attachmentIds) => {
+                await sendMessage({ body, attachmentIds });
               }}
             />
           </div>

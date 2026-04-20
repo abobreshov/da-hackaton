@@ -87,4 +87,13 @@ export class MessagesService {
   getById(input: GetMessageByIdInput) {
     return this.proxy.forward(this.client, { cmd: TcpCmd.messages.getById }, { ...input });
   }
+
+  /**
+   * Resolve (or lazily upsert) the DM channel row for `(userA, userB)`.
+   * Used by the attachment-upload path so the FE can address a DM by the
+   * peer userId it already has — without shipping dmId on the wire.
+   */
+  resolveDm(userA: number, userB: number): Promise<{ dmId: number }> {
+    return this.proxy.forward(this.client, { cmd: TcpCmd.messages.resolveDm }, { userA, userB });
+  }
 }

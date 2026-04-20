@@ -59,6 +59,12 @@ interface GetByIdPayload {
   _sys?: string;
 }
 
+interface ResolveDmPayload {
+  userA: number;
+  userB: number;
+  _sys?: string;
+}
+
 @Controller()
 export class MessagesTcpController {
   constructor(private readonly service: MessagesService) {}
@@ -117,5 +123,10 @@ export class MessagesTcpController {
   @MessagePattern({ cmd: TcpCmd.messages.getById })
   getById(@Payload() data: GetByIdPayload) {
     return this.service.getById(data.id);
+  }
+
+  @MessagePattern({ cmd: TcpCmd.messages.resolveDm })
+  resolveDm(@Payload() data: ResolveDmPayload) {
+    return this.service.resolveOrCreateDmChannelId(data.userA, data.userB);
   }
 }

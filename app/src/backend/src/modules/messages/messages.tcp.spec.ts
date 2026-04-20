@@ -27,6 +27,7 @@ function makeService(): jest.Mocked<MessagesService> {
     since: jest.fn(),
     getById: jest.fn(),
     resolveDmChannelId: jest.fn(),
+    resolveOrCreateDmChannelId: jest.fn(),
   } as unknown as jest.Mocked<MessagesService>;
 }
 

@@ -281,6 +281,20 @@ export class MessagesService {
     return ch?.id ?? null;
   }
 
+  /**
+   * Resolve or lazily create a DM channel for a user pair. Used by the
+   * attachment-upload path so the first interaction in a DM can already
+   * bind the orphan attachment row to a real `dm_id`. Rejects self-DMs
+   * with BadRequestException so the guard lives in one place.
+   */
+  async resolveOrCreateDmChannelId(userA: number, userB: number): Promise<{ dmId: number }> {
+    if (userA === userB) {
+      throw new BadRequestException('cannot resolve a DM channel with yourself');
+    }
+    const ch = await this.repo.upsertDmChannel(userA, userB);
+    return { dmId: ch.id };
+  }
+
   // ——— helpers ———
 
   private assertBody(body: string): void {

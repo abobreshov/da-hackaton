@@ -13,6 +13,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SessionGuard } from '../../auth/session.guard';
 import { CurrentUserId } from '../../common/decorators/current-user.decorator';
 import { AttachmentsService } from './attachments.service';
+import { MessagesService } from '../messages/messages.service';
 
 /**
  * Multipart field shape: one or more `file` parts + optional `comment` text
@@ -30,7 +31,10 @@ import { AttachmentsService } from './attachments.service';
 @Controller()
 @UseGuards(SessionGuard)
 export class AttachmentsController {
-  constructor(private readonly service: AttachmentsService) {}
+  constructor(
+    private readonly service: AttachmentsService,
+    private readonly messages: MessagesService,
+  ) {}
 
   @Post('rooms/:id/attachments')
   async uploadToRoom(
@@ -49,63 +53,17 @@ export class AttachmentsController {
     @Req() req: FastifyRequest,
     @CurrentUserId() userId: number,
   ) {
-    // NOTE: dmId resolution happens at backend side in a future iteration —
-    // for MVP the FE sends via `/rooms/:id/attachments` after the DM channel
-    // is established OR we accept a dmId directly. Expose as `dms/:userId`
-    // and let backend resolve via TcpCmd.messages.resolveDm (falls back to
-    // upsert at message.create time). Interim: bubble a 400 if no dmId
-    // on parts.
+    if (otherUserId === userId) {
+      throw new BadRequestException('cannot attach to a DM with yourself');
+    }
     const parts = (req as any).parts?.() as AsyncIterable<any> | undefined;
     if (!parts) throw new BadRequestException('multipart body required');
-    // For now the FE is expected to pass `dmId` field. Long-term, BFF
-    // resolves via backend TCP — track as TODO.
-    let dmId: number | null = null;
-    const fileBufs: Array<{
-      filename: string;
-      mime: string;
-      content: Buffer;
-      comment: string | null;
-    }> = [];
-    for await (const part of parts) {
-      if (part.type === 'file') {
-        const bufs: Buffer[] = [];
-        for await (const chunk of part.file) bufs.push(chunk as Buffer);
-        fileBufs.push({
-          filename: String(part.filename ?? 'file'),
-          mime: String(part.mimetype ?? 'application/octet-stream'),
-          content: Buffer.concat(bufs),
-          comment: null,
-        });
-      } else if (part.type === 'field') {
-        if (part.fieldname === 'dmId') dmId = Number.parseInt(String(part.value ?? ''), 10);
-        if (part.fieldname === 'comment' && fileBufs.length > 0) {
-          fileBufs[fileBufs.length - 1]!.comment = String(part.value ?? '').slice(0, 500);
-        }
-      }
-    }
-    if (!dmId || Number.isNaN(dmId)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_FAILED',
-        message: 'missing dmId field (other user: ' + otherUserId + ')',
-      });
-    }
 
-    const uploaded: unknown[] = [];
-    for (const f of fileBufs) {
-      uploaded.push(
-        (
-          await this.service.upload({
-            uploaderId: userId,
-            scope: { dmId },
-            filename: f.filename,
-            mime: f.mime,
-            content: f.content,
-            comment: f.comment,
-          })
-        ).attachment,
-      );
-    }
-    return { attachments: uploaded };
+    // Resolve (or lazily upsert) the dm_channels row so the orphan row
+    // the backend writes for this upload has a real `dm_id` to scope against.
+    const { dmId } = await this.messages.resolveDm(userId, otherUserId);
+
+    return this.collectAndUpload(parts, userId, { dmId });
   }
 
   @Get('attachments/:id/download')

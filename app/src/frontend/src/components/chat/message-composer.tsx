@@ -2,6 +2,9 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import type { Message } from '@/lib/messages';
+import { AttachmentUploader, type AttachmentUploaderProps } from './attachment-uploader';
+import { uploadAttachments, type AttachmentDto, type UploadTarget } from '@/lib/attachments';
+import { ApiError } from '@/lib/api-client';
 
 /**
  * Chat composer — textarea + send button.
@@ -21,11 +24,14 @@ import type { Message } from '@/lib/messages';
 export const MAX_BODY_LENGTH = 3000;
 
 export interface MessageComposerProps {
-  onSubmit: (body: string) => Promise<void> | void;
+  onSubmit: (body: string, attachmentIds: string[]) => Promise<void> | void;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
   frozen?: boolean;
   placeholder?: string;
+  /** Uploader target scope. When omitted, the paper-clip button is hidden
+   *  (e.g. tests that mount the composer without a live conversation). */
+  attachmentTarget?: UploadTarget;
   className?: string;
 }
 
@@ -35,25 +41,70 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   onCancelReply,
   frozen = false,
   placeholder = 'Write a message...',
+  attachmentTarget,
   className,
 }) => {
   const [body, setBody] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
+  const [attachments, setAttachments] = React.useState<AttachmentDto[]>([]);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+  // Track live object URLs for pasted images so we can revoke on cleanup
+  // (AttachmentUploader owns its own thumbnails for the file-picker path).
+  const [pastePending, setPastePending] = React.useState(false);
 
   const tooLong = body.length > MAX_BODY_LENGTH;
   const trimmed = body.trim();
-  const canSubmit = !submitting && !frozen && !tooLong && trimmed.length > 0;
+  // Allow send when attachments are present even if body is empty.
+  const canSubmit =
+    !submitting && !frozen && !tooLong && (trimmed.length > 0 || attachments.length > 0);
 
   const handleSubmit = React.useCallback(async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onSubmit(body);
+      await onSubmit(
+        body,
+        attachments.map((a) => a.id),
+      );
       setBody('');
+      setAttachments([]);
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, onSubmit, body]);
+  }, [canSubmit, onSubmit, body, attachments]);
+
+  const handlePaste = React.useCallback(
+    async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!attachmentTarget || frozen) return;
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const files: File[] = [];
+      for (const it of items) {
+        if (it.kind === 'file') {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length === 0) return;
+      e.preventDefault();
+      setPastePending(true);
+      try {
+        const res = await uploadAttachments({ target: attachmentTarget, files });
+        setAttachments((prev) => [...prev, ...res.attachments]);
+      } catch (err) {
+        if (err instanceof ApiError) setUploadError(err.message);
+      } finally {
+        setPastePending(false);
+      }
+    },
+    [attachmentTarget, frozen],
+  );
+
+  const handleUploadError = React.useCallback<NonNullable<AttachmentUploaderProps['onError']>>(
+    (err) => {
+      setUploadError(err.message);
+    },
+    [],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -116,6 +167,9 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => {
+            void handlePaste(e);
+          }}
           disabled={frozen || submitting}
           aria-invalid={tooLong ? 'true' : 'false'}
           aria-describedby={tooLong ? 'message-composer-error' : undefined}
@@ -138,6 +192,35 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
           className="font-body text-body-sm text-error"
         >
           Messages are limited to {MAX_BODY_LENGTH} characters.
+        </p>
+      )}
+
+      {attachmentTarget && (
+        <AttachmentUploader
+          target={attachmentTarget}
+          value={attachments}
+          onChange={setAttachments}
+          onError={handleUploadError}
+          disabled={frozen || submitting}
+        />
+      )}
+
+      {pastePending && (
+        <p
+          data-testid="message-composer-paste-pending"
+          className="font-body text-body-sm text-on-surface-variant"
+        >
+          Uploading pasted image…
+        </p>
+      )}
+
+      {uploadError && (
+        <p
+          data-testid="message-composer-upload-error"
+          className="font-body text-body-sm text-error"
+          role="alert"
+        >
+          {uploadError}
         </p>
       )}
     </form>

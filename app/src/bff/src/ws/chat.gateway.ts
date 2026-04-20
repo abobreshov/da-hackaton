@@ -234,8 +234,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async onMessageSend(
     @ConnectedSocket() client: Socket,
     @MessageBody()
-    body: { roomId?: number; dmUserId?: number; body: string; replyToId?: number },
-  ): Promise<{ ok: boolean; message?: any; error?: unknown }> {
+    body: {
+      roomId?: number;
+      dmUserId?: number;
+      body: string;
+      replyToId?: number;
+      attachmentIds?: string[];
+    },
+  ): Promise<{ ok: boolean; message?: any; attachments?: unknown[]; error?: unknown }> {
     const userId = client.data?.userId as number | undefined;
     if (!userId) return { ok: false, error: 'unauthenticated' };
 
@@ -247,12 +253,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       if (body.roomId !== undefined) payload.roomId = body.roomId;
       if (body.dmUserId !== undefined) payload.dmUserId = body.dmUserId;
       if (body.replyToId !== undefined) payload.replyToId = body.replyToId;
+      if (body.attachmentIds && body.attachmentIds.length > 0) {
+        payload.attachmentIds = body.attachmentIds;
+      }
 
-      const message = await this.proxy.forward<any>(
+      const result = await this.proxy.forward<any>(
         this.backend,
         { cmd: TcpCmd.messages.create },
         payload,
       );
+
+      // Backend returns `{message, attachments}` since EPIC-08. Tolerate
+      // both shapes so legacy callers / mocks still work.
+      const message = result?.message ?? result;
+      const attachments = Array.isArray(result?.attachments) ? result.attachments : [];
 
       const target = this.broadcastTarget(message);
       if (target.kind === 'dm') {
@@ -264,8 +278,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
           /* noop — non-fatal */
         }
       }
-      this.server.to(target.room).emit(WsEvent.server.messageNew, { message });
-      return { ok: true, message };
+      this.server.to(target.room).emit(WsEvent.server.messageNew, { message, attachments });
+      return { ok: true, message, attachments };
     } catch (e: any) {
       return { ok: false, error: this.wireError(e) };
     }

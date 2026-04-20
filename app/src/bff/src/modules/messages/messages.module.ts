@@ -7,5 +7,6 @@ import { AuthModule } from '../../auth/auth.module';
   imports: [AuthModule],
   controllers: [MessagesController],
   providers: [MessagesService],
+  exports: [MessagesService],
 })
 export class MessagesModule {}

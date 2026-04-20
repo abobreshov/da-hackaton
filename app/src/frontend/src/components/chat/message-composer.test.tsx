@@ -52,7 +52,7 @@ describe('<MessageComposer />', () => {
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
     });
-    expect(onSubmit).toHaveBeenCalledWith('hello');
+    expect(onSubmit).toHaveBeenCalledWith('hello', []);
     expect(input.value).toBe('');
   });
 

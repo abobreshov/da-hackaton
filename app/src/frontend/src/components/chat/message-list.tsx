@@ -2,6 +2,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/lib/messages';
 import { MessageBubble } from './message-bubble';
+import type { AttachmentDto } from '@/lib/attachments';
 
 /**
  * Scrollable chat viewport.
@@ -25,6 +26,9 @@ export interface MessageListProps {
   currentUserId: number | null | undefined;
   hasMore: boolean;
   onLoadOlder: () => void | Promise<void>;
+  /** Optional attachment resolver. Omit for legacy call sites that don't
+   *  track attachments yet; bubbles then render body-only. */
+  attachmentsOf?: (id: bigint) => AttachmentDto[];
   className?: string;
 }
 
@@ -38,6 +42,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   currentUserId,
   hasMore,
   onLoadOlder,
+  attachmentsOf,
   className,
 }) => {
   const scrollerRef = React.useRef<HTMLDivElement | null>(null);
@@ -89,7 +94,6 @@ export const MessageList: React.FC<MessageListProps> = ({
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     wasAtBottomRef.current = true;
-     
   }, []);
 
   // IntersectionObserver on the top sentinel — fires `onLoadOlder` when the
@@ -144,7 +148,16 @@ export const MessageList: React.FC<MessageListProps> = ({
           currentUserId !== null && currentUserId !== undefined
             ? m.author.id === currentUserId
             : false;
-        return <MessageBubble key={m.id.toString()} message={m} isMe={isMe} parent={parent} />;
+        const attachments = attachmentsOf ? attachmentsOf(m.id) : undefined;
+        return (
+          <MessageBubble
+            key={m.id.toString()}
+            message={m}
+            isMe={isMe}
+            parent={parent}
+            attachments={attachments}
+          />
+        );
       })}
     </div>
   );

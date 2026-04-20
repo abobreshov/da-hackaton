@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/lib/messages';
+import type { AttachmentDto } from '@/lib/attachments';
+import { AttachmentView } from './attachment-view';
 
 /**
  * Kinetic Playground chat bubble.
@@ -20,6 +22,8 @@ export interface MessageBubbleProps {
   isMe: boolean;
   /** The message this one replies to, hydrated by the parent list. */
   parent?: Message | null;
+  /** Attachments bound to this message (from useMessages.attachmentsOf). */
+  attachments?: AttachmentDto[];
   className?: string;
 }
 
@@ -34,7 +38,7 @@ function formatTimestamp(iso: string): string {
 }
 
 export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  ({ message, isMe, parent, className }, ref) => {
+  ({ message, isMe, parent, attachments, className }, ref) => {
     const tombstoned = message.deletedAt !== null;
     const replyingToDeleted = message.replyTo !== null && (!parent || parent.deletedAt !== null);
     const timestamp = formatTimestamp(message.createdAt);
@@ -96,6 +100,9 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
             <p className="whitespace-pre-wrap break-words font-body text-body-md">
               {tombstoned ? 'This message was deleted' : message.body}
             </p>
+            {!tombstoned && attachments && attachments.length > 0 && (
+              <AttachmentView attachments={attachments} isMe={isMe} />
+            )}
             <div className="mt-1 flex items-center gap-2 text-label-sm opacity-70">
               <time dateTime={message.createdAt}>{timestamp}</time>
               {message.editedAt && !tombstoned && (

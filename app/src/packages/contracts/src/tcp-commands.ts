@@ -33,6 +33,8 @@ export const TcpCmd = {
     list: 'messages.list',
     since: 'messages.since',
     getById: 'messages.getById',
+    /** Resolve (or lazily create) the dm_channels row for a user pair. */
+    resolveDm: 'messages.resolveDm',
   },
   rooms: {
     create: 'rooms.create',

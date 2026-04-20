@@ -10,6 +10,7 @@ import {
   type Message,
   type MessageCursor,
 } from '@/lib/messages';
+import type { AttachmentDto } from '@/lib/attachments';
 
 /**
  * Normalised message store — one `Map<bigint, Message>` keyed by id + a
@@ -25,6 +26,10 @@ export interface MessagesStore {
   order: bigint[];
   oldestCursor: MessageCursor | null;
   hasMore: boolean;
+  /** Message id → attachment list. Populated off the `message.send` ack +
+   *  `message.new` broadcast; history fetches do NOT carry attachments yet
+   *  (tracked as a follow-up), so older messages render body-only. */
+  attachmentsById: Map<bigint, AttachmentDto[]>;
 
   /** Replace the full snapshot (initial fetch). */
   replaceAll: (messages: Message[], nextCursor: MessageCursor | null) => void;
@@ -32,6 +37,8 @@ export interface MessagesStore {
   prependOlder: (messages: Message[], nextCursor: MessageCursor | null) => void;
   /** Insert/update a single message by id. No-op if duplicate. */
   upsert: (message: Message) => void;
+  /** Attach a list of attachments to an existing message. */
+  setAttachments: (id: bigint, attachments: AttachmentDto[]) => void;
   /** Patch body + editedAt on an existing message, if present. */
   applyEdit: (id: bigint, body: string, editedAt: string) => void;
   /** Mark a message as deleted; keep the row for tombstone rendering. */
@@ -70,6 +77,7 @@ const createMessagesStore = () =>
     order: [],
     oldestCursor: null,
     hasMore: false,
+    attachmentsById: new Map<bigint, AttachmentDto[]>(),
     replaceAll: (messages, nextCursor) =>
       set(() => {
         const byId = new Map<bigint, Message>();
@@ -121,6 +129,13 @@ const createMessagesStore = () =>
         const order = insertSorted(s.order, byId, message.id);
         return { ...s, byId, order };
       }),
+    setAttachments: (id, attachments) =>
+      set((s) => {
+        if (attachments.length === 0 && !s.attachmentsById.has(id)) return s;
+        const next = new Map(s.attachmentsById);
+        next.set(id, attachments);
+        return { ...s, attachmentsById: next };
+      }),
     applyEdit: (id, body, editedAt) =>
       set((s) => {
         const prev = s.byId.get(id);
@@ -137,7 +152,14 @@ const createMessagesStore = () =>
         byId.set(id, { ...prev, deletedAt });
         return { ...s, byId };
       }),
-    reset: () => set({ byId: new Map(), order: [], oldestCursor: null, hasMore: false }),
+    reset: () =>
+      set({
+        byId: new Map(),
+        order: [],
+        oldestCursor: null,
+        hasMore: false,
+        attachmentsById: new Map(),
+      }),
   }));
 
 // Store factory cache. Each conversation gets its own zustand store so
@@ -169,6 +191,7 @@ export function resetMessagesStores(): void {
 
 interface WireMessageNewPayload {
   message?: Record<string, unknown>;
+  attachments?: AttachmentDto[];
   roomId?: number;
   dmId?: number;
   [k: string]: unknown;
@@ -201,6 +224,7 @@ export interface UseMessagesArgs {
 export interface SendMessageArgs {
   body: string;
   replyToId?: bigint;
+  attachmentIds?: string[];
 }
 
 export interface UseMessagesReturn {
@@ -212,6 +236,8 @@ export interface UseMessagesReturn {
   loading: boolean;
   error: Error | null;
   hasMore: boolean;
+  /** Look up attachments for a message id (if any were captured). */
+  attachmentsOf: (id: bigint) => AttachmentDto[];
 }
 
 /**
@@ -227,9 +253,20 @@ export interface UseMessagesReturn {
  */
 export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
   const store = getMessagesStore(args);
-  const { byId, order } = store(useShallow((s) => ({ byId: s.byId, order: s.order })));
+  const { byId, order, attachmentsById } = store(
+    useShallow((s) => ({
+      byId: s.byId,
+      order: s.order,
+      attachmentsById: s.attachmentsById,
+    })),
+  );
   const hasMore = store((s) => s.hasMore);
   const messages = useMemo(() => order.map((id) => byId.get(id)!).filter(Boolean), [byId, order]);
+
+  const attachmentsOf = useCallback(
+    (id: bigint): AttachmentDto[] => attachmentsById.get(id) ?? [],
+    [attachmentsById],
+  );
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
@@ -291,6 +328,10 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
       try {
         const msg = normaliseMessage(wire as never);
         store.getState().upsert(msg);
+        const atts = (p.attachments ?? (wire as any).attachments) as AttachmentDto[] | undefined;
+        if (Array.isArray(atts) && atts.length > 0) {
+          store.getState().setAttachments(msg.id, atts);
+        }
       } catch {
         // Malformed payload — drop.
       }
@@ -338,10 +379,17 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
         if (args.roomId !== undefined) payload.roomId = args.roomId;
         if (args.dmUserId !== undefined) payload.dmUserId = args.dmUserId;
         if (send.replyToId !== undefined) payload.replyToId = send.replyToId.toString();
+        if (send.attachmentIds && send.attachmentIds.length > 0) {
+          payload.attachmentIds = send.attachmentIds;
+        }
         socket.emit(
           WsEvent.client.messageSend,
           payload,
-          (ack: { message?: unknown; error?: { code: string; message: string } }) => {
+          (ack: {
+            message?: unknown;
+            attachments?: AttachmentDto[];
+            error?: { code: string; message: string };
+          }) => {
             if (!ack) {
               reject(new Error('No ack from gateway'));
               return;
@@ -354,6 +402,9 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
               try {
                 const msg = normaliseMessage(ack.message as never);
                 store.getState().upsert(msg);
+                if (Array.isArray(ack.attachments) && ack.attachments.length > 0) {
+                  store.getState().setAttachments(msg.id, ack.attachments);
+                }
                 resolve(msg);
               } catch (e) {
                 reject(e instanceof Error ? e : new Error(String(e)));
@@ -437,5 +488,6 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
     loading,
     error,
     hasMore,
+    attachmentsOf,
   };
 }

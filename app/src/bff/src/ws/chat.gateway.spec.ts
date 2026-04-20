@@ -348,8 +348,11 @@ describe('ChatGateway', () => {
         { authorId: 7, roomId: 5, body: 'hi' },
       );
       expect(server.__to).toHaveBeenCalledWith('room:5');
-      expect(server.__emit).toHaveBeenCalledWith('message.new', { message: created });
-      expect(ack).toEqual({ ok: true, message: created });
+      expect(server.__emit).toHaveBeenCalledWith('message.new', {
+        message: created,
+        attachments: [],
+      });
+      expect(ack).toEqual({ ok: true, message: created, attachments: [] });
     });
 
     it('dm mode — emits messageNew to dm:<id> (uses created.dmId for fan-out target)', async () => {
@@ -371,8 +374,45 @@ describe('ChatGateway', () => {
       // Ensure we joined the DM socket.io room first (first-message-ever path)
       expect(client.join).toHaveBeenCalledWith('dm:99');
       expect(server.__to).toHaveBeenCalledWith('dm:99');
-      expect(server.__emit).toHaveBeenCalledWith('message.new', { message: created });
-      expect(ack).toEqual({ ok: true, message: created });
+      expect(server.__emit).toHaveBeenCalledWith('message.new', {
+        message: created,
+        attachments: [],
+      });
+      expect(ack).toEqual({ ok: true, message: created, attachments: [] });
+    });
+
+    it('unwraps `{message, attachments}` shape and forwards attachmentIds', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      const created = {
+        message: { id: 303, roomId: 5, authorId: 7, body: 'hi' },
+        attachments: [
+          { id: 'uuid-a', filename: 'a.png', mime: 'image/png', sizeBytes: 100, isImage: true },
+        ],
+      };
+      proxy.forward.mockResolvedValueOnce(created as any);
+
+      const ack = await gateway.onMessageSend(client as any, {
+        roomId: 5,
+        body: 'hi',
+        attachmentIds: ['uuid-a'],
+      });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.create' },
+        { authorId: 7, roomId: 5, body: 'hi', attachmentIds: ['uuid-a'] },
+      );
+      expect(server.__to).toHaveBeenCalledWith('room:5');
+      expect(server.__emit).toHaveBeenCalledWith('message.new', {
+        message: created.message,
+        attachments: created.attachments,
+      });
+      expect(ack).toEqual({
+        ok: true,
+        message: created.message,
+        attachments: created.attachments,
+      });
     });
 
     it('forwards replyToId when present', async () => {

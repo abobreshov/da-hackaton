@@ -40,7 +40,7 @@ export function DmRoute() {
   const [friend, setFriend] = useState<FriendSummary | null>(null);
 
   const dmUserId = Number.isFinite(userId) ? userId : undefined;
-  const { messages, sendMessage, loadOlder, hasMore, error } = useMessages({
+  const { messages, sendMessage, loadOlder, hasMore, error, attachmentsOf } = useMessages({
     dmUserId,
   });
 
@@ -142,14 +142,20 @@ export function DmRoute() {
             currentUserId={currentUserId}
             hasMore={hasMore}
             onLoadOlder={loadOlder}
+            attachmentsOf={attachmentsOf}
           />
         </div>
         <div className="px-4 pb-4 pt-2">
           <MessageComposer
             frozen={frozen}
-            onSubmit={async (body) => {
+            attachmentTarget={
+              Number.isFinite(userId) && userId !== currentUserId
+                ? { kind: 'dm', peerUserId: userId }
+                : undefined
+            }
+            onSubmit={async (body, attachmentIds) => {
               try {
-                await sendMessage({ body });
+                await sendMessage({ body, attachmentIds });
               } catch (e) {
                 const code = (e as Error & { code?: string }).code;
                 if (code === ErrorCode.DM_FROZEN) {
