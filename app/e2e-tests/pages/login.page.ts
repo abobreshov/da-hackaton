@@ -2,8 +2,6 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { BasePage } from './base.page';
 
-export type LoginType = 'admin' | 'user';
-
 export class LoginPage extends BasePage {
   protected readonly path = '/login';
 
@@ -12,6 +10,7 @@ export class LoginPage extends BasePage {
   readonly passwordInput: Locator;
   readonly totpInput: Locator;
   readonly submitButton: Locator;
+  readonly verifyButton: Locator;
   readonly errorAlert: Locator;
 
   constructor(page: Page) {
@@ -19,8 +18,9 @@ export class LoginPage extends BasePage {
     this.heading = page.getByRole('heading', { name: /sign in/i });
     this.emailInput = page.getByLabel(/email/i);
     this.passwordInput = page.getByLabel(/^password$/i);
-    this.totpInput = page.getByLabel(/totp/i);
-    this.submitButton = page.getByRole('button', { name: /sign in/i });
+    this.totpInput = page.getByLabel(/verification code/i);
+    this.submitButton = page.getByRole('button', { name: /^continue$/i });
+    this.verifyButton = page.getByRole('button', { name: /^verify$/i });
     this.errorAlert = page.locator('div.bg-red-50');
   }
 
@@ -28,24 +28,31 @@ export class LoginPage extends BasePage {
     await expect(this.heading).toBeVisible();
   }
 
-  async selectType(type: LoginType): Promise<void> {
-    await this.page.getByRole('button', { name: new RegExp(`^${type}$`, 'i') }).click();
-  }
-
-  async fillCredentials(email: string, password: string, totp?: string): Promise<void> {
+  async fillCredentials(email: string, password: string): Promise<void> {
     await this.emailInput.fill(email);
     await this.passwordInput.fill(password);
-    if (totp) await this.totpInput.fill(totp);
+  }
+
+  async fillTotp(code: string): Promise<void> {
+    await this.totpInput.fill(code);
   }
 
   async submit(): Promise<void> {
     await this.submitButton.click();
   }
 
-  async login(type: LoginType, email: string, password: string, totp?: string): Promise<void> {
-    await this.selectType(type);
-    await this.fillCredentials(email, password, totp);
+  async submitTotp(): Promise<void> {
+    await this.verifyButton.click();
+  }
+
+  async login(email: string, password: string, totp?: string): Promise<void> {
+    await this.fillCredentials(email, password);
     await this.submit();
+    if (totp) {
+      await this.totpInput.waitFor({ state: 'visible' });
+      await this.fillTotp(totp);
+      await this.submitTotp();
+    }
   }
 
   async expectError(message?: string | RegExp): Promise<void> {
