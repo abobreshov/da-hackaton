@@ -100,6 +100,7 @@ Both scripts live in `app/`:
 ```bash
 cd app
 yarn install
+./scripts/gen-certs.sh   # first run only — mints internal-ca + per-service mTLS certs
 
 ./dev.sh                 # full Docker stack (all 4 services + infra, hot-reload)
 ./dev.sh --build         # rebuild images
@@ -108,6 +109,31 @@ yarn install
 ./dev-local.sh           # postgres + redis in Docker (ports 5433/6380), services on host
 ./dev-local.sh --skip-install --skip-seed
 ```
+
+Hot-reload is always on (`nest start --watch` for NestJS, `vite` for React). Editing files under `src/` rebuilds + restarts the affected service automatically — no stack restart needed for code changes.
+
+## Debugging a stuck stack — `./dev-doctor.sh`
+
+`EADDRINUSE` on boot usually means an orphan `docker-proxy` from a prior `./dev.sh` or a crashed `dev-local.sh` watcher. Run the doctor:
+
+```bash
+cd app
+./dev-doctor.sh                    # read-only report — port owners + hackathone procs
+./dev-doctor.sh --clean-services   # SIGTERM our node/nest/vite/esbuild/tsc, keep postgres+redis
+./dev-doctor.sh --clean            # + `docker compose -f docker-compose.infra.yml down`
+./dev-doctor.sh --force            # SIGKILL if SIGTERM failed
+```
+
+Safe next to unrelated Node/Docker workloads — only PIDs whose cwd is inside `app/` are touched. If a port belongs to an orphan `docker-proxy` (root-owned), the report prints the exact `sudo kill <pids>` to run.
+
+## Inter-service security
+
+BFF ↔ auth-service ↔ backend calls are protected by two independent layers:
+
+1. **Shared-secret envelope.** Every `client.send(pattern, payload)` is wrapped with `withSys({...})` which injects `_sys: env.SYSTEM_KEY`. `SystemKeyRpcGuard` (APP_GUARD on auth-service + backend) validates it and throws `RpcException 401` otherwise. HTTP contexts bypass via `ctx.getType() !== 'rpc'`.
+2. **Mutual TLS.** When `TLS_ENABLED=true`, NestJS `Transport.TCP` accepts `tlsOptions` with `requestCert: true, rejectUnauthorized: true`. Certs are minted by `app/scripts/gen-certs.sh` into `app/secrets/internal-ca/` (gitignored, 1 year).
+
+`TCP_BIND` defaults to `127.0.0.1` on the host; docker-compose overrides to `0.0.0.0` because containers speak over the internal network. See `app/CLAUDE.md` for the ValidationPipe caveat (`forbidNonWhitelisted` must stay off on auth-service/backend or `_sys` trips validation).
 
 After startup:
 

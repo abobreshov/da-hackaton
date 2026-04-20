@@ -97,6 +97,26 @@ Each service reads its config from a gitignored `.env` at the service root. Crea
 
 `SYSTEM_KEY` must be identical across auth-service, backend, and bff — it authenticates inter-service RPC calls alongside mTLS. `dev-local.sh` also sets `TLS_ENABLED=true`, `TCP_BIND=127.0.0.1`, and the `TLS_*_PATH` env vars automatically from `./secrets/internal-ca/`.
 
+### Running on alternate ports (port-in-use fallback)
+
+If `./dev-doctor.sh` reports an orphan `docker-proxy` on `3006` / `3007` that you can't `sudo kill`, bring the stack up on spare ports instead:
+
+```bash
+# app/src/bff/.env
+PORT=13006
+ALLOWED_ORIGINS=http://localhost:13007
+
+# app/src/auth-service/.env
+ALLOWED_ORIGINS=http://localhost:13007
+
+# app/src/frontend/.env
+VITE_PORT=13007
+VITE_BFF_URL=http://localhost:13006
+BFF_URL=http://localhost:13006
+```
+
+`vite.config.ts` honors `VITE_PORT` / `BFF_URL` / `VITE_BFF_URL`. Run Playwright with `BASE_URL=http://localhost:13007 yarn workspace @app/tests test`. Revert the `.env` values once the canonical ports are free.
+
 Generate dev secrets quickly:
 
 ```bash
