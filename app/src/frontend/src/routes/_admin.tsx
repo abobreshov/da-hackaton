@@ -102,10 +102,7 @@ function AdminLayout() {
                   </span>
                 ) : null}
                 {session ? (
-                  <AvatarDisc
-                    name={session.name ?? undefined}
-                    email={session.email ?? undefined}
-                  />
+                  <AvatarDisc name={session.name ?? undefined} email={session.email ?? undefined} />
                 ) : null}
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   Log out

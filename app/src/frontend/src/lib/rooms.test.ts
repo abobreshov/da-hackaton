@@ -37,10 +37,10 @@ describe('lib/rooms', () => {
 
   it('listCatalog() surfaces ApiError on non-2xx responses', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'down' }),
-        { status: 502, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'down' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     await expect(listCatalog()).rejects.toMatchObject({
       status: 502,

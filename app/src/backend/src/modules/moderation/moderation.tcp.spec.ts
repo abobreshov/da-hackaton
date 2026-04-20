@@ -92,9 +92,9 @@ describe('ModerationTcpController', () => {
 
   it('rooms.members.promote propagates ForbiddenException (filter maps to Rpc(403))', async () => {
     service.promote.mockRejectedValue(new ForbiddenException('owner required'));
-    await expect(
-      controller.promote({ roomId: 1, actorId: 2, userId: 3 }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.promote({ roomId: 1, actorId: 2, userId: 3 })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -127,9 +127,9 @@ describe('ModerationTcpController', () => {
 
   it('rooms.members.ban propagates NotFoundException (filter maps to Rpc(404))', async () => {
     service.banMember.mockRejectedValue(new NotFoundException('not a member'));
-    await expect(
-      controller.banMember({ roomId: 5, actorId: 6, userId: 7 }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.banMember({ roomId: 5, actorId: 6, userId: 7 })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('rooms.bans.unban maps actorId -> adminId on service.unbanMember', async () => {

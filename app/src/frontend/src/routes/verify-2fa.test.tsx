@@ -85,10 +85,10 @@ describe('<Verify2FAPage />', () => {
 
   it('shows "Invalid code" on TOTP_INVALID error', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'TOTP_INVALID', message: 'bad code' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'TOTP_INVALID', message: 'bad code' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
 
     render(<Verify2FAPage pendingCredentials={creds} />);

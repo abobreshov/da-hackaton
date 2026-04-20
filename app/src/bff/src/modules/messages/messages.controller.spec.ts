@@ -50,10 +50,7 @@ describe('MessagesController (BFF)', () => {
       const created = { id: '101', roomId: 5, body: 'hi' };
       svc.create.mockResolvedValue(created);
 
-      const res = await controller.create(
-        { roomId: 5, body: 'hi' } as any,
-        sessionReq(7),
-      );
+      const res = await controller.create({ roomId: 5, body: 'hi' } as any, sessionReq(7));
 
       expect(svc.create).toHaveBeenCalledWith({
         authorId: 7,
@@ -85,9 +82,9 @@ describe('MessagesController (BFF)', () => {
     it('propagates FORBIDDEN from upstream', async () => {
       const rpc = new RpcException({ status: 403, message: 'not a member' });
       svc.create.mockRejectedValue(rpc);
-      await expect(
-        controller.create({ roomId: 5, body: 'x' } as any, sessionReq(7)),
-      ).rejects.toBe(rpc);
+      await expect(controller.create({ roomId: 5, body: 'x' } as any, sessionReq(7))).rejects.toBe(
+        rpc,
+      );
     });
   });
 
@@ -96,14 +93,11 @@ describe('MessagesController (BFF)', () => {
       const rows = [{ id: '50' }];
       svc.list.mockResolvedValue(rows);
 
-      const res = await controller.listRoom(
-        5,
-        {
-          before: '2026-04-20T10:00:00Z',
-          beforeId: '60',
-          limit: 25,
-        } as any,
-      );
+      const res = await controller.listRoom(5, {
+        before: '2026-04-20T10:00:00Z',
+        beforeId: '60',
+        limit: 25,
+      } as any);
 
       expect(svc.list).toHaveBeenCalledWith({
         roomId: 5,
@@ -151,9 +145,7 @@ describe('MessagesController (BFF)', () => {
     });
 
     it('rejects self-DM with BAD_REQUEST (userId param === session userId)', () => {
-      expect(() => controller.listDm(3, {} as any, sessionReq(3))).toThrow(
-        BadRequestException,
-      );
+      expect(() => controller.listDm(3, {} as any, sessionReq(3))).toThrow(BadRequestException);
       expect(svc.list).not.toHaveBeenCalled();
     });
   });
@@ -183,11 +175,7 @@ describe('MessagesController (BFF)', () => {
     it('delegates to service.edit with actorId + body', async () => {
       svc.edit.mockResolvedValue({ id: '101', body: 'fix' });
 
-      const res = await controller.edit(
-        '101',
-        { body: 'fix' } as any,
-        sessionReq(7),
-      );
+      const res = await controller.edit('101', { body: 'fix' } as any, sessionReq(7));
 
       expect(svc.edit).toHaveBeenCalledWith({
         messageId: '101',
@@ -200,9 +188,7 @@ describe('MessagesController (BFF)', () => {
     it('propagates FORBIDDEN (not the author)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not the author' });
       svc.edit.mockRejectedValue(rpc);
-      await expect(
-        controller.edit('101', { body: 'x' } as any, sessionReq(9)),
-      ).rejects.toBe(rpc);
+      await expect(controller.edit('101', { body: 'x' } as any, sessionReq(9))).rejects.toBe(rpc);
     });
   });
 
@@ -221,9 +207,7 @@ describe('MessagesController (BFF)', () => {
     it('propagates NOT_FOUND from upstream', async () => {
       const rpc = new RpcException({ status: 404, message: 'no such message' });
       svc.delete.mockRejectedValue(rpc);
-      await expect(
-        controller.delete('999', sessionReq(7)),
-      ).rejects.toBe(rpc);
+      await expect(controller.delete('999', sessionReq(7))).rejects.toBe(rpc);
     });
   });
 });

@@ -170,7 +170,7 @@ export class RoomsService {
       }
       throw err;
     }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     void inviterMembership;
   }
 

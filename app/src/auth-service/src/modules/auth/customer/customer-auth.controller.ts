@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Headers,
-  HttpCode,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Headers, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
 import { CustomerAuthService } from './customer-auth.service';
 import { CustomerLoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -65,10 +56,7 @@ export class CustomerAuthController {
   @Post('password-change')
   @HttpCode(204)
   @UseGuards(CustomerJwtGuard)
-  async passwordChange(
-    @Body() dto: PasswordChangeDto,
-    @Req() req: { user?: AccessTokenClaims },
-  ) {
+  async passwordChange(@Body() dto: PasswordChangeDto, @Req() req: { user?: AccessTokenClaims }) {
     if (!req.user?.sub) throw new Error('missing user context');
     const userId = parseSub(req.user.sub).numericId;
     await this.service.passwordChange({ ...dto, userId });

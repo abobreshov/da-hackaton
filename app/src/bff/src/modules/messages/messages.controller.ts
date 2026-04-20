@@ -63,10 +63,7 @@ export class MessagesController {
   }
 
   @Get('rooms/:id/messages')
-  listRoom(
-    @Param('id', ParseIntPipe) id: number,
-    @Query() query: ListMessagesQueryDto,
-  ) {
+  listRoom(@Param('id', ParseIntPipe) id: number, @Query() query: ListMessagesQueryDto) {
     return this.service.list({
       roomId: id,
       beforeCreatedAt: query.before,
@@ -104,11 +101,7 @@ export class MessagesController {
   }
 
   @Patch('messages/:id')
-  edit(
-    @Param('id') id: string,
-    @Body() dto: EditMessageDto,
-    @Req() req: SessionRequest,
-  ) {
+  edit(@Param('id') id: string, @Body() dto: EditMessageDto, @Req() req: SessionRequest) {
     return this.service.edit({
       messageId: id,
       actorId: getUserId(req),

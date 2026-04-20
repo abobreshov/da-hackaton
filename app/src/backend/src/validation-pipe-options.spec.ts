@@ -1,7 +1,4 @@
-import {
-  validationPipeOptions,
-  assertNoForbidNonWhitelisted,
-} from './validation-pipe-options';
+import { validationPipeOptions, assertNoForbidNonWhitelisted } from './validation-pipe-options';
 
 describe('backend validationPipeOptions (startup invariant)', () => {
   it('exports whitelist+transform with no forbidNonWhitelisted', () => {
@@ -14,9 +11,7 @@ describe('backend validationPipeOptions (startup invariant)', () => {
   });
 
   it('assertNoForbidNonWhitelisted is a no-op when the key is absent', () => {
-    expect(() =>
-      assertNoForbidNonWhitelisted({ whitelist: true, transform: true }),
-    ).not.toThrow();
+    expect(() => assertNoForbidNonWhitelisted({ whitelist: true, transform: true })).not.toThrow();
   });
 
   it('assertNoForbidNonWhitelisted throws when forbidNonWhitelisted is present (any value)', () => {

@@ -47,9 +47,7 @@ describe('RedisModule.onApplicationShutdown', () => {
 
     expect(redis.quit).toHaveBeenCalledTimes(1);
     expect(redis.disconnect).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('Redis quit failed'),
-    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Redis quit failed'));
     warn.mockRestore();
   });
 

@@ -130,10 +130,10 @@ describe('<AdminAuditLogRoute /> (/admin/audit-log)', () => {
 
   it('renders a WireError and retry button on fetch failure', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'Backend down' }),
-        { status: 502, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'Backend down' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     const AuditLog = getComponent();
     render(<AuditLog />);
@@ -158,9 +158,7 @@ describe('<AdminAuditLogRoute /> (/admin/audit-log)', () => {
       expect(screen.getByRole('button', { name: /load older/i })).toBeInTheDocument(),
     );
 
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse([mkEntry({ id: '500', action: 'older-act' })]),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse([mkEntry({ id: '500', action: 'older-act' })]));
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /load older/i }));
     });
@@ -171,8 +169,6 @@ describe('<AdminAuditLogRoute /> (/admin/audit-log)', () => {
     const pageUrl = String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0]);
     const tail = firstPage[firstPage.length - 1];
     expect(pageUrl).toContain(`beforeId=${tail.id}`);
-    expect(pageUrl).toContain(
-      `beforeCreatedAt=${encodeURIComponent(tail.createdAt)}`,
-    );
+    expect(pageUrl).toContain(`beforeCreatedAt=${encodeURIComponent(tail.createdAt)}`);
   });
 });

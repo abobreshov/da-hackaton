@@ -17,8 +17,7 @@
 // any `import` below resolves — hence the top-of-file assignments.
 process.env.DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/appdb';
-process.env.SYSTEM_KEY =
-  process.env.SYSTEM_KEY ?? 'test-system-key-min-32-characters-ok';
+process.env.SYSTEM_KEY = process.env.SYSTEM_KEY ?? 'test-system-key-min-32-characters-ok';
 
 import { WorkersModule } from './workers.module';
 import { QueueProducer } from './queue.producer';

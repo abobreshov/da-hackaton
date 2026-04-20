@@ -10,10 +10,7 @@
  */
 
 import { Logger } from '@nestjs/common';
-import {
-  EventPublisher,
-  LoggingEventPublisher,
-} from './event-publisher';
+import { EventPublisher, LoggingEventPublisher } from './event-publisher';
 import { EVENT_PUBLISHER, IEventPublisher } from './event-publisher.interface';
 
 describe('LoggingEventPublisher', () => {
@@ -131,9 +128,7 @@ describe('LoggingEventPublisher', () => {
   });
 
   it('a misbehaving sync handler does not break the emitter or other handlers', () => {
-    const warn = jest
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     try {
       const pub = new LoggingEventPublisher();
       const good = jest.fn();
@@ -151,9 +146,7 @@ describe('LoggingEventPublisher', () => {
   });
 
   it('a rejected async handler is logged and does not propagate', async () => {
-    const warn = jest
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     try {
       const pub = new LoggingEventPublisher();
       pub.on('x', async () => {

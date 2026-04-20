@@ -20,13 +20,7 @@ import { Pool } from 'pg';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import * as schema from '../src/database/schema';
-import {
-  users,
-  rooms,
-  roomMemberships,
-  friendships,
-  messages,
-} from '../src/database/schema';
+import { users, rooms, roomMemberships, friendships, messages } from '../src/database/schema';
 
 // Sentinel prefix to detect prior seed runs so message inserts stay idempotent.
 const SEED_TAG = '[seed:demo]';
@@ -69,10 +63,17 @@ const ROOM_MESSAGES: Record<RoomName, DemoMessage[]> = {
     { author: 'user', body: 'Diplomatic answer. Approved.' },
   ],
   demo: [
-    { author: 'admin', body: `${SEED_TAG} #demo — walkthroughs for reviewers. Only admin here by default.` },
+    {
+      author: 'admin',
+      body: `${SEED_TAG} #demo — walkthroughs for reviewers. Only admin here by default.`,
+    },
     { author: 'admin', body: 'Messages support reply, edit, and soft-delete.' },
     { author: 'admin', body: 'This message is a reply to the one above.', reply: 1 },
-    { author: 'admin', body: 'This message has been edited to show the "edited" label.', edited: true },
+    {
+      author: 'admin',
+      body: 'This message has been edited to show the "edited" label.',
+      edited: true,
+    },
     { author: 'admin', body: 'Attachments land here once EPIC-09 ships.' },
     { author: 'admin', body: 'Reactions arrive with EPIC-08.' },
     { author: 'admin', body: 'Keyset pagination: scroll up for older messages.' },
@@ -253,7 +254,7 @@ async function main(): Promise<void> {
 
   const result = await seedDemo(connectionString);
 
-  // eslint-disable-next-line no-console
+   
   console.log(
     `[seed:demo] rooms=+${result.roomsCreated} memberships=+${result.membershipsCreated} ` +
       `friendships=+${result.friendshipsCreated} messages=+${result.messagesCreated}` +
@@ -264,7 +265,7 @@ async function main(): Promise<void> {
 // Invoke only when executed directly (CLI), not when imported by tests.
 if (require.main === module) {
   main().catch((err) => {
-    // eslint-disable-next-line no-console
+     
     console.error('[seed:demo] failed:', err);
     process.exit(1);
   });

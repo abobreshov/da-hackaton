@@ -19,7 +19,8 @@ function makeCache(): CacheService {
       return res === 'OK';
     },
     exists: async (k: string) => (await client.exists(k)) > 0,
-    del: (...keys: string[]) => (keys.length ? client.del(...keys).then(() => undefined) : Promise.resolve()),
+    del: (...keys: string[]) =>
+      keys.length ? client.del(...keys).then(() => undefined) : Promise.resolve(),
     sadd: (k: string, ...m: string[]) => client.sadd(k, ...m).then(() => undefined),
     srem: (k: string, ...m: string[]) => client.srem(k, ...m).then(() => undefined),
     smembers: (k: string) => client.smembers(k),
@@ -106,21 +107,17 @@ describe('TotpService', () => {
     it('accepts a valid code on first presentation', async () => {
       const secret = svc.generateSecret();
       const code = authenticator.generate(secret);
-      await expect(
-        svc.verifyWithReplayGuard(42, code, secret, { scope: 'u' }),
-      ).resolves.toBe(true);
+      await expect(svc.verifyWithReplayGuard(42, code, secret, { scope: 'u' })).resolves.toBe(true);
     });
 
     it('REPLAY: same code within 90s is rejected', async () => {
       const secret = svc.generateSecret();
       const code = authenticator.generate(secret);
-      await expect(
-        svc.verifyWithReplayGuard(42, code, secret, { scope: 'u' }),
-      ).resolves.toBe(true);
+      await expect(svc.verifyWithReplayGuard(42, code, secret, { scope: 'u' })).resolves.toBe(true);
       // Immediate replay.
-      await expect(
-        svc.verifyWithReplayGuard(42, code, secret, { scope: 'u' }),
-      ).resolves.toBe(false);
+      await expect(svc.verifyWithReplayGuard(42, code, secret, { scope: 'u' })).resolves.toBe(
+        false,
+      );
     });
 
     it('different valid codes (same user) each get their own Redis slot', async () => {
@@ -144,7 +141,8 @@ describe('TotpService', () => {
         // different code re-uses no state.
         const usedKey = `used-totp:u:42:${firstCode}`;
         const secondKey = `used-totp:u:42:${secondCode}`;
-        const client = (cache as unknown as { client: { exists: (k: string) => Promise<number> } }).client;
+        const client = (cache as unknown as { client: { exists: (k: string) => Promise<number> } })
+          .client;
         expect(await client.exists(usedKey)).toBe(1);
         expect(await client.exists(secondKey)).toBe(0);
       } finally {
@@ -165,9 +163,9 @@ describe('TotpService', () => {
     it('rejects an invalid code without consulting Redis', async () => {
       const secret = svc.generateSecret();
       const setNx = jest.spyOn(cache, 'setNx');
-      await expect(
-        svc.verifyWithReplayGuard(1, '000000', secret, { scope: 'u' }),
-      ).resolves.toBe(false);
+      await expect(svc.verifyWithReplayGuard(1, '000000', secret, { scope: 'u' })).resolves.toBe(
+        false,
+      );
       expect(setNx).not.toHaveBeenCalled();
     });
 
@@ -175,9 +173,7 @@ describe('TotpService', () => {
       jest.spyOn(cache, 'setNx').mockRejectedValue(new Error('ECONNREFUSED'));
       const secret = svc.generateSecret();
       const code = authenticator.generate(secret);
-      await expect(
-        svc.verifyWithReplayGuard(9, code, secret, { scope: 'a' }),
-      ).resolves.toBe(false);
+      await expect(svc.verifyWithReplayGuard(9, code, secret, { scope: 'a' })).resolves.toBe(false);
     });
 
     it('Redis outage with failOpen=true → accept (opt-in only)', async () => {
@@ -193,9 +189,9 @@ describe('TotpService', () => {
       const noCacheSvc = new TotpService();
       const secret = noCacheSvc.generateSecret();
       const code = authenticator.generate(secret);
-      await expect(
-        noCacheSvc.verifyWithReplayGuard(1, code, secret, { scope: 'a' }),
-      ).resolves.toBe(false);
+      await expect(noCacheSvc.verifyWithReplayGuard(1, code, secret, { scope: 'a' })).resolves.toBe(
+        false,
+      );
     });
   });
 });

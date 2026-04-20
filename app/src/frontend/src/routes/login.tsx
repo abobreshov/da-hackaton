@@ -30,10 +30,7 @@ export const Route = createFileRoute('/login')({
 // Length caps still apply as a payload-size guard.
 const credentialsSchema = z.object({
   email: emailSchema,
-  password: z
-    .string()
-    .min(PASSWORD_MIN, 'At least 8 characters')
-    .max(PASSWORD_MAX, 'Too long'),
+  password: z.string().min(PASSWORD_MIN, 'At least 8 characters').max(PASSWORD_MAX, 'Too long'),
 });
 const totpSchema = z.object({
   totpCode: sharedTotpSchema,

@@ -5,8 +5,8 @@
  */
 
 export interface WriteAttachmentInput {
-  id: string;         // uuid — prefix on disk
-  filename: string;   // original user-provided name (sanitized by adapter)
+  id: string; // uuid — prefix on disk
+  filename: string; // original user-provided name (sanitized by adapter)
   content: Buffer;
 }
 

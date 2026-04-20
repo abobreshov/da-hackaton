@@ -15,31 +15,37 @@ function fakeJob<T>(data: T, id: string = 'job-id-1'): any {
 
 describe('userCascadeDeleteProcessor', () => {
   it('returns { ok: true, userId }', async () => {
-    await expect(
-      userCascadeDeleteProcessor(fakeJob({ userId: 'u-1' })),
-    ).resolves.toEqual({ ok: true, userId: 'u-1' });
+    await expect(userCascadeDeleteProcessor(fakeJob({ userId: 'u-1' }))).resolves.toEqual({
+      ok: true,
+      userId: 'u-1',
+    });
   });
 });
 
 describe('retentionPruneProcessor', () => {
   it('returns { ok: true, runId } (numeric runId)', async () => {
-    await expect(
-      retentionPruneProcessor(fakeJob({ runId: 12345 })),
-    ).resolves.toEqual({ ok: true, runId: 12345 });
+    await expect(retentionPruneProcessor(fakeJob({ runId: 12345 }))).resolves.toEqual({
+      ok: true,
+      runId: 12345,
+    });
   });
 
   it('returns { ok: true, runId } (string runId)', async () => {
-    await expect(
-      retentionPruneProcessor(fakeJob({ runId: 'manual-run' })),
-    ).resolves.toEqual({ ok: true, runId: 'manual-run' });
+    await expect(retentionPruneProcessor(fakeJob({ runId: 'manual-run' }))).resolves.toEqual({
+      ok: true,
+      runId: 'manual-run',
+    });
   });
 });
 
 describe('attachmentsCleanupProcessor', () => {
   it('returns 0-counts for empty paths (sweep)', async () => {
-    await expect(
-      attachmentsCleanupProcessor(fakeJob({})),
-    ).resolves.toEqual({ ok: true, deleted: 0, missing: 0, failed: 0 });
+    await expect(attachmentsCleanupProcessor(fakeJob({}))).resolves.toEqual({
+      ok: true,
+      deleted: 0,
+      missing: 0,
+      failed: 0,
+    });
   });
 
   it('classifies non-existent paths as missing (ENOENT tolerated)', async () => {
@@ -56,8 +62,9 @@ describe('attachmentsCleanupProcessor', () => {
 
 describe('abuseReportNotifyProcessor', () => {
   it('returns { ok: true, reportId }', async () => {
-    await expect(
-      abuseReportNotifyProcessor(fakeJob({ reportId: 'rep-1' })),
-    ).resolves.toEqual({ ok: true, reportId: 'rep-1' });
+    await expect(abuseReportNotifyProcessor(fakeJob({ reportId: 'rep-1' }))).resolves.toEqual({
+      ok: true,
+      reportId: 'rep-1',
+    });
   });
 });

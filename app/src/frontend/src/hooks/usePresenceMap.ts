@@ -72,9 +72,7 @@ export function usePresenceMap(): Map<number, PresenceStatus> {
     if (payload && typeof payload === 'object' && 'deltas' in (payload as object)) {
       const deltasRaw = (payload as { deltas: unknown }).deltas;
       if (!Array.isArray(deltasRaw)) return;
-      const parsed = deltasRaw
-        .map(parseDelta)
-        .filter((d): d is PresenceDelta => d !== null);
+      const parsed = deltasRaw.map(parseDelta).filter((d): d is PresenceDelta => d !== null);
       if (parsed.length > 0) applyMany(parsed);
       return;
     }

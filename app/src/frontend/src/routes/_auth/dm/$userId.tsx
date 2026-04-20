@@ -86,10 +86,7 @@ export function DmRoute() {
   const presenceState: PresenceStatus = presence.get(userId) ?? 'offline';
 
   return (
-    <div
-      className="animate-fade-up flex min-h-[32rem] flex-col gap-6"
-      data-testid="dm-route"
-    >
+    <div className="animate-fade-up flex min-h-[32rem] flex-col gap-6" data-testid="dm-route">
       <GlassCard
         as="header"
         radius="lg"
@@ -121,9 +118,7 @@ export function DmRoute() {
             You cannot message this user
           </p>
           {frozenMessage && (
-            <p className="mt-1 font-body text-body-md text-on-error-container">
-              {frozenMessage}
-            </p>
+            <p className="mt-1 font-body text-body-md text-on-error-container">{frozenMessage}</p>
           )}
         </div>
       )}

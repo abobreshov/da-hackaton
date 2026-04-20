@@ -19,10 +19,7 @@ jest.mock('../../database/connection', () => ({
  */
 import 'reflect-metadata';
 import { BadRequestException } from '@nestjs/common';
-import {
-  RoomMessagesController,
-  DmMessagesController,
-} from './messages.controller';
+import { RoomMessagesController, DmMessagesController } from './messages.controller';
 
 function makeMessagesService() {
   return {
@@ -37,7 +34,7 @@ function makeRoomsService() {
   };
 }
 
-const authedReq = (id: number) => ({ user: { id } } as any);
+const authedReq = (id: number) => ({ user: { id } }) as any;
 
 describe('RoomMessagesController — `?before=` cursor validity (CR N4)', () => {
   let svc: ReturnType<typeof makeMessagesService>;
@@ -51,9 +48,9 @@ describe('RoomMessagesController — `?before=` cursor validity (CR N4)', () => 
   });
 
   it('rejects garbage `?before=foo` with BadRequestException (400)', async () => {
-    await expect(
-      controller.list(5, 'foo', '10', undefined, authedReq(1)),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.list(5, 'foo', '10', undefined, authedReq(1))).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     expect(svc.list).not.toHaveBeenCalled();
   });
 

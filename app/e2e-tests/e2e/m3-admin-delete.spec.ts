@@ -20,7 +20,7 @@ const ROOM_ID = 'general';
 const WS_DELIVERY_MS = 3_000;
 
 test.describe('M3 — admin deletes another author', () => {
-  test('admin deletes user\'s message; tombstone propagates; audit entry recorded', async ({
+  test("admin deletes user's message; tombstone propagates; audit entry recorded", async ({
     browser,
   }) => {
     const userCtx = await browser.newContext();

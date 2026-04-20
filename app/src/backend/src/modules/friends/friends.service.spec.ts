@@ -97,18 +97,18 @@ describe('FriendsService', () => {
       const userRows = [{ id: 5, name: 'me' }];
       const db: any = { select: jest.fn(() => makeChain(() => userRows)), insert: jest.fn() };
       const svc = new FriendsService(db, events as any);
-      await expect(
-        svc.request({ requesterId: 5, targetUsername: 'me' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.request({ requesterId: 5, targetUsername: 'me' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       expect(db.insert).not.toHaveBeenCalled();
     });
 
     it('throws NotFound when target username does not exist', async () => {
       const db: any = { select: jest.fn(() => makeChain(() => [])), insert: jest.fn() };
       const svc = new FriendsService(db, events as any);
-      await expect(
-        svc.request({ requesterId: 1, targetUsername: 'ghost' }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(svc.request({ requesterId: 1, targetUsername: 'ghost' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('throws Conflict when a friendship (pending or accepted) already exists', async () => {
@@ -124,9 +124,9 @@ describe('FriendsService', () => {
         insert: jest.fn(),
       };
       const svc = new FriendsService(db, events as any);
-      await expect(
-        svc.request({ requesterId: 7, targetUsername: 'alice' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(svc.request({ requesterId: 7, targetUsername: 'alice' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
       expect(db.insert).not.toHaveBeenCalled();
     });
 
@@ -190,9 +190,9 @@ describe('FriendsService', () => {
         insert: jest.fn(),
       };
       const svc = new FriendsService(db, events as any);
-      await expect(
-        svc.request({ requesterId: 7, targetUsername: 'alice' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(svc.request({ requesterId: 7, targetUsername: 'alice' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
       expect(db.insert).not.toHaveBeenCalled();
     });
   });

@@ -118,9 +118,7 @@ export class CustomerAuthService {
       .where(eq(users.name, dto.username))
       .limit(1);
     if (existingByName && !existingByName.deletedAt) {
-      this.logger.warn(
-        `register username collision — email=${dto.email} username=${dto.username}`,
-      );
+      this.logger.warn(`register username collision — email=${dto.email} username=${dto.username}`);
       return { ok: true };
     }
 
@@ -150,11 +148,7 @@ export class CustomerAuthService {
           })
           .returning();
         if (!inserted) {
-          throw wire(
-            HttpStatus.INTERNAL_SERVER_ERROR,
-            ErrorCode.INTERNAL,
-            'register failed',
-          );
+          throw wire(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL, 'register failed');
         }
       });
       await this.mailer.sendVerificationEmail(dto.email, verifyToken);
@@ -162,9 +156,7 @@ export class CustomerAuthService {
     } catch (err) {
       // Race-loser on unique violation — treat as silent collision (indistinguishable).
       if ((err as { code?: string })?.code === '23505') {
-        this.logger.warn(
-          `register race collision — email=${dto.email} username=${dto.username}`,
-        );
+        this.logger.warn(`register race collision — email=${dto.email} username=${dto.username}`);
         return { ok: true };
       }
       throw err;
@@ -184,12 +176,7 @@ export class CustomerAuthService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(
-        and(
-          eq(users.verifyTokenHash, tokenHash),
-          gt(users.verifyTokenExpiresAt, now),
-        ),
-      )
+      .where(and(eq(users.verifyTokenHash, tokenHash), gt(users.verifyTokenExpiresAt, now)))
       .limit(1);
 
     if (!user || user.deletedAt) {
@@ -332,7 +319,8 @@ export class CustomerAuthService {
     const userId = parseInt(parts[1], 10);
 
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (!user || user.accessStatus !== 'ACTIVE' || user.deletedAt) throw new UnauthorizedException();
+    if (!user || user.accessStatus !== 'ACTIVE' || user.deletedAt)
+      throw new UnauthorizedException();
 
     const newRefreshToken = await this.refreshTokenService.validateAndRotate('u', userId, token);
     const accessToken = this.jwtService.signUser({
@@ -377,7 +365,7 @@ export class CustomerAuthService {
       return {
         sub: claims.sub,
         type: claims.type,
-        userId: numericId,           // deprecated — use parseSub(sub).numericId
+        userId: numericId, // deprecated — use parseSub(sub).numericId
         email: claims.email,
         name: claims.name,
         scopes: claims.scopes ?? [],
@@ -412,4 +400,3 @@ export class CustomerAuthService {
     };
   }
 }
-

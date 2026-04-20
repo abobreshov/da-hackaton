@@ -47,9 +47,7 @@ describe('<ContactsRoute /> (/contacts)', () => {
   });
 
   it('calls GET /api/v1/friends on mount', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ friends: [], incoming: [], outgoing: [] }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ friends: [], incoming: [], outgoing: [] }));
     const Contacts = getComponent();
     render(<Contacts />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -61,7 +59,10 @@ describe('<ContactsRoute /> (/contacts)', () => {
   it('renders a loading state while the fetch is pending', async () => {
     let resolve: (v: Response) => void = () => {};
     fetchMock.mockImplementationOnce(
-      () => new Promise<Response>((r) => { resolve = r; }),
+      () =>
+        new Promise<Response>((r) => {
+          resolve = r;
+        }),
     );
     const Contacts = getComponent();
     render(<Contacts />);
@@ -69,15 +70,11 @@ describe('<ContactsRoute /> (/contacts)', () => {
     await act(async () => {
       resolve(jsonResponse({ friends: [], incoming: [], outgoing: [] }));
     });
-    await waitFor(() =>
-      expect(screen.queryByTestId('contacts-loading')).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByTestId('contacts-loading')).not.toBeInTheDocument());
   });
 
   it('renders empty-state copy when there are no friends or requests', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ friends: [], incoming: [], outgoing: [] }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ friends: [], incoming: [], outgoing: [] }));
     const Contacts = getComponent();
     render(<Contacts />);
     await waitFor(() => {
@@ -132,9 +129,7 @@ describe('<ContactsRoute /> (/contacts)', () => {
   });
 
   it('submits a new friend request via POST /api/v1/friends/requests', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ friends: [], incoming: [], outgoing: [] }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ friends: [], incoming: [], outgoing: [] }));
     const Contacts = getComponent();
     render(<Contacts />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -205,10 +200,10 @@ describe('<ContactsRoute /> (/contacts)', () => {
 
   it('renders a WireError message when the fetch fails', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'Backend is down' }),
-        { status: 502, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'Backend is down' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     const Contacts = getComponent();
     render(<Contacts />);

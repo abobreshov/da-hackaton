@@ -31,12 +31,7 @@ export interface RoomMembersPaneProps {
 
 export function RoomMembersPane({ members, presenceFor }: RoomMembersPaneProps) {
   return (
-    <GlassCard
-      as="aside"
-      radius="lg"
-      padding="md"
-      aria-labelledby="room-members-heading"
-    >
+    <GlassCard as="aside" radius="lg" padding="md" aria-labelledby="room-members-heading">
       <h2
         id="room-members-heading"
         className="font-display text-title-md font-bold text-on-surface"
@@ -58,9 +53,7 @@ export function RoomMembersPane({ members, presenceFor }: RoomMembersPaneProps) 
             >
               <span className="flex items-center gap-3">
                 <PresenceDot state={presenceFor(m.userId)} />
-                <span className="font-body text-body-md text-on-surface">
-                  {m.username}
-                </span>
+                <span className="font-body text-body-md text-on-surface">{m.username}</span>
               </span>
             </UserPopover>
           </li>

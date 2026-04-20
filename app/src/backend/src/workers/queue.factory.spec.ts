@@ -65,7 +65,7 @@ jest.mock('bullmq', () => {
 });
 
 import { createQueuePair, DEFAULT_JOB_OPTIONS } from './queue.factory';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const bullmq = require('bullmq') as any;
 
 describe('createQueuePair', () => {

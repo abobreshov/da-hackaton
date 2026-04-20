@@ -21,10 +21,7 @@ jest.mock('./../config/environment', () => ({
 }));
 
 import { Transport } from '@nestjs/microservices';
-import {
-  buildTcpMicroserviceOptions,
-  buildTcpClientOptions,
-} from './rpc-transport';
+import { buildTcpMicroserviceOptions, buildTcpClientOptions } from './rpc-transport';
 
 describe('rpc-transport (TLS_ENABLED=true)', () => {
   describe('buildTcpMicroserviceOptions', () => {
@@ -74,7 +71,7 @@ describe('rpc-transport (TLS_ENABLED=true)', () => {
           TLS_KEY_PATH: '/certs/key.pem',
         },
       }));
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const mod = require('./rpc-transport');
       expect(() => mod.buildTcpMicroserviceOptions('h', 1)).toThrow(
         /TLS_ENABLED=true but cert files are missing/,
@@ -96,7 +93,7 @@ describe('rpc-transport (TLS_ENABLED=true)', () => {
           TLS_KEY_PATH: '/c',
         },
       }));
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const mod = require('./rpc-transport');
       expect(() => mod.buildTcpClientOptions('h', 2)).toThrow(/TLS_CA_PATH/);
       expect(() => mod.buildTcpClientOptions('h', 2)).toThrow(/TLS_CERT_PATH/);
@@ -118,7 +115,7 @@ describe('rpc-transport (TLS_ENABLED=true)', () => {
           TLS_KEY_PATH: undefined,
         },
       }));
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const mod = require('./rpc-transport');
       expect(() => mod.buildTcpClientOptions('h', 2)).toThrow(/<unset>/);
     });
@@ -137,7 +134,7 @@ describe('rpc-transport (TLS_ENABLED=false) non-TLS path', () => {
   });
 
   it('buildTcpMicroserviceOptions omits tlsOptions when TLS is off', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const mod = require('./rpc-transport');
     const opts = mod.buildTcpMicroserviceOptions('127.0.0.1', 4004);
     expect(opts.options.tlsOptions).toBeUndefined();
@@ -145,7 +142,7 @@ describe('rpc-transport (TLS_ENABLED=false) non-TLS path', () => {
   });
 
   it('buildTcpClientOptions omits tlsOptions when TLS is off', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const mod = require('./rpc-transport');
     const opts = mod.buildTcpClientOptions('localhost', 4003);
     expect(opts.options.tlsOptions).toBeUndefined();

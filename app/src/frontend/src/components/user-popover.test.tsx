@@ -247,13 +247,7 @@ describe('<UserPopover />', () => {
   it('invokes onClose when popover closes after a successful action', async () => {
     const onClose = vi.fn();
     render(
-      <UserPopover
-        userId={7}
-        username="alice"
-        isFriend={false}
-        isBlocked={false}
-        onClose={onClose}
-      >
+      <UserPopover userId={7} username="alice" isFriend={false} isBlocked={false} onClose={onClose}>
         alice
       </UserPopover>,
     );

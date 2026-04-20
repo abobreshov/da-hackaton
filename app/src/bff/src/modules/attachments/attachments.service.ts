@@ -36,23 +36,31 @@ export class AttachmentsService {
   ) {}
 
   async upload(input: UploadInput): Promise<{ attachment: BffAttachment }> {
-    return this.proxy.forward(this.client, { cmd: TcpCmd.attachments.upload }, {
-      uploaderId: input.uploaderId,
-      scope: input.scope,
-      filename: input.filename,
-      mime: input.mime,
-      content: input.content.toString('base64'),
-      comment: input.comment ?? null,
-    });
+    return this.proxy.forward(
+      this.client,
+      { cmd: TcpCmd.attachments.upload },
+      {
+        uploaderId: input.uploaderId,
+        scope: input.scope,
+        filename: input.filename,
+        mime: input.mime,
+        content: input.content.toString('base64'),
+        comment: input.comment ?? null,
+      },
+    );
   }
 
-  async download(attachmentId: string, viewerId: number): Promise<{
+  async download(
+    attachmentId: string,
+    viewerId: number,
+  ): Promise<{
     attachment: BffAttachment;
     content: Buffer;
   }> {
-    const { attachment, content } = await this.proxy.forward<
-      { attachment: BffAttachment; content: string }
-    >(this.client, { cmd: TcpCmd.attachments.download }, { attachmentId, viewerId });
+    const { attachment, content } = await this.proxy.forward<{
+      attachment: BffAttachment;
+      content: string;
+    }>(this.client, { cmd: TcpCmd.attachments.download }, { attachmentId, viewerId });
     return { attachment, content: Buffer.from(content, 'base64') };
   }
 }

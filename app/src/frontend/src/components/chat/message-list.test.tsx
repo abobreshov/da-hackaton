@@ -44,25 +44,18 @@ describe('<MessageList />', () => {
       rootMargin = '';
       thresholds: ReadonlyArray<number> = [];
     }
-    (globalThis as unknown as { IntersectionObserver: typeof IntersectionObserver })
-      .IntersectionObserver = FakeIO as unknown as typeof IntersectionObserver;
+    (
+      globalThis as unknown as { IntersectionObserver: typeof IntersectionObserver }
+    ).IntersectionObserver = FakeIO as unknown as typeof IntersectionObserver;
   });
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it('renders a bubble per message in order', () => {
-    const messages = [
-      makeMessage(1n, 'hello'),
-      makeMessage(2n, 'world'),
-    ];
+    const messages = [makeMessage(1n, 'hello'), makeMessage(2n, 'world')];
     render(
-      <MessageList
-        messages={messages}
-        currentUserId={99}
-        hasMore={false}
-        onLoadOlder={() => {}}
-      />,
+      <MessageList messages={messages} currentUserId={99} hasMore={false} onLoadOlder={() => {}} />,
     );
     const bubbles = screen.getAllByTestId('message-bubble');
     expect(bubbles).toHaveLength(2);
@@ -71,14 +64,7 @@ describe('<MessageList />', () => {
   });
 
   it('renders the root list with the message-list testid', () => {
-    render(
-      <MessageList
-        messages={[]}
-        currentUserId={99}
-        hasMore={false}
-        onLoadOlder={() => {}}
-      />,
-    );
+    render(<MessageList messages={[]} currentUserId={99} hasMore={false} onLoadOlder={() => {}} />);
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
   });
 
@@ -114,12 +100,7 @@ describe('<MessageList />', () => {
   it('renders "Replying to deleted message" when the parent is not in view', () => {
     const reply: Message = { ...makeMessage(2n, 'my reply', 2), replyTo: 999n };
     render(
-      <MessageList
-        messages={[reply]}
-        currentUserId={99}
-        hasMore={false}
-        onLoadOlder={() => {}}
-      />,
+      <MessageList messages={[reply]} currentUserId={99} hasMore={false} onLoadOlder={() => {}} />,
     );
     const quote = screen.getByTestId('message-bubble-reply-quote');
     expect(quote).toHaveTextContent(/replying to deleted message/i);
@@ -213,14 +194,7 @@ describe('<MessageList />', () => {
   });
 
   it('renders an empty-state hint when messages is empty and no more history', () => {
-    render(
-      <MessageList
-        messages={[]}
-        currentUserId={99}
-        hasMore={false}
-        onLoadOlder={() => {}}
-      />,
-    );
+    render(<MessageList messages={[]} currentUserId={99} hasMore={false} onLoadOlder={() => {}} />);
     expect(screen.getByText(/no messages yet/i)).toBeInTheDocument();
   });
 });

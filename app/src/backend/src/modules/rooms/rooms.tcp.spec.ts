@@ -130,19 +130,17 @@ describe('RoomsTcpController', () => {
   });
 
   it('rooms.update propagates ConflictException for duplicate name (filter → Rpc(409))', async () => {
-    const { ConflictException: C } = require('@nestjs/common');
-    service.update.mockRejectedValue(new C('dup'));
+    service.update.mockRejectedValue(new ConflictException('dup'));
     await expect(
       controller.update({ roomId: 1, actorId: 7, patch: { name: 'x' } }),
-    ).rejects.toBeInstanceOf(C);
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('rooms.update propagates ForbiddenException for non-owner (filter → Rpc(403))', async () => {
-    const { ForbiddenException: F } = require('@nestjs/common');
-    service.update.mockRejectedValue(new F('not owner'));
+    service.update.mockRejectedValue(new ForbiddenException('not owner'));
     await expect(
       controller.update({ roomId: 1, actorId: 7, patch: { name: 'x' } }),
-    ).rejects.toBeInstanceOf(F);
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('rooms.update tolerates missing `patch` (treats as empty)', async () => {

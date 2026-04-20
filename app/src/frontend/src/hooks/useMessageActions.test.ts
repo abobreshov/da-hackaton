@@ -63,9 +63,7 @@ describe('useMessageActions (send / edit / delete)', () => {
 
   it('sendMessage carries dmUserId + stringified replyToId when in DM mode', async () => {
     const { result } = renderHook(() => useMessageActions({ dmUserId: 7 }));
-    const promise = result.current
-      .sendMessage({ body: 'hi', replyToId: 9n })
-      .catch(() => null); // we don't ack here — just inspecting the emit
+    const promise = result.current.sendMessage({ body: 'hi', replyToId: 9n }).catch(() => null); // we don't ack here — just inspecting the emit
     const call = emitMock.mock.calls.find((c) => c[0] === 'message.send');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ dmUserId: 7, body: 'hi', replyToId: '9' });

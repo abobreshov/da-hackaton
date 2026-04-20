@@ -18,9 +18,7 @@ const ROOM_ID = 'general';
 const WS_DELIVERY_MS = 3_000;
 
 test.describe('M3 — reply + orphan on parent delete', () => {
-  test('user replies to admin\'s message; parent delete orphans the reply', async ({
-    browser,
-  }) => {
+  test("user replies to admin's message; parent delete orphans the reply", async ({ browser }) => {
     const userCtx = await browser.newContext();
     const adminCtx = await browser.newContext();
 

@@ -97,10 +97,7 @@ export class DrizzleRoomsRepository implements RoomsRepositoryPort {
     return result.length;
   }
 
-  async findPendingInvitation(
-    roomId: number,
-    inviteeId: number,
-  ): Promise<InvitationRow | null> {
+  async findPendingInvitation(roomId: number, inviteeId: number): Promise<InvitationRow | null> {
     const [row] = await this.db
       .select()
       .from(roomInvitations)

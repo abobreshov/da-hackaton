@@ -73,11 +73,7 @@ describe('RoomsService (BFF)', () => {
 
       const result = await service.listMy(42);
 
-      expect(proxy.forward).toHaveBeenCalledWith(
-        client,
-        { cmd: 'rooms.listMy' },
-        { userId: 42 },
-      );
+      expect(proxy.forward).toHaveBeenCalledWith(client, { cmd: 'rooms.listMy' }, { userId: 42 });
       expect(result).toEqual(rooms);
     });
   });
@@ -117,9 +113,9 @@ describe('RoomsService (BFF)', () => {
     it('propagates CONFLICT RpcException', async () => {
       const rpc = new RpcException({ status: 409, message: 'name taken' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.create({ ownerId: 1, name: 'dup', visibility: 'public' }),
-      ).rejects.toBe(rpc);
+      await expect(service.create({ ownerId: 1, name: 'dup', visibility: 'public' })).rejects.toBe(
+        rpc,
+      );
     });
   });
 
@@ -211,9 +207,7 @@ describe('RoomsService (BFF)', () => {
     it('propagates CONFLICT (duplicate invite) when backend rejects', async () => {
       const rpc = new RpcException({ status: 409, message: 'already invited' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.invite({ inviterId: 1, inviteeId: 2, roomId: 3 }),
-      ).rejects.toBe(rpc);
+      await expect(service.invite({ inviterId: 1, inviteeId: 2, roomId: 3 })).rejects.toBe(rpc);
     });
   });
 
@@ -256,17 +250,17 @@ describe('RoomsService (BFF)', () => {
     it('propagates FORBIDDEN (not the owner)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not the owner' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.update({ roomId: 5, actorId: 9, patch: { name: 'x' } }),
-      ).rejects.toBe(rpc);
+      await expect(service.update({ roomId: 5, actorId: 9, patch: { name: 'x' } })).rejects.toBe(
+        rpc,
+      );
     });
 
     it('propagates CONFLICT (name taken)', async () => {
       const rpc = new RpcException({ status: 409, message: 'name taken' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.update({ roomId: 5, actorId: 3, patch: { name: 'dup' } }),
-      ).rejects.toBe(rpc);
+      await expect(service.update({ roomId: 5, actorId: 3, patch: { name: 'dup' } })).rejects.toBe(
+        rpc,
+      );
     });
   });
 });

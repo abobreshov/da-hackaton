@@ -1,8 +1,18 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { env } from '../../config/environment';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const ALLOWED_ORIGINS = new Set(env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean));
+const ALLOWED_ORIGINS = new Set(
+  env.ALLOWED_ORIGINS.split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
+);
 
 @Injectable()
 export class OriginGuard implements CanActivate {

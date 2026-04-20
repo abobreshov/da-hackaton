@@ -15,12 +15,10 @@ vi.mock('@tanstack/react-router', () => ({
 import { Route } from './login';
 import { useSession } from '@/hooks/useSession';
 
-const LoginPage = (Route as unknown as { options: { component: () => JSX.Element } })
-  .options.component;
+const LoginPage = (Route as unknown as { options: { component: () => JSX.Element } }).options
+  .component;
 
-function fillCredentials(
-  over: Partial<{ email: string; password: string }> = {},
-) {
+function fillCredentials(over: Partial<{ email: string; password: string }> = {}) {
   fireEvent.change(screen.getByLabelText(/email/i), {
     target: { value: over.email ?? 'u@example.com' },
   });
@@ -181,10 +179,10 @@ describe('<LoginPage />', () => {
       }),
     );
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'TOTP_INVALID', message: 'bad totp' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'TOTP_INVALID', message: 'bad totp' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
 
     render(<LoginPage />);
@@ -206,10 +204,10 @@ describe('<LoginPage />', () => {
       }),
     );
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'RATE_LIMITED', message: 'slow' }),
-        { status: 429, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'RATE_LIMITED', message: 'slow' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
 
     render(<LoginPage />);
@@ -252,10 +250,10 @@ describe('<LoginPage />', () => {
 
   it('credentials step — maps UNAUTHENTICATED into a user-visible error', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'UNAUTHENTICATED', message: 'Invalid credentials' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'UNAUTHENTICATED', message: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
 
     render(<LoginPage />);
@@ -270,10 +268,10 @@ describe('<LoginPage />', () => {
 
   it('credentials step — maps RATE_LIMITED to "too many attempts" message', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'RATE_LIMITED', message: 'slow' }),
-        { status: 429, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'RATE_LIMITED', message: 'slow' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
 
     render(<LoginPage />);

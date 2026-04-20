@@ -170,9 +170,7 @@ export function RoomRoute() {
         >
           Couldn&apos;t open this room
         </h1>
-        <p className="mt-3 font-body text-body-lg text-on-error-container">
-          {state.error.message}
-        </p>
+        <p className="mt-3 font-body text-body-lg text-on-error-container">{state.error.message}</p>
       </GlassCard>
     );
   }
@@ -182,17 +180,13 @@ export function RoomRoute() {
   // Resolve the current user's role from the member list. If the current
   // user isn't in the members (shouldn't happen post-`ensureMember` but be
   // defensive) fall back to `member`.
-  const selfMember = currentUserId
-    ? members.find((m) => m.userId === currentUserId)
-    : undefined;
+  const selfMember = currentUserId ? members.find((m) => m.userId === currentUserId) : undefined;
   const currentRole: ManageRoomRole = normaliseRole(selfMember?.role);
   const canManage = currentRole === 'owner' || currentRole === 'admin';
 
   // Modal expects the extended shape with `{ownerId, visibility, presence}`.
   const ownerIdFromRoom =
-    room.ownerId ??
-    members.find((m) => normaliseRole(m.role) === 'owner')?.userId ??
-    0;
+    room.ownerId ?? members.find((m) => normaliseRole(m.role) === 'owner')?.userId ?? 0;
   const modalRoom = {
     id: room.id,
     name: room.name,
@@ -275,12 +269,7 @@ export function RoomRoute() {
       </GlassCard>
 
       {/* Sidebar — members pane */}
-      <GlassCard
-        as="aside"
-        radius="lg"
-        padding="md"
-        aria-labelledby="room-members-heading"
-      >
+      <GlassCard as="aside" radius="lg" padding="md" aria-labelledby="room-members-heading">
         <h2
           id="room-members-heading"
           className="font-display text-title-md font-bold text-on-surface"
@@ -309,9 +298,7 @@ export function RoomRoute() {
               >
                 <span className="flex items-center gap-3">
                   <PresenceDot state={presenceFor(m.userId)} />
-                  <span className="font-body text-body-md text-on-surface">
-                    {m.username}
-                  </span>
+                  <span className="font-body text-body-md text-on-surface">{m.username}</span>
                 </span>
               </UserPopover>
             </li>

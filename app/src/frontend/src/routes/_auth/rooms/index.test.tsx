@@ -47,7 +47,10 @@ describe('<RoomsCatalog /> (/rooms)', () => {
   it('shows a loading skeleton while the request is pending', async () => {
     let resolve: (v: Response) => void = () => {};
     fetchMock.mockImplementationOnce(
-      () => new Promise<Response>((r) => { resolve = r; }),
+      () =>
+        new Promise<Response>((r) => {
+          resolve = r;
+        }),
     );
     const RoomsCatalog = getComponent();
     render(<RoomsCatalog />);
@@ -102,10 +105,10 @@ describe('<RoomsCatalog /> (/rooms)', () => {
 
   it('renders WireError message + retry button when the fetch fails, and retries on click', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'Backend is down' }),
-        { status: 502, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'UPSTREAM_UNAVAILABLE', message: 'Backend is down' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     const RoomsCatalog = getComponent();
     render(<RoomsCatalog />);

@@ -1,13 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  IsInt,
-  IsISO8601,
-  IsOptional,
-  IsString,
-  Matches,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsInt, IsISO8601, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 
 /**
  * Query string for paginated message history fetches.

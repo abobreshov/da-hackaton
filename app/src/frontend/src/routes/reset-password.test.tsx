@@ -89,10 +89,10 @@ describe('<ResetPasswordPage />', () => {
 
     it('shows error on VALIDATION_FAILED (invalid or expired link)', async () => {
       fetchMock.mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ code: 'VALIDATION_FAILED', message: 'bad token' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } },
-        ),
+        new Response(JSON.stringify({ code: 'VALIDATION_FAILED', message: 'bad token' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }),
       );
       render(<ResetPasswordPage token="tok_bad" />);
       fireEvent.change(screen.getByLabelText(/new password/i), {

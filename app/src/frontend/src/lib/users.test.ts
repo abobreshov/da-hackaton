@@ -56,10 +56,10 @@ describe('lib/users', () => {
 
   it('surfaces ApiError on non-2xx block', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'FORBIDDEN', message: 'cannot block self' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'cannot block self' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     await expect(blockUser(1)).rejects.toMatchObject({
       status: 403,

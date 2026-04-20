@@ -1,10 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleInit,
-  UseGuards,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, UseGuards } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import {
   ConnectedSocket,
@@ -52,9 +46,7 @@ import { WsConnectRateLimit } from './ws-connect-rate-limit.service';
     credentials: true,
   },
 })
-export class ChatGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
-{
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
   private readonly logger = new Logger(ChatGateway.name);
 
   @WebSocketServer()
@@ -220,9 +212,7 @@ export class ChatGateway
   // ----------------------------------------------------- presence.ping
   @UseGuards(WsOriginGuard)
   @SubscribeMessage(WsEvent.client.presencePing)
-  async onPresencePing(
-    @ConnectedSocket() client: Socket,
-  ): Promise<{ ok: boolean }> {
+  async onPresencePing(@ConnectedSocket() client: Socket): Promise<{ ok: boolean }> {
     const userId = client.data?.userId as number | undefined;
     const sessionId = client.data?.sessionId as string | undefined;
     if (!userId) return { ok: false };
@@ -320,11 +310,7 @@ export class ChatGateway
         id: number;
         roomId?: number;
         dmId?: number;
-      }>(
-        this.backend,
-        { cmd: TcpCmd.messages.delete },
-        { actorId: userId, id: body.id },
-      );
+      }>(this.backend, { cmd: TcpCmd.messages.delete }, { actorId: userId, id: body.id });
       const target = this.broadcastTarget(result);
       this.server.to(target.room).emit(WsEvent.server.messageDeleted, result);
       return { ok: true };

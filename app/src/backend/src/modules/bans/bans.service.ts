@@ -3,10 +3,7 @@ import { and, eq, isNull, or } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { dmChannels, friendships, userBans } from '../../database/schema';
-import {
-  EVENT_PUBLISHER,
-  IEventPublisher,
-} from '../../common/events/event-publisher.interface';
+import { EVENT_PUBLISHER, IEventPublisher } from '../../common/events/event-publisher.interface';
 
 export interface BanInput {
   bannerId: number;
@@ -58,10 +55,7 @@ export class BansService {
 
     await this.db.transaction(async (tx) => {
       // 1. insert ban row (idempotent — duplicate ban is a no-op).
-      await tx
-        .insert(userBans)
-        .values({ bannerId, bannedId })
-        .onConflictDoNothing();
+      await tx.insert(userBans).values({ bannerId, bannedId }).onConflictDoNothing();
 
       // 2. terminate friendship (AC-04-08). UNIQUE on (user_a, user_b) means
       //    at most one row matches the pair.

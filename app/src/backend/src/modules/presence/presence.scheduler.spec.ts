@@ -27,9 +27,7 @@ describe('PresenceScheduler', () => {
   beforeEach(() => {
     service = { evaluate: jest.fn() } as unknown as jest.Mocked<PresenceService>;
     scheduler = new PresenceScheduler(service);
-    warnSpy = jest
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -45,9 +43,7 @@ describe('PresenceScheduler', () => {
   it('swallows errors from evaluate() and logs a warning', async () => {
     service.evaluate.mockRejectedValue(new Error('redis down'));
     await expect(scheduler.handleTick()).resolves.toBeUndefined();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('redis down'),
-    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('redis down'));
   });
 
   it('swallows non-Error rejections', async () => {

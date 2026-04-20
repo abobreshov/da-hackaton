@@ -42,14 +42,7 @@ describe('<FormField />', () => {
   });
 
   it('error trumps hint — hint is suppressed and aria-describedby points at error', () => {
-    render(
-      <FormField
-        id="pwd"
-        label="Password"
-        hint="At least 8 chars"
-        error="Too short"
-      />,
-    );
+    render(<FormField id="pwd" label="Password" hint="At least 8 chars" error="Too short" />);
     const input = screen.getByLabelText('Password');
     expect(input).toHaveAttribute('aria-describedby', 'pwd-error');
     expect(input).toHaveAttribute('aria-invalid', 'true');
@@ -79,14 +72,7 @@ describe('<FormField />', () => {
 
   it('forwards onChange + defaultValue to the underlying input', () => {
     const handleChange = vi.fn();
-    render(
-      <FormField
-        id="email"
-        label="Email"
-        defaultValue="a@b.co"
-        onChange={handleChange}
-      />,
-    );
+    render(<FormField id="email" label="Email" defaultValue="a@b.co" onChange={handleChange} />);
     const input = screen.getByLabelText('Email') as HTMLInputElement;
     expect(input.value).toBe('a@b.co');
 

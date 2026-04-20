@@ -95,10 +95,7 @@ describe('RpcErrorInterceptor', () => {
 
   it('attaches requestId from x-request-id header and sets response header', async () => {
     const headerFn = jest.fn();
-    const ctx = makeCtx(
-      { headers: { 'x-request-id': 'req-123' } },
-      { header: headerFn },
-    );
+    const ctx = makeCtx({ headers: { 'x-request-id': 'req-123' } }, { header: headerFn });
     const rpc = new RpcException({ status: 401, message: 'nope' });
     const caught = (await runAndCatch(ctx, handlerThatThrows(rpc))) as HttpException;
     const body = caught.getResponse() as any;

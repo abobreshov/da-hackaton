@@ -2,10 +2,7 @@ import { Controller, Inject, NotFoundException } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TcpCmd } from '@app/contracts';
 import { AttachmentsService } from './attachments.service';
-import {
-  ATTACHMENTS_REPOSITORY,
-  AttachmentsRepositoryPort,
-} from './attachments.types';
+import { ATTACHMENTS_REPOSITORY, AttachmentsRepositoryPort } from './attachments.types';
 
 /**
  * TCP-facing controller for BFF -> backend attachments RPC (EPIC-08).
@@ -64,10 +61,7 @@ export class AttachmentsTcpController {
 
   @MessagePattern({ cmd: TcpCmd.attachments.download })
   async download(@Payload() data: DownloadPayload) {
-    const { attachment, content } = await this.service.download(
-      data.attachmentId,
-      data.viewerId,
-    );
+    const { attachment, content } = await this.service.download(data.attachmentId, data.viewerId);
     return { attachment, content: content.toString('base64') };
   }
 

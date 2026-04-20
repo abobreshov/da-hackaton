@@ -91,11 +91,7 @@ export class DrizzleMessagesRepository implements MessagesRepositoryPort {
   }
 
   async findMessageById(id: bigint): Promise<MessageRow | null> {
-    const rows = await (this.db as any)
-      .select()
-      .from(messages)
-      .where(eq(messages.id, id))
-      .limit(1);
+    const rows = await (this.db as any).select().from(messages).where(eq(messages.id, id)).limit(1);
     return rows[0] ? normaliseRow(rows[0]) : null;
   }
 
@@ -120,9 +116,10 @@ export class DrizzleMessagesRepository implements MessagesRepositoryPort {
   async listMessages(input: ListMessagesInput): Promise<MessageRow[]> {
     // Composite cursor (AC-07-20). Index:
     //   (room_id|dm_id, created_at DESC, id DESC) WHERE deleted_at IS NULL
-    const scope = input.roomId != null
-      ? eq(messages.roomId, input.roomId)
-      : eq(messages.dmId, input.dmId as number);
+    const scope =
+      input.roomId != null
+        ? eq(messages.roomId, input.roomId)
+        : eq(messages.dmId, input.dmId as number);
 
     const cursorGate = input.before
       ? sql`(${messages.createdAt}, ${messages.id}) < (${input.before.createdAt}, ${input.before.id})`
@@ -138,9 +135,10 @@ export class DrizzleMessagesRepository implements MessagesRepositoryPort {
   }
 
   async listMessagesSince(input: SinceMessagesInput): Promise<MessageRow[]> {
-    const scope = input.roomId != null
-      ? eq(messages.roomId, input.roomId)
-      : eq(messages.dmId, input.dmId as number);
+    const scope =
+      input.roomId != null
+        ? eq(messages.roomId, input.roomId)
+        : eq(messages.dmId, input.dmId as number);
 
     const rows = await (this.db as any)
       .select()
@@ -177,7 +175,12 @@ function normaliseRow(row: any): MessageRow {
     dmId: row.dmId ?? row.dm_id ?? null,
     authorId: row.authorId ?? row.author_id,
     body: row.body,
-    replyTo: row.replyTo != null ? toBigInt(row.replyTo) : row.reply_to != null ? toBigInt(row.reply_to) : null,
+    replyTo:
+      row.replyTo != null
+        ? toBigInt(row.replyTo)
+        : row.reply_to != null
+          ? toBigInt(row.reply_to)
+          : null,
     editedAt: row.editedAt ?? row.edited_at ?? null,
     deletedAt: row.deletedAt ?? row.deleted_at ?? null,
     createdAt: row.createdAt ?? row.created_at ?? null,

@@ -1,9 +1,7 @@
 // Seed required env BEFORE importing anything that triggers config/environment parsing.
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://test:test@localhost:5432/test';
-process.env.JWT_ADMIN_SECRET =
-  process.env.JWT_ADMIN_SECRET ?? 'x'.repeat(48) /* >= 32 chars */;
-process.env.JWT_CUSTOMER_SECRET =
-  process.env.JWT_CUSTOMER_SECRET ?? 'y'.repeat(48);
+process.env.JWT_ADMIN_SECRET = process.env.JWT_ADMIN_SECRET ?? 'x'.repeat(48) /* >= 32 chars */;
+process.env.JWT_CUSTOMER_SECRET = process.env.JWT_CUSTOMER_SECRET ?? 'y'.repeat(48);
 process.env.SYSTEM_KEY = process.env.SYSTEM_KEY ?? 'z'.repeat(48);
 process.env.JWT_ACCESS_TOKEN_EXPIRATION = process.env.JWT_ACCESS_TOKEN_EXPIRATION ?? '15m';
 
@@ -49,9 +47,7 @@ describe('JwtService — OIDC-shaped access tokens', () => {
 
     it('rejects sub that does not look like an admin (a:...) principal', () => {
       // The signer should not mint admin tokens with a user-style sub.
-      expect(() =>
-        svc.signAdmin({ ...adminClaims, sub: 'u:42' as never }),
-      ).toThrow(/admin/i);
+      expect(() => svc.signAdmin({ ...adminClaims, sub: 'u:42' as never })).toThrow(/admin/i);
     });
   });
 
@@ -74,9 +70,7 @@ describe('JwtService — OIDC-shaped access tokens', () => {
     });
 
     it('rejects sub that does not look like a user (u:...) principal', () => {
-      expect(() =>
-        svc.signUser({ ...userClaims, sub: 'a:7' as never }),
-      ).toThrow(/user/i);
+      expect(() => svc.signUser({ ...userClaims, sub: 'a:7' as never })).toThrow(/user/i);
     });
   });
 

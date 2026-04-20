@@ -1,10 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  listAuditLog,
-  type AuditEntry,
-  type AuditCursor,
-} from '@/lib/admin';
+import { listAuditLog, type AuditEntry, type AuditCursor } from '@/lib/admin';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -132,20 +128,21 @@ export function AdminAuditLogRoute() {
   return (
     <div className="animate-fade-up flex flex-col gap-8">
       <header>
-        <h1 className="font-display text-display-sm font-extrabold text-on-surface">
-          Audit log
-        </h1>
+        <h1 className="font-display text-display-sm font-extrabold text-on-surface">Audit log</h1>
         <p className="mt-2 font-body text-body-lg text-on-surface-variant">
-          Privileged actions, newest first. Use the filters to drill into a
-          specific actor or action.
+          Privileged actions, newest first. Use the filters to drill into a specific actor or
+          action.
         </p>
       </header>
 
-      <GlassCard as="section" radius="lg" padding="lg" shadow="ambient" aria-labelledby="audit-filters">
-        <h2
-          id="audit-filters"
-          className="font-display text-title-md font-bold text-on-surface"
-        >
+      <GlassCard
+        as="section"
+        radius="lg"
+        padding="lg"
+        shadow="ambient"
+        aria-labelledby="audit-filters"
+      >
+        <h2 id="audit-filters" className="font-display text-title-md font-bold text-on-surface">
           Filters
         </h2>
         <form
@@ -210,19 +207,13 @@ export function AdminAuditLogRoute() {
       {state.status === 'loading' && (
         <div data-testid="audit-loading" aria-busy="true" className="space-y-3">
           {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-12 rounded-[1rem] bg-surface-container-low animate-pulse"
-            />
+            <div key={i} className="h-12 rounded-[1rem] bg-surface-container-low animate-pulse" />
           ))}
         </div>
       )}
 
       {state.status === 'error' && (
-        <section
-          className="rounded-[2rem] bg-error-container/70 p-6 shadow-ambient"
-          role="alert"
-        >
+        <section className="rounded-[2rem] bg-error-container/70 p-6 shadow-ambient" role="alert">
           <p className="font-display text-label-lg font-semibold uppercase tracking-[0.18em] text-on-error-container/80">
             {state.error.code}
           </p>
@@ -238,15 +229,18 @@ export function AdminAuditLogRoute() {
       )}
 
       {state.status === 'ok' && state.entries.length === 0 && (
-        <EmptyState
-          title="No audit entries"
-          description="Nothing matches the current filters."
-        />
+        <EmptyState title="No audit entries" description="Nothing matches the current filters." />
       )}
 
       {state.status === 'ok' && state.entries.length > 0 && (
         <>
-          <GlassCard as="section" radius="lg" padding="none" shadow="ambient" className="overflow-hidden">
+          <GlassCard
+            as="section"
+            radius="lg"
+            padding="none"
+            shadow="ambient"
+            className="overflow-hidden"
+          >
             <div className="overflow-x-auto">
               <table className="min-w-full" aria-label="Audit log entries">
                 <thead>

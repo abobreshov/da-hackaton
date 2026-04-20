@@ -35,7 +35,7 @@ export function getSocket(): Socket {
 
   socket.on('connect_error', (err) => {
     // Avoid throwing; socket.io will retry. Log so devs see the cause.
-    // eslint-disable-next-line no-console
+     
     console.warn('[socket] connect_error', err?.message ?? err);
   });
 

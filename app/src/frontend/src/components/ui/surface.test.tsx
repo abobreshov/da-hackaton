@@ -87,13 +87,9 @@ describe('<GlassCard />', () => {
 
   it('backdrop-blur stays on regardless of tone (it belongs to the base recipe)', () => {
     const { container, rerender } = render(<GlassCard>hi</GlassCard>);
-    expect((container.firstElementChild as HTMLElement).className).toContain(
-      'backdrop-blur-xl',
-    );
+    expect((container.firstElementChild as HTMLElement).className).toContain('backdrop-blur-xl');
     rerender(<GlassCard tone="error">hi</GlassCard>);
-    expect((container.firstElementChild as HTMLElement).className).toContain(
-      'backdrop-blur-xl',
-    );
+    expect((container.firstElementChild as HTMLElement).className).toContain('backdrop-blur-xl');
   });
 });
 

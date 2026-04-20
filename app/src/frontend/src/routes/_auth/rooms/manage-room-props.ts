@@ -66,11 +66,8 @@ export function toManageRoomProps(
   selfMember: CurrentUserInput | null,
   presenceFor: (userId: number) => PresenceStatus,
 ): ManageRoomModalProps {
-  const ownerFromRole = members.find(
-    (m) => normaliseRole(m.role) === 'owner',
-  );
-  const ownerId: number | null =
-    room.ownerId ?? ownerFromRole?.userId ?? null;
+  const ownerFromRole = members.find((m) => normaliseRole(m.role) === 'owner');
+  const ownerId: number | null = room.ownerId ?? ownerFromRole?.userId ?? null;
 
   const modalRoom: ManageRoomRoom = {
     id: room.id,

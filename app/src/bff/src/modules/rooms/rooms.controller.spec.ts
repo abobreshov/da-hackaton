@@ -112,10 +112,7 @@ describe('RoomsController (BFF)', () => {
       const rpc = new RpcException({ status: 409, message: 'name taken' });
       svc.create.mockRejectedValue(rpc);
       await expect(
-        controller.create(
-          { name: 'dup', visibility: 'public' } as any,
-          sessionReq(1),
-        ),
+        controller.create({ name: 'dup', visibility: 'public' } as any, sessionReq(1)),
       ).rejects.toBe(rpc);
     });
   });
@@ -158,11 +155,7 @@ describe('RoomsController (BFF)', () => {
     it('delegates with inviteeId when body carries {invitedUserId}', async () => {
       svc.invite.mockResolvedValue({ id: 99, status: 'pending' });
 
-      const res = await controller.invite(
-        5,
-        { invitedUserId: 4 } as any,
-        sessionReq(3),
-      );
+      const res = await controller.invite(5, { invitedUserId: 4 } as any, sessionReq(3));
 
       expect(svc.invite).toHaveBeenCalledWith({
         inviterId: 3,
@@ -176,11 +169,7 @@ describe('RoomsController (BFF)', () => {
     it('delegates with username when body carries {username}', async () => {
       svc.invite.mockResolvedValue({ id: 100, status: 'pending' });
 
-      const res = await controller.invite(
-        5,
-        { username: 'alice' } as any,
-        sessionReq(3),
-      );
+      const res = await controller.invite(5, { username: 'alice' } as any, sessionReq(3));
 
       expect(svc.invite).toHaveBeenCalledWith({
         inviterId: 3,
@@ -194,17 +183,17 @@ describe('RoomsController (BFF)', () => {
     it('propagates CONFLICT RpcException (duplicate invite)', async () => {
       const rpc = new RpcException({ status: 409, message: 'already invited' });
       svc.invite.mockRejectedValue(rpc);
-      await expect(
-        controller.invite(5, { invitedUserId: 4 } as any, sessionReq(3)),
-      ).rejects.toBe(rpc);
+      await expect(controller.invite(5, { invitedUserId: 4 } as any, sessionReq(3))).rejects.toBe(
+        rpc,
+      );
     });
 
     it('propagates FORBIDDEN (inviter not a member)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not a member' });
       svc.invite.mockRejectedValue(rpc);
-      await expect(
-        controller.invite(5, { invitedUserId: 4 } as any, sessionReq(3)),
-      ).rejects.toBe(rpc);
+      await expect(controller.invite(5, { invitedUserId: 4 } as any, sessionReq(3))).rejects.toBe(
+        rpc,
+      );
     });
   });
 
@@ -242,17 +231,13 @@ describe('RoomsController (BFF)', () => {
     it('propagates FORBIDDEN (not the owner)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not the owner' });
       svc.update.mockRejectedValue(rpc);
-      await expect(
-        controller.update(5, { name: 'x' } as any, sessionReq(9)),
-      ).rejects.toBe(rpc);
+      await expect(controller.update(5, { name: 'x' } as any, sessionReq(9))).rejects.toBe(rpc);
     });
 
     it('propagates CONFLICT (name taken)', async () => {
       const rpc = new RpcException({ status: 409, message: 'name taken' });
       svc.update.mockRejectedValue(rpc);
-      await expect(
-        controller.update(5, { name: 'dup' } as any, sessionReq(3)),
-      ).rejects.toBe(rpc);
+      await expect(controller.update(5, { name: 'dup' } as any, sessionReq(3))).rejects.toBe(rpc);
     });
   });
 });
@@ -263,22 +248,16 @@ describe('RoomsController — guard wiring (unauth 401 surface)', () => {
   // metadata is attached so mutations cannot be invoked anonymously.
   it('class-level metadata includes SessionGuard', () => {
     const { SessionGuard } = require('../../auth/session.guard');
-    const guards =
-      Reflect.getMetadata('__guards__', RoomsController) ?? [];
+    const guards = Reflect.getMetadata('__guards__', RoomsController) ?? [];
     expect(guards).toEqual(expect.arrayContaining([SessionGuard]));
   });
 });
 
 describe('RoomsController — throttle metadata (AC-14-13)', () => {
-  const {
-    THROTTLE_METADATA_KEY,
-  } = require('../../common/decorators/throttle.decorator');
+  const { THROTTLE_METADATA_KEY } = require('../../common/decorators/throttle.decorator');
 
   it('POST /rooms carries a throttle bucket {scope:room-create, limit:10, windowMs:3_600_000, failClosed:false}', () => {
-    const meta = Reflect.getMetadata(
-      THROTTLE_METADATA_KEY,
-      RoomsController.prototype.create,
-    );
+    const meta = Reflect.getMetadata(THROTTLE_METADATA_KEY, RoomsController.prototype.create);
 
     expect(Array.isArray(meta)).toBe(true);
     const bucket = (meta ?? []).find((m: any) => m.scope === 'room-create');

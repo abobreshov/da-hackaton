@@ -46,9 +46,7 @@ export class ContactsPage extends BasePage {
   }
 
   private friendRow(username: string): Locator {
-    return this.friendList.locator(
-      `[data-testid="friend-row"][data-username="${username}"]`,
-    );
+    return this.friendList.locator(`[data-testid="friend-row"][data-username="${username}"]`);
   }
 
   private pendingRow(username: string): Locator {
@@ -63,15 +61,21 @@ export class ContactsPage extends BasePage {
   }
 
   async acceptRequest(fromUsername: string): Promise<void> {
-    await this.pendingRow(fromUsername).getByRole('button', { name: /accept/i }).click();
+    await this.pendingRow(fromUsername)
+      .getByRole('button', { name: /accept/i })
+      .click();
   }
 
   async rejectRequest(fromUsername: string): Promise<void> {
-    await this.pendingRow(fromUsername).getByRole('button', { name: /reject/i }).click();
+    await this.pendingRow(fromUsername)
+      .getByRole('button', { name: /reject/i })
+      .click();
   }
 
   async removeFriend(username: string): Promise<void> {
-    await this.friendRow(username).getByRole('button', { name: /remove/i }).click();
+    await this.friendRow(username)
+      .getByRole('button', { name: /remove/i })
+      .click();
   }
 
   async expectFriend(username: string): Promise<void> {

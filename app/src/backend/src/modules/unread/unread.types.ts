@@ -15,6 +15,10 @@ export interface RoomUnread {
 
 export interface DmUnread {
   dmId: number;
+  /** User id of the "other side" of this DM from the caller's perspective.
+   *  FE keys its DM unread badges by peer userId (the route param in
+   *  `/dms/:userId`), not by the internal dm_id. */
+  peerUserId: number;
   count: number;
 }
 

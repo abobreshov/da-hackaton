@@ -21,12 +21,7 @@ describe('QueueProducer', () => {
     retention = fakeQueue();
     cleanup = fakeQueue();
     abuse = fakeQueue();
-    producer = new QueueProducer(
-      cascade as any,
-      retention as any,
-      cleanup as any,
-      abuse as any,
-    );
+    producer = new QueueProducer(cascade as any, retention as any, cleanup as any, abuse as any);
   });
 
   it('enqueueUserCascadeDelete passes (jobName, { userId })', async () => {
@@ -68,7 +63,10 @@ describe('QueueProducer', () => {
   });
 
   it('returns whatever the underlying queue.add resolves to', async () => {
-    cascade.add = jest.fn(async (jobName: string, _data: any) => ({ id: 'custom-id', data: _data })) as any;
+    cascade.add = jest.fn(async (jobName: string, _data: any) => ({
+      id: 'custom-id',
+      data: _data,
+    })) as any;
     const out = await producer.enqueueUserCascadeDelete('u-1');
     expect(out).toMatchObject({ id: 'custom-id' });
   });

@@ -201,9 +201,9 @@ describe('DrizzleModerationRepository', () => {
     const { db } = makeDb({}, { insertThrows: err });
     const repo = new DrizzleModerationRepository(db);
 
-    await expect(
-      repo.banMember({ roomId: 1, userId: 30, bannedBy: 20 }),
-    ).rejects.toMatchObject({ code: '23505' });
+    await expect(repo.banMember({ roomId: 1, userId: 30, bannedBy: 20 })).rejects.toMatchObject({
+      code: '23505',
+    });
   });
 
   it('unbanMember() deletes from room_bans by (roomId, userId)', async () => {

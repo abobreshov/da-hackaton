@@ -26,10 +26,7 @@ export class BansController {
 
   @Post(':userId/ban')
   @HttpCode(200)
-  ban(
-    @CurrentUser() user: { id: number },
-    @Param('userId', ParseIntPipe) bannedId: number,
-  ) {
+  ban(@CurrentUser() user: { id: number }, @Param('userId', ParseIntPipe) bannedId: number) {
     return this.service.banUser({ bannerId: user.id, bannedId });
   }
 
@@ -48,10 +45,7 @@ export class BansController {
    * policy guard here.
    */
   @Get(':userId/bans')
-  list(
-    @CurrentUser() user: { id: number },
-    @Param('userId', ParseIntPipe) userId: number,
-  ) {
+  list(@CurrentUser() user: { id: number }, @Param('userId', ParseIntPipe) userId: number) {
     if (userId !== user.id) {
       // Keep the leak surface tiny: pretend there's nothing there.
       return [];

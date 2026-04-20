@@ -94,9 +94,9 @@ Spec: `mng/specs/10-ui-shell.md`. Only a minimal nav bar exists in `_auth.tsx`.
 ## Cross-cutting once any of the above ships
 
 - [ ] Session refresh slow-path — expire the session cookie (clear via
-  `context.addCookies` with a past `expires`) while refresh cookie remains,
-  then navigate to a protected route, assert it renders and a fresh
-  `session` cookie is re-issued by the BFF.
+      `context.addCookies` with a past `expires`) while refresh cookie remains,
+      then navigate to a protected route, assert it renders and a fresh
+      `session` cookie is re-issued by the BFF.
 - [ ] Accessibility smoke — run `@axe-core/playwright` on each major route.
 - [ ] WebSocket presence — assert connection + presence indicator once
-  EPIC-02 UI elements land.
+      EPIC-02 UI elements land.

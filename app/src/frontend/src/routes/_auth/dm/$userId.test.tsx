@@ -62,9 +62,7 @@ describe('<DmRoute /> (/dm/$userId)', () => {
   it('wires useMessages with the parsed dmUserId', () => {
     const Dm = getComponent();
     render(<Dm />);
-    expect(useMessagesMock).toHaveBeenCalledWith(
-      expect.objectContaining({ dmUserId: 7 }),
-    );
+    expect(useMessagesMock).toHaveBeenCalledWith(expect.objectContaining({ dmUserId: 7 }));
   });
 
   it('renders the chat viewport (list + composer) by default', () => {

@@ -24,10 +24,7 @@ describe('<MessageBubble />', () => {
     expect(bubble).toHaveAttribute('data-message-id', '1');
     expect(screen.getByText('hello')).toBeInTheDocument();
     expect(screen.getByText('alice')).toBeInTheDocument();
-    expect(bubble.querySelector('time')).toHaveAttribute(
-      'datetime',
-      '2026-04-20T10:00:00.000Z',
-    );
+    expect(bubble.querySelector('time')).toHaveAttribute('datetime', '2026-04-20T10:00:00.000Z');
   });
 
   it('hides the author label on "me" bubbles (implicit self)', () => {
@@ -111,9 +108,7 @@ describe('<MessageBubble />', () => {
   });
 
   it('uses gradient primary styling for "me" bubbles and surface-container-high for "them"', () => {
-    const { rerender, container } = render(
-      <MessageBubble message={baseMessage()} isMe={true} />,
-    );
+    const { rerender, container } = render(<MessageBubble message={baseMessage()} isMe={true} />);
     const meBubbleInner = container.querySelector('[data-testid="message-bubble"] > div');
     expect(meBubbleInner?.className).toMatch(/from-primary/);
     expect(meBubbleInner?.className).toMatch(/to-primary-dim/);

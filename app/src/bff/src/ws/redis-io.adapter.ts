@@ -34,8 +34,12 @@ export class RedisIoAdapter extends IoAdapter {
     this.subClient.on('error', (e) => this.logger.error(`sub redis error: ${e.message}`));
 
     await Promise.all([
-      this.pubClient.status === 'ready' ? Promise.resolve() : this.pubClient.connect().catch(() => undefined),
-      this.subClient.status === 'ready' ? Promise.resolve() : this.subClient.connect().catch(() => undefined),
+      this.pubClient.status === 'ready'
+        ? Promise.resolve()
+        : this.pubClient.connect().catch(() => undefined),
+      this.subClient.status === 'ready'
+        ? Promise.resolve()
+        : this.subClient.connect().catch(() => undefined),
     ]);
 
     this.adapterConstructor = createAdapter(this.pubClient, this.subClient);
@@ -47,14 +51,49 @@ export class RedisIoAdapter extends IoAdapter {
     if (this.adapterConstructor) {
       server.adapter(this.adapterConstructor);
     } else {
-      this.logger.warn(
-        'createIOServer called before connectToRedis() — adapter not attached',
-      );
+      this.logger.warn('createIOServer called before connectToRedis() — adapter not attached');
     }
     return server;
   }
 
+  /** Quit a single ioredis client; fall back to sync `disconnect()` on
+   *  error so shutdown always drains reconnect timers. */
+  private async drain(client: Redis | undefined): Promise<void> {
+    if (!client) return;
+    try {
+      await client.quit();
+    } catch (err) {
+      this.logger.warn(
+        `Redis adapter quit failed, falling back to disconnect(): ${(err as Error)?.message}`,
+      );
+      try {
+        client.disconnect();
+      } catch {
+        /* best-effort; process is exiting */
+      }
+    }
+  }
+
+  /**
+   * Drain both clients on app shutdown. Called by Nest via the adapter
+   * contract when `enableShutdownHooks()` fires. Safe to invoke twice —
+   * second call is a no-op because fields are cleared.
+   *
+   * Signature matches `IoAdapter.close(server)` so Nest's shutdown dispatch
+   * resolves to this override; the `server` arg is unused here because we
+   * drain the pub/sub Redis clients, not socket.io's server instance.
+   */
+  async close(_server?: unknown): Promise<void> {
+    const pub = this.pubClient;
+    const sub = this.subClient;
+    this.pubClient = undefined;
+    this.subClient = undefined;
+    this.adapterConstructor = undefined;
+    await Promise.all([this.drain(pub), this.drain(sub)]);
+  }
+
+  /** Legacy alias retained for callers that still invoke `dispose()`. */
   async dispose(): Promise<void> {
-    await Promise.all([this.pubClient?.quit(), this.subClient?.quit()]);
+    await this.close();
   }
 }

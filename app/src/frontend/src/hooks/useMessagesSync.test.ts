@@ -168,9 +168,7 @@ describe('useMessagesSync (hydrate + WS subscribe + loadOlder)', () => {
         nextCursor: null,
       });
     const { result } = renderHook(() => useMessagesSync({ roomId: 42 }));
-    await waitFor(() =>
-      expect(getMessagesStore({ roomId: 42 }).getState().order.length).toBe(1),
-    );
+    await waitFor(() => expect(getMessagesStore({ roomId: 42 }).getState().order.length).toBe(1));
     await act(async () => {
       await result.current.loadOlder();
     });

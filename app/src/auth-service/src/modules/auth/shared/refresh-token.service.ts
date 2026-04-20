@@ -115,9 +115,7 @@ export class RefreshTokenService {
       //      Revoke the entire family fast.
       const familyId = await this.cache.get(this.historyKey(type, id, hash));
       if (familyId) {
-        const alreadyRevoked = await this.cache.exists(
-          this.familyRevokedKey(type, id, familyId),
-        );
+        const alreadyRevoked = await this.cache.exists(this.familyRevokedKey(type, id, familyId));
         if (!alreadyRevoked) {
           await this.revokeFamily(type, id, familyId);
           throw new Error('Refresh token reuse detected — session revoked');
@@ -211,11 +209,7 @@ export class RefreshTokenService {
     await this.cache.del(membersKey);
     // Marker survives for the session-max window. Any straggling sibling that
     // somehow escaped the DEL above will still fail on the revoked-flag guard.
-    await this.cache.set(
-      this.familyRevokedKey(type, id, familyId),
-      '1',
-      this.historyTtl,
-    );
+    await this.cache.set(this.familyRevokedKey(type, id, familyId), '1', this.historyTtl);
 
     this.logger.warn(
       `Refresh-token reuse detected — revoked family ${familyId} for ${type}:${id} (${liveKeys.length} live tokens killed)`,
@@ -233,11 +227,7 @@ export class RefreshTokenService {
     await this.cache.set(key, JSON.stringify(data), this.TTL);
     await this.cache.sadd(this.trackingKey(type, id), key);
     await this.cache.sadd(this.familyMembersKey(type, id, data.familyId), hash);
-    await this.cache.set(
-      this.historyKey(type, id, hash),
-      data.familyId,
-      this.historyTtl,
-    );
+    await this.cache.set(this.historyKey(type, id, hash), data.familyId, this.historyTtl);
     return token;
   }
 }

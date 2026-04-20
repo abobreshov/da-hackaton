@@ -92,9 +92,7 @@ function AuthShell({
       </header>
       {children}
       {footer ? (
-        <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">
-          {footer}
-        </p>
+        <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">{footer}</p>
       ) : null}
     </GlassCard>
   );

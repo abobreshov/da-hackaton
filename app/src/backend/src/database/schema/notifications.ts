@@ -1,11 +1,4 @@
-import {
-  pgTable,
-  integer,
-  bigint,
-  timestamp,
-  uniqueIndex,
-  check,
-} from 'drizzle-orm/pg-core';
+import { pgTable, integer, bigint, timestamp, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from './users';
 import { rooms } from './rooms';

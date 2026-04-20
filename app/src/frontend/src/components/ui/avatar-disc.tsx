@@ -32,8 +32,10 @@ const avatarDiscVariants = cva(
         lg: 'h-14 w-14 text-title-md',
       },
       tone: {
-        primary: 'bg-gradient-to-br from-primary-container to-tertiary-container text-on-primary-container',
-        tertiary: 'bg-gradient-to-br from-secondary-container to-tertiary-container text-on-secondary-container',
+        primary:
+          'bg-gradient-to-br from-primary-container to-tertiary-container text-on-primary-container',
+        tertiary:
+          'bg-gradient-to-br from-secondary-container to-tertiary-container text-on-secondary-container',
       },
     },
     defaultVariants: { size: 'md', tone: 'primary' },
@@ -41,8 +43,7 @@ const avatarDiscVariants = cva(
 );
 
 export interface AvatarDiscProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof avatarDiscVariants> {
+  extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof avatarDiscVariants> {
   /** Full display name — preferred source for initials + aria-label. */
   name?: string | null;
   /** Fallback when `name` is unknown (e.g. unconfirmed account). */
@@ -71,7 +72,10 @@ export interface AvatarDiscProps
  */
 export function initialsOf(source: string): string {
   if (!source) return '?';
-  const parts = source.trim().split(/[\s@._-]+/).filter(Boolean);
+  const parts = source
+    .trim()
+    .split(/[\s@._-]+/)
+    .filter(Boolean);
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]![0]! + parts[1]![0]!).toUpperCase();

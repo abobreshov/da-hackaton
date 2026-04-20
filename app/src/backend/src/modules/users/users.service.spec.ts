@@ -36,8 +36,22 @@ describe('UsersService', () => {
   describe('findAll', () => {
     it('returns whatever the select chain resolves to', async () => {
       const rows = [
-        { id: 1, email: 'a@x', name: 'alice', role: 'USER', accessStatus: 'active', createdAt: new Date() },
-        { id: 2, email: 'b@x', name: 'bob', role: 'ADMIN', accessStatus: 'active', createdAt: new Date() },
+        {
+          id: 1,
+          email: 'a@x',
+          name: 'alice',
+          role: 'USER',
+          accessStatus: 'active',
+          createdAt: new Date(),
+        },
+        {
+          id: 2,
+          email: 'b@x',
+          name: 'bob',
+          role: 'ADMIN',
+          accessStatus: 'active',
+          createdAt: new Date(),
+        },
       ];
       const db: any = { select: jest.fn(() => makeChain(() => rows)) };
       const svc = new UsersService(db);

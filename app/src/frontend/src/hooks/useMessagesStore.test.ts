@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  getMessagesStore,
-  resetMessagesStores,
-  keyForConversation,
-} from './useMessagesStore';
+import { getMessagesStore, resetMessagesStores, keyForConversation } from './useMessagesStore';
 import type { Message, MessageCursor } from '@/lib/messages';
 
 /**
@@ -56,13 +52,15 @@ describe('useMessagesStore (pure state)', () => {
   it('replaceAll() seeds byId + order sorted by (createdAt, id)', () => {
     const store = getMessagesStore({ roomId: 42 });
     const cursor: MessageCursor = { createdAt: '2026-04-20T10:00:00.000Z', id: 1n };
-    store.getState().replaceAll(
-      [
-        mkMessage(2n, 'world', '2026-04-20T10:01:00.000Z'),
-        mkMessage(1n, 'hello', '2026-04-20T10:00:00.000Z'),
-      ],
-      cursor,
-    );
+    store
+      .getState()
+      .replaceAll(
+        [
+          mkMessage(2n, 'world', '2026-04-20T10:01:00.000Z'),
+          mkMessage(1n, 'hello', '2026-04-20T10:00:00.000Z'),
+        ],
+        cursor,
+      );
     const { order, byId, oldestCursor, hasMore } = store.getState();
     expect(order).toEqual([1n, 2n]);
     expect(byId.get(1n)?.body).toBe('hello');
@@ -73,10 +71,7 @@ describe('useMessagesStore (pure state)', () => {
 
   it('upsert() inserts a new message and updates an existing one in place', () => {
     const store = getMessagesStore({ roomId: 42 });
-    store.getState().replaceAll(
-      [mkMessage(1n, 'hello', '2026-04-20T10:00:00.000Z')],
-      null,
-    );
+    store.getState().replaceAll([mkMessage(1n, 'hello', '2026-04-20T10:00:00.000Z')], null);
     store.getState().upsert(mkMessage(2n, 'new', '2026-04-20T10:02:00.000Z'));
     expect(store.getState().order).toEqual([1n, 2n]);
     // Re-upserting the same id is idempotent (no dup in order).
@@ -87,10 +82,7 @@ describe('useMessagesStore (pure state)', () => {
 
   it('applyEdit() patches body + editedAt when the id exists; ignores otherwise', () => {
     const store = getMessagesStore({ roomId: 42 });
-    store.getState().replaceAll(
-      [mkMessage(5n, 'orig', '2026-04-20T10:00:00.000Z')],
-      null,
-    );
+    store.getState().replaceAll([mkMessage(5n, 'orig', '2026-04-20T10:00:00.000Z')], null);
     store.getState().applyEdit(5n, 'edited!', '2026-04-20T10:05:00.000Z');
     expect(store.getState().byId.get(5n)?.body).toBe('edited!');
     expect(store.getState().byId.get(5n)?.editedAt).toBe('2026-04-20T10:05:00.000Z');
@@ -101,10 +93,7 @@ describe('useMessagesStore (pure state)', () => {
 
   it('applyDelete() leaves the row (tombstone) but marks deletedAt', () => {
     const store = getMessagesStore({ roomId: 42 });
-    store.getState().replaceAll(
-      [mkMessage(5n, 'orig', '2026-04-20T10:00:00.000Z')],
-      null,
-    );
+    store.getState().replaceAll([mkMessage(5n, 'orig', '2026-04-20T10:00:00.000Z')], null);
     store.getState().applyDelete(5n, '2026-04-20T10:05:00.000Z');
     expect(store.getState().byId.get(5n)?.deletedAt).toBe('2026-04-20T10:05:00.000Z');
     // Still in the order — tombstone rendering uses the row.
@@ -113,14 +102,13 @@ describe('useMessagesStore (pure state)', () => {
 
   it('prependOlder() merges an older page and keeps the composite-key sort order', () => {
     const store = getMessagesStore({ roomId: 42 });
-    store.getState().replaceAll(
-      [mkMessage(10n, 'newest', '2026-04-20T10:10:00.000Z')],
-      { createdAt: '2026-04-20T10:10:00.000Z', id: 10n },
-    );
-    store.getState().prependOlder(
-      [mkMessage(5n, 'older', '2026-04-20T09:00:00.000Z')],
-      null,
-    );
+    store
+      .getState()
+      .replaceAll([mkMessage(10n, 'newest', '2026-04-20T10:10:00.000Z')], {
+        createdAt: '2026-04-20T10:10:00.000Z',
+        id: 10n,
+      });
+    store.getState().prependOlder([mkMessage(5n, 'older', '2026-04-20T09:00:00.000Z')], null);
     const s = store.getState();
     expect(s.order).toEqual([5n, 10n]);
     expect(s.oldestCursor).toBeNull();
@@ -129,10 +117,12 @@ describe('useMessagesStore (pure state)', () => {
 
   it('prependOlder() with an empty page still advances the cursor/hasMore', () => {
     const store = getMessagesStore({ roomId: 42 });
-    store.getState().replaceAll(
-      [mkMessage(10n, 'newest', '2026-04-20T10:10:00.000Z')],
-      { createdAt: '2026-04-20T10:10:00.000Z', id: 10n },
-    );
+    store
+      .getState()
+      .replaceAll([mkMessage(10n, 'newest', '2026-04-20T10:10:00.000Z')], {
+        createdAt: '2026-04-20T10:10:00.000Z',
+        id: 10n,
+      });
     store.getState().prependOlder([], null);
     expect(store.getState().hasMore).toBe(false);
     expect(store.getState().oldestCursor).toBeNull();

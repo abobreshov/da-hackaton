@@ -35,8 +35,7 @@ const STATE_LABEL: Record<NonNullable<PresenceState>, string> = {
 
 type PresenceState = NonNullable<VariantProps<typeof presenceDotVariants>['state']>;
 
-export interface PresenceDotProps
-  extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
+export interface PresenceDotProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
   state: PresenceState;
   /** Override the default screen-reader label for the presence state. */
   label?: string;

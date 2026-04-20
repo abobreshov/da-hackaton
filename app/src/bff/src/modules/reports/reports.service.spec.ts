@@ -84,9 +84,7 @@ describe('ReportsService (BFF)', () => {
     it('propagates CONFLICT (already resolved)', async () => {
       const rpc = new RpcException({ status: 409, message: 'already resolved' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.resolve({ id: '42', adminId: 1 }),
-      ).rejects.toBe(rpc);
+      await expect(service.resolve({ id: '42', adminId: 1 })).rejects.toBe(rpc);
     });
   });
 
@@ -106,9 +104,7 @@ describe('ReportsService (BFF)', () => {
     it('propagates NOT_FOUND', async () => {
       const rpc = new RpcException({ status: 404, message: 'report not found' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.dismiss({ id: '42', adminId: 1 }),
-      ).rejects.toBe(rpc);
+      await expect(service.dismiss({ id: '42', adminId: 1 })).rejects.toBe(rpc);
     });
   });
 

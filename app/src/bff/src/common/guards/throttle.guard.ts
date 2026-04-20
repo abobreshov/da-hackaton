@@ -52,9 +52,10 @@ export class ThrottleGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const raw = this.reflector.getAllAndOverride<
-      ThrottleOptions | ThrottleOptions[] | undefined
-    >(THROTTLE_METADATA_KEY, [context.getHandler(), context.getClass()]);
+    const raw = this.reflector.getAllAndOverride<ThrottleOptions | ThrottleOptions[] | undefined>(
+      THROTTLE_METADATA_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     if (!raw) return true;
 
     const bucketList: ThrottleOptions[] = Array.isArray(raw) ? raw : [raw];
@@ -118,9 +119,7 @@ export class ThrottleGuard implements CanActivate {
 
   private handleRedisMiss(opts: ThrottleOptions, reason: string): boolean {
     if (shouldFailClosed(opts)) {
-      this.logger.error(
-        `ThrottleGuard fail-closed for scope=${opts.scope}: ${reason}`,
-      );
+      this.logger.error(`ThrottleGuard fail-closed for scope=${opts.scope}: ${reason}`);
       const body: WireError = {
         code: ErrorCode.RATE_LIMITED,
         message: 'Rate limiter unavailable',
@@ -128,9 +127,7 @@ export class ThrottleGuard implements CanActivate {
       };
       throw new HttpException(body as unknown as Record<string, unknown>, 429);
     }
-    this.logger.warn(
-      `ThrottleGuard fail-open for scope=${opts.scope}: ${reason}`,
-    );
+    this.logger.warn(`ThrottleGuard fail-open for scope=${opts.scope}: ${reason}`);
     return true;
   }
 }

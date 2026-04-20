@@ -25,7 +25,7 @@ describe('MailerService', () => {
 
   function load() {
     // Dynamic import so each test picks up whatever env we just set.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     return require('./mail.service') as typeof import('./mail.service');
   }
 
@@ -130,9 +130,7 @@ describe('MailerService', () => {
       const svc = new MailerService();
       svc.onModuleInit();
       sendMail.mockRejectedValue(new Error('smtp down'));
-      await expect(
-        svc.sendVerificationEmail('new@x.com', 'tok'),
-      ).resolves.toBeUndefined();
+      await expect(svc.sendVerificationEmail('new@x.com', 'tok')).resolves.toBeUndefined();
     });
   });
 
@@ -169,9 +167,7 @@ describe('MailerService', () => {
       const svc = new MailerService();
       svc.onModuleInit();
       sendMail.mockRejectedValue(new Error('smtp down'));
-      await expect(
-        svc.sendAccountExistsEmail('dup@x.com', 'rawReset'),
-      ).resolves.toBeUndefined();
+      await expect(svc.sendAccountExistsEmail('dup@x.com', 'rawReset')).resolves.toBeUndefined();
     });
   });
 });

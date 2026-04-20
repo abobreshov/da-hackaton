@@ -88,17 +88,15 @@ describe('MessagesTcpController', () => {
 
   it('messages.create lets BadRequestException bubble to the global filter', async () => {
     service.create.mockRejectedValue(new BadRequestException('too big'));
-    await expect(
-      controller.create({ authorId: 7, roomId: 3, body: '' }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.create({ authorId: 7, roomId: 3, body: '' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('messages.create preserves a DM_FROZEN WireError HttpException(403)', async () => {
     const wire = new HttpException({ code: ErrorCode.DM_FROZEN, message: 'frozen' }, 403);
     service.create.mockRejectedValue(wire);
-    await expect(
-      controller.create({ authorId: 7, dmUserId: 9, body: 'hi' }),
-    ).rejects.toBe(wire);
+    await expect(controller.create({ authorId: 7, dmUserId: 9, body: 'hi' })).rejects.toBe(wire);
   });
 
   it('messages.create tolerates `_sys` and forwards only domain fields', async () => {
@@ -123,16 +121,16 @@ describe('MessagesTcpController', () => {
 
   it('messages.edit bubbles ForbiddenException unchanged', async () => {
     service.edit.mockRejectedValue(new ForbiddenException('not yours'));
-    await expect(
-      controller.edit({ id: 1n, actorId: 99, body: 'x' }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.edit({ id: 1n, actorId: 99, body: 'x' })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('messages.delete forwards payload and returns { ok: true }', async () => {
     service.delete.mockResolvedValue(undefined as any);
-    await expect(
-      controller.delete({ id: 1n, actorId: 7, isRoomAdmin: false }),
-    ).resolves.toEqual({ ok: true });
+    await expect(controller.delete({ id: 1n, actorId: 7, isRoomAdmin: false })).resolves.toEqual({
+      ok: true,
+    });
     expect(service.delete).toHaveBeenCalledWith({ id: 1n, actorId: 7, isRoomAdmin: false });
   });
 

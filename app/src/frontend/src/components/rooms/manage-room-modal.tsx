@@ -39,7 +39,7 @@ export interface ManageRoomRoom {
   description: string | null;
   visibility: RoomVisibility;
   /** User id of the room owner — single per room per AC-06-01. */
-  ownerId: number;
+  ownerId: number | null;
 }
 
 export interface ManageRoomMember {
@@ -172,11 +172,7 @@ export function ManageRoomModal({
             {active === 'banned' && <BannedTab roomId={room.id} />}
             {active === 'invitations' && <InvitationsTab roomId={room.id} />}
             {active === 'settings' && (
-              <SettingsTab
-                room={room}
-                isOwner={isOwner}
-                onDeleted={onClose}
-              />
+              <SettingsTab room={room} isOwner={isOwner} onDeleted={onClose} />
             )}
           </div>
         </Dialog.Content>
@@ -191,7 +187,7 @@ export function ManageRoomModal({
 
 interface MembersTabProps {
   roomId: number;
-  ownerId: number;
+  ownerId: number | null;
   currentUser: ManageRoomCurrentUser;
   members: ManageRoomMember[];
 }
@@ -236,9 +232,7 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
               className="flex items-center gap-3 rounded-[1.25rem] bg-surface-container-low px-4 py-3"
             >
               <PresenceDot state={m.presence} />
-              <span className="font-body text-body-md text-on-surface flex-1">
-                {m.username}
-              </span>
+              <span className="font-body text-body-md text-on-surface flex-1">{m.username}</span>
               <span className="font-display text-label-md uppercase tracking-[0.14em] text-on-surface-variant">
                 {m.role}
               </span>
@@ -250,9 +244,7 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
                     size="sm"
                     disabled={busyId === m.userId}
                     data-testid={`member-action-promote-${m.userId}`}
-                    onClick={() =>
-                      run(m.userId, () => promoteMember(roomId, m.userId))
-                    }
+                    onClick={() => run(m.userId, () => promoteMember(roomId, m.userId))}
                   >
                     Make admin
                   </Button>
@@ -264,9 +256,7 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
                     size="sm"
                     disabled={busyId === m.userId}
                     data-testid={`member-action-demote-${m.userId}`}
-                    onClick={() =>
-                      run(m.userId, () => demoteMember(roomId, m.userId))
-                    }
+                    onClick={() => run(m.userId, () => demoteMember(roomId, m.userId))}
                   >
                     Remove admin
                   </Button>
@@ -278,9 +268,7 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
                     size="sm"
                     disabled={busyId === m.userId}
                     data-testid={`member-action-ban-${m.userId}`}
-                    onClick={() =>
-                      run(m.userId, () => removeMember(roomId, m.userId))
-                    }
+                    onClick={() => run(m.userId, () => removeMember(roomId, m.userId))}
                   >
                     Ban
                   </Button>
@@ -300,7 +288,7 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
 
 interface AdminsTabProps {
   roomId: number;
-  ownerId: number;
+  ownerId: number | null;
   isOwner: boolean;
   members: ManageRoomMember[];
 }
@@ -309,9 +297,7 @@ function AdminsTab({ roomId, ownerId, isOwner, members }: AdminsTabProps) {
   const [busyId, setBusyId] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  const admins = members.filter(
-    (m) => m.role === 'admin' || m.role === 'owner',
-  );
+  const admins = members.filter((m) => m.role === 'admin' || m.role === 'owner');
 
   const onDemote = async (userId: number) => {
     setBusyId(userId);
@@ -340,9 +326,7 @@ function AdminsTab({ roomId, ownerId, isOwner, members }: AdminsTabProps) {
               className="flex items-center gap-3 rounded-[1.25rem] bg-surface-container-low px-4 py-3"
             >
               <PresenceDot state={m.presence} />
-              <span className="font-body text-body-md text-on-surface flex-1">
-                {m.username}
-              </span>
+              <span className="font-body text-body-md text-on-surface flex-1">{m.username}</span>
               <span className="font-display text-label-md uppercase tracking-[0.14em] text-on-surface-variant">
                 {isRowOwner ? 'owner (cannot lose admin rights)' : 'admin'}
               </span>
@@ -427,12 +411,7 @@ function BannedTab({ roomId }: BannedTabProps) {
     return (
       <div className="flex flex-col gap-3">
         <FormError>{error}</FormError>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => setNonce((n) => n + 1)}
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={() => setNonce((n) => n + 1)}>
           Retry
         </Button>
       </div>
@@ -440,11 +419,7 @@ function BannedTab({ roomId }: BannedTabProps) {
   }
 
   if (bans.length === 0) {
-    return (
-      <p className="font-body text-body-md text-on-surface-variant">
-        No banned users.
-      </p>
-    );
+    return <p className="font-body text-body-md text-on-surface-variant">No banned users.</p>;
   }
 
   return (
@@ -455,9 +430,7 @@ function BannedTab({ roomId }: BannedTabProps) {
           className="flex items-center gap-3 rounded-[1.25rem] bg-surface-container-low px-4 py-3"
         >
           <div className="flex flex-col flex-1">
-            <span className="font-body text-body-md text-on-surface">
-              {b.username}
-            </span>
+            <span className="font-body text-body-md text-on-surface">{b.username}</span>
             <span className="font-body text-body-sm text-on-surface-variant">
               banned by {b.bannedByUsername} · {b.createdAt}
             </span>
@@ -530,10 +503,7 @@ function InvitationsTab({ roomId }: InvitationsTabProps) {
       />
       {error ? <FormError>{error}</FormError> : null}
       {success ? (
-        <p
-          role="status"
-          className="font-body text-body-md text-on-surface-variant"
-        >
+        <p role="status" className="font-body text-body-md text-on-surface-variant">
           {success}
         </p>
       ) : null}
@@ -559,9 +529,7 @@ interface SettingsTabProps {
 function SettingsTab({ room, isOwner, onDeleted }: SettingsTabProps) {
   const [name, setName] = React.useState(room.name);
   const [description, setDescription] = React.useState(room.description ?? '');
-  const [visibility, setVisibility] = React.useState<RoomVisibility>(
-    room.visibility,
-  );
+  const [visibility, setVisibility] = React.useState<RoomVisibility>(room.visibility);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [savedMessage, setSavedMessage] = React.useState<string | null>(null);
@@ -577,8 +545,7 @@ function SettingsTab({ room, isOwner, onDeleted }: SettingsTabProps) {
     try {
       const patch: Record<string, unknown> = {};
       if (name !== room.name) patch.name = name;
-      if (description !== (room.description ?? ''))
-        patch.description = description;
+      if (description !== (room.description ?? '')) patch.description = description;
       if (visibility !== room.visibility) patch.visibility = visibility;
       await updateRoom(room.id, patch as Parameters<typeof updateRoom>[1]);
       setSavedMessage('Settings saved.');
@@ -658,10 +625,7 @@ function SettingsTab({ room, isOwner, onDeleted }: SettingsTabProps) {
 
       {error ? <FormError>{error}</FormError> : null}
       {savedMessage ? (
-        <p
-          role="status"
-          className="font-body text-body-md text-on-surface-variant"
-        >
+        <p role="status" className="font-body text-body-md text-on-surface-variant">
           {savedMessage}
         </p>
       ) : null}
@@ -685,12 +649,7 @@ function SettingsTab({ room, isOwner, onDeleted }: SettingsTabProps) {
           </p>
           {!confirming ? (
             <div>
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                onClick={() => setConfirming(true)}
-              >
+              <Button type="button" variant="danger" size="sm" onClick={() => setConfirming(true)}>
                 Delete room
               </Button>
             </div>

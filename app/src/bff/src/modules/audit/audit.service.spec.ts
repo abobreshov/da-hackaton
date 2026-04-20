@@ -69,11 +69,7 @@ describe('AuditService (BFF)', () => {
 
       await service.page({});
 
-      expect(proxy.forward).toHaveBeenCalledWith(
-        client,
-        { cmd: 'audit.page' },
-        {},
-      );
+      expect(proxy.forward).toHaveBeenCalledWith(client, { cmd: 'audit.page' }, {});
     });
 
     it('propagates upstream RpcException (e.g. 500)', async () => {

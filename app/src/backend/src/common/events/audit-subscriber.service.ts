@@ -1,18 +1,6 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnApplicationBootstrap,
-} from '@nestjs/common';
-import {
-  ActorType,
-  AuditAppendInput,
-  AuditService,
-} from '../../modules/audit/audit.service';
-import {
-  EVENT_PUBLISHER,
-  IEventPublisher,
-} from './event-publisher.interface';
+import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { ActorType, AuditAppendInput, AuditService } from '../../modules/audit/audit.service';
+import { EVENT_PUBLISHER, IEventPublisher } from './event-publisher.interface';
 
 /**
  * Per-event mapper from a domain event payload to an `AuditAppendInput`.
@@ -50,9 +38,7 @@ export class AuditSubscriber implements OnApplicationBootstrap {
       this.events.on(event, async (payload) => {
         const input = mapper(payload);
         if (!input) {
-          this.logger.debug(
-            `audit.subscriber skip event=${event} (no input from mapper)`,
-          );
+          this.logger.debug(`audit.subscriber skip event=${event} (no input from mapper)`);
           return;
         }
         await this.audit.append(input);

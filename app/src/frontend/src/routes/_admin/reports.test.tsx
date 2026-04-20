@@ -51,7 +51,12 @@ describe('<AdminReportsRoute /> (/admin/reports)', () => {
 
   it('shows a loading skeleton while the list is fetching', async () => {
     let resolve: (v: Response) => void = () => {};
-    fetchMock.mockImplementationOnce(() => new Promise<Response>((r) => { resolve = r; }));
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((r) => {
+          resolve = r;
+        }),
+    );
     const Reports = getComponent();
     render(<Reports />);
     expect(screen.getByTestId('reports-loading')).toBeInTheDocument();
@@ -103,9 +108,7 @@ describe('<AdminReportsRoute /> (/admin/reports)', () => {
     });
     expect(screen.getByText('bob')).toBeInTheDocument();
     expect(screen.getByTestId('report-reason-10')).toHaveTextContent('bad words');
-    expect(screen.getByTestId('report-reason-11')).toHaveTextContent(
-      'impersonation',
-    );
+    expect(screen.getByTestId('report-reason-11')).toHaveTextContent('impersonation');
     expect(screen.getAllByRole('button', { name: /^resolve$/i }).length).toBe(2);
     expect(screen.getAllByRole('button', { name: /^dismiss$/i }).length).toBe(2);
   });
@@ -207,7 +210,11 @@ describe('<AdminReportsRoute /> (/admin/reports)', () => {
 
     fetchMock.mockResolvedValueOnce(
       jsonResponse([
-        mkReport({ id: '50', reporterUsername: 'older-one', createdAt: '2026-04-19T00:00:00.000Z' }),
+        mkReport({
+          id: '50',
+          reporterUsername: 'older-one',
+          createdAt: '2026-04-19T00:00:00.000Z',
+        }),
       ]),
     );
 
@@ -222,8 +229,6 @@ describe('<AdminReportsRoute /> (/admin/reports)', () => {
     const pageUrl = String(pageCall[0]);
     const tail = firstPage[firstPage.length - 1];
     expect(pageUrl).toContain(`beforeId=${tail.id}`);
-    expect(pageUrl).toContain(
-      `beforeCreatedAt=${encodeURIComponent(tail.createdAt)}`,
-    );
+    expect(pageUrl).toContain(`beforeCreatedAt=${encodeURIComponent(tail.createdAt)}`);
   });
 });

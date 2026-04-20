@@ -42,9 +42,7 @@ function renderOwner(overrides: Partial<Parameters<typeof ManageRoomModal>[0]> =
   );
 }
 
-function renderNonOwnerAdmin(
-  overrides: Partial<Parameters<typeof ManageRoomModal>[0]> = {},
-) {
+function renderNonOwnerAdmin(overrides: Partial<Parameters<typeof ManageRoomModal>[0]> = {}) {
   return render(
     <ManageRoomModal
       open

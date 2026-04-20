@@ -23,7 +23,11 @@ export class PresenceTcpController {
   @MessagePattern({ cmd: TcpCmd.presence.touch })
   async touch(
     @Payload()
-    data: { userId: number; sessionId: string; _sys?: string },
+    data: {
+      userId: number;
+      sessionId: string;
+      _sys?: string;
+    },
   ): Promise<{ ok: true }> {
     await this.service.touch(data.userId, data.sessionId);
     return { ok: true };
@@ -32,7 +36,11 @@ export class PresenceTcpController {
   @MessagePattern({ cmd: TcpCmd.presence.disconnect })
   async disconnect(
     @Payload()
-    data: { userId: number; sessionId: string; _sys?: string },
+    data: {
+      userId: number;
+      sessionId: string;
+      _sys?: string;
+    },
   ): Promise<{ ok: true }> {
     await this.service.disconnect(data.userId, data.sessionId);
     return { ok: true };
@@ -41,7 +49,10 @@ export class PresenceTcpController {
   @MessagePattern({ cmd: TcpCmd.presence.stateOf })
   async stateOf(
     @Payload()
-    data: { userIds: number[]; _sys?: string },
+    data: {
+      userIds: number[];
+      _sys?: string;
+    },
   ): Promise<{ states: Record<number, PresenceState> }> {
     const map = await this.service.stateOf(data.userIds);
     const states: Record<number, PresenceState> = {};

@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../../common/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user';
 import { AbuseReportsService } from './abuse-reports.service';
@@ -28,10 +19,7 @@ export class AbuseReportsController {
 
   @Post('reports')
   @HttpCode(201)
-  create(
-    @CurrentUser() user: { id: number },
-    @Body() dto: CreateReportDto,
-  ) {
+  create(@CurrentUser() user: { id: number }, @Body() dto: CreateReportDto) {
     return this.service.create({
       reporterId: user.id,
       targetType: dto.targetType,

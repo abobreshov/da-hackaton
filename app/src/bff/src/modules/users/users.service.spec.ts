@@ -57,11 +57,7 @@ describe('UsersService (BFF)', () => {
 
       const result = await service.findById(1);
 
-      expect(proxy.forward).toHaveBeenCalledWith(
-        client,
-        { cmd: 'users.findById' },
-        { id: 1 },
-      );
+      expect(proxy.forward).toHaveBeenCalledWith(client, { cmd: 'users.findById' }, { id: 1 });
       expect(result).toEqual(row);
     });
   });

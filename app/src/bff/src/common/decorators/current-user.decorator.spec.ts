@@ -26,23 +26,17 @@ describe('@CurrentUserId() factory', () => {
 
   it('throws UnauthorizedException when session is missing', () => {
     const ctx = makeCtx({});
-    expect(() => __currentUserIdFactory(undefined, ctx)).toThrow(
-      UnauthorizedException,
-    );
+    expect(() => __currentUserIdFactory(undefined, ctx)).toThrow(UnauthorizedException);
   });
 
   it('throws UnauthorizedException when session.sub is missing', () => {
     const ctx = makeCtx({ session: { type: 'user' } });
-    expect(() => __currentUserIdFactory(undefined, ctx)).toThrow(
-      UnauthorizedException,
-    );
+    expect(() => __currentUserIdFactory(undefined, ctx)).toThrow(UnauthorizedException);
   });
 
   it('throws UnauthorizedException when session.type is not user (admin session)', () => {
     const ctx = makeCtx({ session: { sub: 'a:1', type: 'admin' } });
-    expect(() => __currentUserIdFactory(undefined, ctx)).toThrow(
-      UnauthorizedException,
-    );
+    expect(() => __currentUserIdFactory(undefined, ctx)).toThrow(UnauthorizedException);
   });
 
   it('throws on malformed sub (no prefix)', () => {

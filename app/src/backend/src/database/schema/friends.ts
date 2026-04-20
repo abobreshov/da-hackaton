@@ -41,10 +41,7 @@ export const friendships = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
   },
   (table) => ({
-    statusCheck: check(
-      'friendships_status_check',
-      sql`${table.status} IN ('pending','accepted')`,
-    ),
+    statusCheck: check('friendships_status_check', sql`${table.status} IN ('pending','accepted')`),
     requestedByCheck: check(
       'friendships_requested_by_check',
       sql`${table.requestedBy} IN (${table.userA}, ${table.userB})`,
@@ -53,10 +50,7 @@ export const friendships = pgTable(
       'friendships_canonical_order_check',
       sql`${table.userA} < ${table.userB}`,
     ),
-    pairUnique: uniqueIndex('friendships_pair_unique').on(
-      table.userA,
-      table.userB,
-    ),
+    pairUnique: uniqueIndex('friendships_pair_unique').on(table.userA, table.userB),
     userAAcceptedIdx: index('friendships_user_a_accepted_idx')
       .on(table.userA)
       .where(sql`${table.status} = 'accepted'`),

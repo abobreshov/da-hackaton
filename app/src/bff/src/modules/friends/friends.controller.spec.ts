@@ -76,10 +76,7 @@ describe('FriendsController (BFF)', () => {
     it('delegates to service.request with requesterId from session + body', async () => {
       svc.request.mockResolvedValue({ id: 99, status: 'pending' });
 
-      const res = await controller.request(
-        { username: 'bob', text: 'hi' } as any,
-        sessionReq(1),
-      );
+      const res = await controller.request({ username: 'bob', text: 'hi' } as any, sessionReq(1));
 
       expect(svc.request).toHaveBeenCalledWith({
         requesterId: 1,
@@ -92,9 +89,7 @@ describe('FriendsController (BFF)', () => {
     it('propagates CONFLICT RpcException (already friends)', async () => {
       const rpc = new RpcException({ status: 409, message: 'already friends' });
       svc.request.mockRejectedValue(rpc);
-      await expect(
-        controller.request({ username: 'bob' } as any, sessionReq(1)),
-      ).rejects.toBe(rpc);
+      await expect(controller.request({ username: 'bob' } as any, sessionReq(1))).rejects.toBe(rpc);
     });
   });
 
@@ -126,17 +121,15 @@ describe('FriendsController (BFF)', () => {
 describe('FriendsController — guard wiring + throttle metadata', () => {
   it('class-level metadata includes SessionGuard', () => {
     const { SessionGuard } = require('../../auth/session.guard');
-    const guards =
-      Reflect.getMetadata('__guards__', FriendsController) ?? [];
+    const guards = Reflect.getMetadata('__guards__', FriendsController) ?? [];
     expect(guards).toEqual(expect.arrayContaining([SessionGuard]));
   });
 
   // AC-14-13 — POST /friends/request: 20/hr per userId, fail-open.
   it('POST /friends/request carries a throttle bucket {scope:friend-req, limit:20, windowMs:3_600_000, failClosed:false}', () => {
-    const meta = Reflect.getMetadata(
-      THROTTLE_METADATA_KEY,
-      FriendsController.prototype.request,
-    ) as ThrottleOptions[] | undefined;
+    const meta = Reflect.getMetadata(THROTTLE_METADATA_KEY, FriendsController.prototype.request) as
+      | ThrottleOptions[]
+      | undefined;
 
     expect(Array.isArray(meta)).toBe(true);
     const bucket = (meta ?? []).find((m) => m.scope === 'friend-req');

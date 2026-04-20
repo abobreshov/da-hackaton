@@ -67,9 +67,7 @@ describe('FriendsService (BFF)', () => {
     it('propagates upstream RpcException (NOT_FOUND)', async () => {
       const rpc = new RpcException({ status: 404, message: 'user not found' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.request({ requesterId: 3, targetUsername: 'ghost' }),
-      ).rejects.toBe(rpc);
+      await expect(service.request({ requesterId: 3, targetUsername: 'ghost' })).rejects.toBe(rpc);
     });
   });
 
@@ -140,11 +138,7 @@ describe('FriendsService (BFF)', () => {
 
       const out = await service.list({ userId: 3 });
 
-      expect(proxy.forward).toHaveBeenCalledWith(
-        client,
-        { cmd: 'friends.list' },
-        { userId: 3 },
-      );
+      expect(proxy.forward).toHaveBeenCalledWith(client, { cmd: 'friends.list' }, { userId: 3 });
       expect(out).toBe(rows);
     });
 
@@ -162,7 +156,14 @@ describe('FriendsService (BFF)', () => {
   describe('listPending({userId})', () => {
     it('forwards friends.listPending with payload', async () => {
       const rows = [
-        { id: 2, requesterId: 5, otherUserId: 5, incoming: true, requestText: 'hi', createdAt: new Date().toISOString() },
+        {
+          id: 2,
+          requesterId: 5,
+          otherUserId: 5,
+          incoming: true,
+          requestText: 'hi',
+          createdAt: new Date().toISOString(),
+        },
       ];
       (proxy.forward as jest.Mock).mockResolvedValueOnce(rows);
 

@@ -67,10 +67,7 @@ export class AuthService {
 
   passwordResetRequest(email: string) {
     return firstValueFrom(
-      this.client.send<any>(
-        { cmd: 'auth.customer.passwordReset.request' },
-        withSys({ email }),
-      ),
+      this.client.send<any>({ cmd: 'auth.customer.passwordReset.request' }, withSys({ email })),
     );
   }
 

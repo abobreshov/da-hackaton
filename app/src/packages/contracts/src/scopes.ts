@@ -51,8 +51,6 @@ export function isMessageScope(value: unknown): value is MessageScope {
  */
 export function assertMessageScope(s: unknown): asserts s is MessageScope {
   if (!isMessageScope(s)) {
-    throw new TypeError(
-      'message must have exactly one of roomId or dmUserId',
-    );
+    throw new TypeError('message must have exactly one of roomId or dmUserId');
   }
 }

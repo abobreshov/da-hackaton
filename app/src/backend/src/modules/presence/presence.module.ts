@@ -1,10 +1,4 @@
-import {
-  Inject,
-  Logger,
-  Module,
-  OnModuleDestroy,
-  type Provider,
-} from '@nestjs/common';
+import { Inject, Logger, Module, OnModuleDestroy, type Provider } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import IORedis from 'ioredis';
 import { env } from '../../config/environment';

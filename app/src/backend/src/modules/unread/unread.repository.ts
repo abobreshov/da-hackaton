@@ -43,10 +43,9 @@ export class DrizzleUnreadRepository implements UnreadRepositoryPort {
     // Rooms the user is a member of; count unread per room with the 99 cap
     // applied in SQL (LEAST). LEFT JOIN user_last_read so rooms without a
     // marker row still get counted against last_read_id = 0.
-    const rows: Array<{ roomId: number; count: number | string }> =
-      await executeRows(
-        this.db,
-        sql`
+    const rows: Array<{ roomId: number; count: number | string }> = await executeRows(
+      this.db,
+      sql`
           SELECT
             rm.room_id AS "roomId",
             LEAST(
@@ -65,7 +64,7 @@ export class DrizzleUnreadRepository implements UnreadRepositoryPort {
              AND ulr.room_id = rm.room_id
            WHERE rm.user_id = ${userId}
         `,
-      );
+    );
 
     return rows.map((r) => ({
       roomId: r.roomId,
@@ -74,10 +73,9 @@ export class DrizzleUnreadRepository implements UnreadRepositoryPort {
   }
 
   async unreadDmsFor(userId: number): Promise<DmUnread[]> {
-    const rows: Array<{ dmId: number; count: number | string }> =
-      await executeRows(
-        this.db,
-        sql`
+    const rows: Array<{ dmId: number; count: number | string }> = await executeRows(
+      this.db,
+      sql`
           SELECT
             dc.id AS "dmId",
             LEAST(
@@ -97,7 +95,7 @@ export class DrizzleUnreadRepository implements UnreadRepositoryPort {
              AND ulr.dm_id = dc.id
            WHERE dc.user_low = ${userId} OR dc.user_high = ${userId}
         `,
-      );
+    );
 
     return rows.map((r) => ({ dmId: r.dmId, count: toInt(r.count) }));
   }

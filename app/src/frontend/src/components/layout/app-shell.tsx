@@ -39,8 +39,7 @@ interface AppShellLayoutContextValue {
   maxWidth: AppShellMaxWidth;
 }
 
-const AppShellLayoutContext =
-  React.createContext<AppShellLayoutContextValue | null>(null);
+const AppShellLayoutContext = React.createContext<AppShellLayoutContextValue | null>(null);
 
 /**
  * Read the current shell layout context. Returns `null` when the caller
@@ -80,10 +79,7 @@ export function AppShell({
         {header ? <div className="relative z-10 px-8 py-5">{header}</div> : null}
         <main
           id="main"
-          className={cn(
-            'relative z-10 mx-auto px-8 pb-16 pt-6',
-            MAX_WIDTH_CLASSES[maxWidth],
-          )}
+          className={cn('relative z-10 mx-auto px-8 pb-16 pt-6', MAX_WIDTH_CLASSES[maxWidth])}
         >
           {children}
         </main>

@@ -136,8 +136,26 @@ describe('AuditService', () => {
   describe('page()', () => {
     it('returns rows with keyset-friendly ORDER BY (created_at, id) DESC and honors limit', async () => {
       const rows = [
-        { id: 10n, actorId: 1, actorType: 'admin', action: 'room.ban',   targetType: 'user', targetId: 7n,  metadata: null, createdAt: new Date('2026-04-20T10:00:00Z') },
-        { id: 9n,  actorId: 1, actorType: 'admin', action: 'room.unban', targetType: 'user', targetId: 7n,  metadata: null, createdAt: new Date('2026-04-20T09:00:00Z') },
+        {
+          id: 10n,
+          actorId: 1,
+          actorType: 'admin',
+          action: 'room.ban',
+          targetType: 'user',
+          targetId: 7n,
+          metadata: null,
+          createdAt: new Date('2026-04-20T10:00:00Z'),
+        },
+        {
+          id: 9n,
+          actorId: 1,
+          actorType: 'admin',
+          action: 'room.unban',
+          targetType: 'user',
+          targetId: 7n,
+          metadata: null,
+          createdAt: new Date('2026-04-20T09:00:00Z'),
+        },
       ];
       const { db, selectCalls } = makeFakeDb({ selectRows: rows });
       const svc = new AuditService(db as any);

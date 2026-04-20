@@ -48,7 +48,13 @@ describe('<VerifyEmailPage />', () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          user: { id: 13, email: 'v@x.com', name: 'verified', role: 'USER', scopes: ['read:profile'] },
+          user: {
+            id: 13,
+            email: 'v@x.com',
+            name: 'verified',
+            role: 'USER',
+            scopes: ['read:profile'],
+          },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),

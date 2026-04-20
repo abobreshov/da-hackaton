@@ -1,8 +1,4 @@
-import {
-  createParamDecorator,
-  ExecutionContext,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 
 /**
  * Local copy of {@link parseSub} from `auth/cookie.service`.
@@ -42,13 +38,8 @@ function parseSubLocal(sub: string): { type: 'user' | 'admin'; numericId: number
  * callers should read `client.data.session` directly; this decorator
  * deliberately does not span contexts so the failure mode stays explicit.
  */
-export function __currentUserIdFactory(
-  _data: unknown,
-  ctx: ExecutionContext,
-): number {
-  const req: { session?: { sub?: string; type?: string } } = ctx
-    .switchToHttp()
-    .getRequest();
+export function __currentUserIdFactory(_data: unknown, ctx: ExecutionContext): number {
+  const req: { session?: { sub?: string; type?: string } } = ctx.switchToHttp().getRequest();
   const sub = req?.session?.sub;
   if (!sub) {
     throw new UnauthorizedException('no session');

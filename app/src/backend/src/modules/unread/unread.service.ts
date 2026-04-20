@@ -41,9 +41,7 @@ export class UnreadService {
     const hasRoom = p.roomId != null;
     const hasDm = p.dmId != null;
     if (hasRoom === hasDm) {
-      throw new BadRequestException(
-        'exactly one of roomId or dmId must be provided',
-      );
+      throw new BadRequestException('exactly one of roomId or dmId must be provided');
     }
   }
 }

@@ -18,10 +18,7 @@ export interface RoomChatViewportProps {
   currentUserId: number | null | undefined;
 }
 
-export function RoomChatViewport({
-  roomId,
-  currentUserId,
-}: RoomChatViewportProps) {
+export function RoomChatViewport({ roomId, currentUserId }: RoomChatViewportProps) {
   const { messages, sendMessage, loadOlder, hasMore } = useMessages({ roomId });
 
   return (

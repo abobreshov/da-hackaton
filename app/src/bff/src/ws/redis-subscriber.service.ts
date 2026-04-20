@@ -46,9 +46,7 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
   private readonly refCount = new Map<string, number>();
   private initialized = false;
 
-  constructor(
-    @Optional() @Inject(REDIS_SUB_CLIENT) private readonly sub?: Redis,
-  ) {
+  constructor(@Optional() @Inject(REDIS_SUB_CLIENT) private readonly sub?: Redis) {
     // Fallback client — overridden by provider factory in WsModule.
     if (!this.sub) {
       const host = process.env.REDIS_HOST ?? 'localhost';
@@ -183,10 +181,7 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private fanoutChannel(
-    channel: string,
-    payload: { event?: string; payload?: any } | any,
-  ): void {
+  private fanoutChannel(channel: string, payload: { event?: string; payload?: any } | any): void {
     const subs = this.channelSubscribers.get(channel);
     if (!subs || subs.size === 0) return;
     const event = payload?.event ?? channel;

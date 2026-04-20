@@ -41,9 +41,7 @@ async function bootstrap() {
     QueueName.attachmentsCleanup,
     QueueName.abuseReportNotify,
   ];
-  logger.log(
-    `Backend worker process running — queues: ${queues.join(', ')}`,
-  );
+  logger.log(`Backend worker process running — queues: ${queues.join(', ')}`);
 
   // `enableShutdownHooks` wires SIGTERM/SIGINT to Nest lifecycle, which
   // triggers `WorkersModule.onModuleDestroy` → BullMQ closes workers,
@@ -58,7 +56,7 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
+   
   console.error('Backend worker failed to start:', err);
   process.exit(1);
 });

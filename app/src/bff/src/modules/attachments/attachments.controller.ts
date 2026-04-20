@@ -60,7 +60,12 @@ export class AttachmentsController {
     // For now the FE is expected to pass `dmId` field. Long-term, BFF
     // resolves via backend TCP — track as TODO.
     let dmId: number | null = null;
-    const fileBufs: Array<{ filename: string; mime: string; content: Buffer; comment: string | null }> = [];
+    const fileBufs: Array<{
+      filename: string;
+      mime: string;
+      content: Buffer;
+      comment: string | null;
+    }> = [];
     for await (const part of parts) {
       if (part.type === 'file') {
         const bufs: Buffer[] = [];
@@ -88,14 +93,16 @@ export class AttachmentsController {
     const uploaded: unknown[] = [];
     for (const f of fileBufs) {
       uploaded.push(
-        (await this.service.upload({
-          uploaderId: userId,
-          scope: { dmId },
-          filename: f.filename,
-          mime: f.mime,
-          content: f.content,
-          comment: f.comment,
-        })).attachment,
+        (
+          await this.service.upload({
+            uploaderId: userId,
+            scope: { dmId },
+            filename: f.filename,
+            mime: f.mime,
+            content: f.content,
+            comment: f.comment,
+          })
+        ).attachment,
       );
     }
     return { attachments: uploaded };
@@ -131,7 +138,12 @@ export class AttachmentsController {
     userId: number,
     scope: { roomId: number } | { dmId: number },
   ) {
-    const files: Array<{ filename: string; mime: string; content: Buffer; comment: string | null }> = [];
+    const files: Array<{
+      filename: string;
+      mime: string;
+      content: Buffer;
+      comment: string | null;
+    }> = [];
     let lastComment: string | null = null;
     for await (const part of parts) {
       if (part.type === 'file') {
@@ -150,14 +162,18 @@ export class AttachmentsController {
     if (files.length === 0) throw new BadRequestException('no files in body');
     const uploaded: unknown[] = [];
     for (const f of files) {
-      uploaded.push((await this.service.upload({
-        uploaderId: userId,
-        scope,
-        filename: f.filename,
-        mime: f.mime,
-        content: f.content,
-        comment: f.comment,
-      })).attachment);
+      uploaded.push(
+        (
+          await this.service.upload({
+            uploaderId: userId,
+            scope,
+            filename: f.filename,
+            mime: f.mime,
+            content: f.content,
+            comment: f.comment,
+          })
+        ).attachment,
+      );
     }
     return { attachments: uploaded };
   }
@@ -166,9 +182,7 @@ export class AttachmentsController {
 /** Strip CR/LF/NUL/quote from filename before embedding in the quoted-string
  *  portion of Content-Disposition. See Vuln 3 in security-review notes. */
 function sanitizeHeaderFilename(raw: string): string {
-  return raw
-    .replace(/[\r\n\0"\\]/g, '_')
-    .slice(0, 200) || 'file';
+  return raw.replace(/[\r\n\0"\\]/g, '_').slice(0, 200) || 'file';
 }
 
 /** RFC 5987 encoded filename for the `filename*=` parameter. */

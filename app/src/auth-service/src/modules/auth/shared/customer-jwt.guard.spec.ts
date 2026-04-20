@@ -55,20 +55,20 @@ describe('CustomerJwtGuard', () => {
 
   it('attaches the decoded payload to request.user and returns true on success', () => {
     jwt.verifyUser.mockReturnValue({
-      userId: 1,
+      sub: 'u:1',
+      type: 'user',
       email: 'u@x.com',
-      role: 'USER',
       scopes: ['s'],
-    });
+    } as never);
     const req: Record<string, unknown> = {
       headers: { authorization: 'Bearer tok' },
     };
     const ctx = httpCtx(req);
     expect(guard.canActivate(ctx)).toBe(true);
     expect(req.user).toEqual({
-      userId: 1,
+      sub: 'u:1',
+      type: 'user',
       email: 'u@x.com',
-      role: 'USER',
       scopes: ['s'],
     });
     expect(jwt.verifyUser).toHaveBeenCalledWith('tok');
@@ -76,11 +76,11 @@ describe('CustomerJwtGuard', () => {
 
   it('trims whitespace after "Bearer "', () => {
     jwt.verifyUser.mockReturnValue({
-      userId: 1,
+      sub: 'u:1',
+      type: 'user',
       email: 'u@x.com',
-      role: 'USER',
       scopes: [],
-    });
+    } as never);
     const req: Record<string, unknown> = {
       headers: { authorization: 'Bearer    tok   ' },
     };

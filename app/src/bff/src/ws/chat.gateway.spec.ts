@@ -171,10 +171,7 @@ describe('ChatGateway', () => {
       await gateway.handleConnection(client as any);
 
       expect(client.disconnect).toHaveBeenCalledWith(true);
-      expect(client.emit).toHaveBeenCalledWith(
-        'error',
-        expect.objectContaining({ code: 4401 }),
-      );
+      expect(client.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 4401 }));
     });
 
     // AC-14-12 — rate-limit burst of WS connects per user (10 per 60 s).
@@ -572,10 +569,7 @@ describe('ChatGateway', () => {
       await gateway.onDmFrozen(99);
 
       expect((server as any).to).toHaveBeenCalledWith('dm:99');
-      expect(emit).toHaveBeenCalledWith(
-        'error',
-        expect.objectContaining({ code: 'DM_FROZEN' }),
-      );
+      expect(emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'DM_FROZEN' }));
       expect((server as any).in).toHaveBeenCalledWith('dm:99');
       expect(evict).toHaveBeenCalledWith('dm:99');
     });

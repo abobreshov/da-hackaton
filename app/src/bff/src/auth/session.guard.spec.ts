@@ -56,7 +56,13 @@ describe('SessionGuard', () => {
 
   describe('fast-path — valid session cookie', () => {
     it('verifies cookie, attaches req.session, returns true', async () => {
-      const payload = { sub: 'u:7', email: 'a@b.com', name: 'alice', type: 'user', scopes: ['chat'] };
+      const payload = {
+        sub: 'u:7',
+        email: 'a@b.com',
+        name: 'alice',
+        type: 'user',
+        scopes: ['chat'],
+      };
       cookieSvc.readSessionCookie.mockReturnValue('inner-jwt');
       cookieSvc.verifySession.mockReturnValue(payload);
 
@@ -76,7 +82,9 @@ describe('SessionGuard', () => {
       cookieSvc.readSessionCookie.mockReturnValue(null);
       cookieSvc.readRefreshCookie.mockReturnValue(null);
 
-      await expect(guard.canActivate(makeCtx({}, {}))).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(guard.canActivate(makeCtx({}, {}))).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
       expect(authSvc.refreshUser).not.toHaveBeenCalled();
       expect(authSvc.refreshAdmin).not.toHaveBeenCalled();
     });
@@ -86,7 +94,9 @@ describe('SessionGuard', () => {
       cookieSvc.verifySession.mockReturnValue(null); // invalid signature / expired
       cookieSvc.readRefreshCookie.mockReturnValue(null);
 
-      await expect(guard.canActivate(makeCtx({}, {}))).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(guard.canActivate(makeCtx({}, {}))).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
   });
 
@@ -150,7 +160,9 @@ describe('SessionGuard', () => {
       authSvc.refreshUser.mockRejectedValue(new Error('rpc refused'));
 
       const reply: any = {};
-      await expect(guard.canActivate(makeCtx({}, reply))).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(guard.canActivate(makeCtx({}, reply))).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
       expect(cookieSvc.clearCookies).toHaveBeenCalledWith(reply);
     });
   });
@@ -188,7 +200,9 @@ describe('SessionGuard', () => {
       authSvc.refreshAdmin.mockRejectedValue(new Error('rpc down'));
 
       const reply: any = {};
-      await expect(guard.canActivate(makeCtx({}, reply))).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(guard.canActivate(makeCtx({}, reply))).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
       expect(cookieSvc.clearCookies).toHaveBeenCalledWith(reply);
     });
   });

@@ -23,9 +23,7 @@ describe('<RoomMembersPane />', () => {
         presenceFor={offlineFor}
       />,
     );
-    expect(
-      screen.getByRole('heading', { name: /members \(3\)/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /members \(3\)/i })).toBeInTheDocument();
   });
 
   it('renders one <li> per member with the username', () => {
@@ -78,9 +76,7 @@ describe('<RoomMembersPane />', () => {
 
   it('renders gracefully with zero members (heading "(0)" + empty list)', () => {
     render(<RoomMembersPane members={[]} presenceFor={offlineFor} />);
-    expect(
-      screen.getByRole('heading', { name: /members \(0\)/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /members \(0\)/i })).toBeInTheDocument();
     const list = screen.getByRole('list', { name: /members/i });
     expect(list.querySelectorAll('li')).toHaveLength(0);
   });

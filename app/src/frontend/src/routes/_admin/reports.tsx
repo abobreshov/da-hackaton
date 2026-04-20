@@ -113,10 +113,7 @@ export function AdminReportsRoute() {
     }
   };
 
-  const runAction = async (
-    report: AdminReport,
-    op: 'resolve' | 'dismiss',
-  ) => {
+  const runAction = async (report: AdminReport, op: 'resolve' | 'dismiss') => {
     if (actioning) return;
     setActionError(null);
     setActioning(report.id);
@@ -144,8 +141,8 @@ export function AdminReportsRoute() {
           Abuse reports
         </h1>
         <p className="mt-2 font-body text-body-lg text-on-surface-variant">
-          Triage open reports. Resolving or dismissing closes the ticket and
-          writes an audit-log entry.
+          Triage open reports. Resolving or dismissing closes the ticket and writes an audit-log
+          entry.
         </p>
       </header>
 
@@ -161,19 +158,13 @@ export function AdminReportsRoute() {
       {state.status === 'loading' && (
         <div data-testid="reports-loading" aria-busy="true" className="space-y-3">
           {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-24 rounded-[1.5rem] bg-surface-container-low animate-pulse"
-            />
+            <div key={i} className="h-24 rounded-[1.5rem] bg-surface-container-low animate-pulse" />
           ))}
         </div>
       )}
 
       {state.status === 'error' && (
-        <section
-          className="rounded-[2rem] bg-error-container/70 p-6 shadow-ambient"
-          role="alert"
-        >
+        <section className="rounded-[2rem] bg-error-container/70 p-6 shadow-ambient" role="alert">
           <p className="font-display text-label-lg font-semibold uppercase tracking-[0.18em] text-on-error-container/80">
             {state.error.code}
           </p>
@@ -199,8 +190,7 @@ export function AdminReportsRoute() {
         <>
           <ul aria-label="Open reports" className="flex flex-col gap-4">
             {state.reports.map((r) => {
-              const reporter =
-                r.reporterUsername ?? `user #${r.reporterId}`;
+              const reporter = r.reporterUsername ?? `user #${r.reporterId}`;
               const isActing = actioning === r.id;
               return (
                 <li key={r.id}>

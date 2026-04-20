@@ -65,10 +65,9 @@ export const abuseReports = pgTable(
     // SET NULL so retention/cascade deletes of a message do not orphan the
     // report row. `target_id` stays authoritative; this column is a
     // typed shortcut for joins.
-    targetMessageId: bigint('target_message_id', { mode: 'bigint' }).references(
-      () => messages.id,
-      { onDelete: 'set null' },
-    ),
+    targetMessageId: bigint('target_message_id', { mode: 'bigint' }).references(() => messages.id, {
+      onDelete: 'set null',
+    }),
     reason: text('reason').notNull(),
     status: text('status').notNull().default('open'),
     resolvedBy: integer('resolved_by').references(() => users.id),
@@ -80,25 +79,16 @@ export const abuseReports = pgTable(
       'abuse_reports_target_type_check',
       sql`${table.targetType} IN ('message','user')`,
     ),
-    reasonLenCheck: check(
-      'abuse_reports_reason_length_check',
-      sql`length(${table.reason}) <= 500`,
-    ),
+    reasonLenCheck: check('abuse_reports_reason_length_check', sql`length(${table.reason}) <= 500`),
     statusCheck: check(
       'abuse_reports_status_check',
       sql`${table.status} IN ('open','resolved','dismissed')`,
     ),
-    statusIdx: index('abuse_reports_status_idx').on(
-      table.status,
-      table.createdAt.desc(),
-    ),
+    statusIdx: index('abuse_reports_status_idx').on(table.status, table.createdAt.desc()),
     openDedupIdx: uniqueIndex('abuse_reports_open_dedup_idx')
       .on(table.reporterId, table.targetType, table.targetId)
       .where(sql`${table.status} = 'open'`),
-    targetIdx: index('abuse_reports_target_idx').on(
-      table.targetType,
-      table.targetId,
-    ),
+    targetIdx: index('abuse_reports_target_idx').on(table.targetType, table.targetId),
   }),
 );
 
@@ -129,13 +119,7 @@ export const auditLog = pgTable(
       sql`${table.actorType} IN ('user','admin','system')`,
     ),
     createdIdx: index('audit_log_created_idx').on(table.createdAt.desc()),
-    actorIdx: index('audit_log_actor_idx').on(
-      table.actorId,
-      table.createdAt.desc(),
-    ),
-    targetIdx: index('audit_log_target_idx').on(
-      table.targetType,
-      table.targetId,
-    ),
+    actorIdx: index('audit_log_actor_idx').on(table.actorId, table.createdAt.desc()),
+    targetIdx: index('audit_log_target_idx').on(table.targetType, table.targetId),
   }),
 );

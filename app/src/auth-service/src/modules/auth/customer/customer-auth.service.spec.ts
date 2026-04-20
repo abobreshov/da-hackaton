@@ -41,9 +41,15 @@ function builder(defaultResult: unknown = undefined) {
     where: jest.fn().mockImplementation(() => thenable),
     set: jest.fn().mockImplementation(() => thenable),
     values: jest.fn().mockImplementation(() => thenable),
-    limit: jest.fn().mockImplementation(() => Promise.resolve(state.terminals.limit ?? state.default)),
-    returning: jest.fn().mockImplementation(() => Promise.resolve(state.terminals.returning ?? state.default)),
-    onConflictDoNothing: jest.fn().mockImplementation(() => Promise.resolve(state.terminals.onConflict ?? state.default)),
+    limit: jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(state.terminals.limit ?? state.default)),
+    returning: jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(state.terminals.returning ?? state.default)),
+    onConflictDoNothing: jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(state.terminals.onConflict ?? state.default)),
     then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
       try {
         resolve(state.default);
@@ -81,7 +87,9 @@ function makeDb() {
   const txUpdate = jest.fn().mockReturnValue(txUpdateBuilder);
 
   const tx = { select: txSelect, insert: txInsert, update: txUpdate };
-  const transaction = jest.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb(tx));
+  const transaction = jest
+    .fn()
+    .mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb(tx));
 
   const db = { select, insert, update, transaction } as any;
 
@@ -188,15 +196,7 @@ describe('CustomerAuthService', () => {
     totp = makeTotpService();
     mailer = makeMailer();
     backend = makeBackend();
-    svc = new CustomerAuthService(
-      deps.db,
-      pw,
-      jwt,
-      refresh,
-      totp,
-      mailer,
-      backend,
-    );
+    svc = new CustomerAuthService(deps.db, pw, jwt, refresh, totp, mailer, backend);
   });
 
   // -------- login -----------------------------------------------------------
@@ -255,9 +255,10 @@ describe('CustomerAuthService', () => {
       deps.selectBuilder.__setTerminal('limit', [user]);
       const result = await svc.login({ email: user.email, password: 'pw' });
       expect(jwt.signUser).toHaveBeenCalledWith({
-        userId: user.id,
+        sub: `u:${user.id}`,
+        type: 'user',
         email: user.email,
-        role: 'USER',
+        name: user.name,
         scopes: user.scopes,
       });
       expect(refresh.create).toHaveBeenCalledWith('u', user.id);
@@ -273,9 +274,10 @@ describe('CustomerAuthService', () => {
       deps.selectBuilder.__setTerminal('limit', [user]);
       const result = await svc.login({ email: user.email, password: 'pw' });
       expect(jwt.signUser).toHaveBeenCalledWith({
-        userId: user.id,
+        sub: `u:${user.id}`,
+        type: 'user',
         email: user.email,
-        role: 'USER',
+        name: user.name,
         scopes: [],
       });
       expect((result as any).user.scopes).toEqual([]);
@@ -551,9 +553,7 @@ describe('CustomerAuthService', () => {
       // The emailed link must contain the *plaintext* token, not the hash.
       const [emailTo, resetLink] = mailer.sendPasswordResetEmail.mock.calls[0];
       expect(emailTo).toBe(user.email);
-      expect(resetLink).toMatch(
-        /^http:\/\/localhost:3007\/reset-password\?token=[0-9a-f]{64}$/,
-      );
+      expect(resetLink).toMatch(/^http:\/\/localhost:3007\/reset-password\?token=[0-9a-f]{64}$/);
       const plain = resetLink.split('token=')[1];
       const { createHash } = await import('crypto');
       expect(createHash('sha256').update(plain).digest('hex')).toBe(valuesArg.tokenHash);
@@ -576,7 +576,12 @@ describe('CustomerAuthService', () => {
     });
 
     it('updates used_at + re-hashes password + revokes all refresh tokens on success', async () => {
-      const row = { tokenHash: 'hash', userId: 9, expiresAt: new Date(Date.now() + 60_000), usedAt: null };
+      const row = {
+        tokenHash: 'hash',
+        userId: 9,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+      };
       deps.selectBuilder.__setTerminal('limit', [row]);
 
       await svc.passwordResetConfirm({
@@ -639,9 +644,10 @@ describe('CustomerAuthService', () => {
       expect(refresh.revokeAll).toHaveBeenCalledWith('u', 7);
       // Fresh tokens must be minted so the BFF can rotate both cookies.
       expect(jwt.signUser).toHaveBeenCalledWith({
-        userId: user.id,
+        sub: `u:${user.id}`,
+        type: 'user',
         email: user.email,
-        role: 'USER',
+        name: user.name,
         scopes: user.scopes,
       });
       expect(refresh.create).toHaveBeenCalledWith('u', 7);
@@ -771,9 +777,10 @@ describe('CustomerAuthService', () => {
 
       const result = await svc.refresh('u:4:abcd');
       expect(jwt.signUser).toHaveBeenCalledWith({
-        userId: 4,
+        sub: 'u:4',
+        type: 'user',
         email: user.email,
-        role: 'USER',
+        name: user.name,
         scopes: [],
       });
       expect(result.user.scopes).toEqual([]);
@@ -802,28 +809,31 @@ describe('CustomerAuthService', () => {
   // -------- validateToken --------------------------------------------------
 
   describe('validateToken', () => {
-    it('returns the decoded payload shape on success', async () => {
+    it('projects OIDC claims + legacy userId for back-compat readers', async () => {
       jwt.verifyUser.mockReturnValue({
-        userId: 9,
+        sub: 'u:9',
+        type: 'user',
         email: 'u@example.com',
-        role: 'USER',
+        name: 'Nine',
         scopes: ['s1'],
-      });
+      } as never);
       await expect(svc.validateToken('tok')).resolves.toEqual({
+        sub: 'u:9',
+        type: 'user',
         userId: 9,
         email: 'u@example.com',
-        role: 'USER',
+        name: 'Nine',
         scopes: ['s1'],
       });
     });
 
     it('defaults scopes to [] when JWT payload omits them', async () => {
       jwt.verifyUser.mockReturnValue({
-        userId: 9,
+        sub: 'u:9',
+        type: 'user',
         email: 'u@example.com',
-        role: 'USER',
       } as any);
-      await expect(svc.validateToken('tok')).resolves.toMatchObject({ scopes: [] });
+      await expect(svc.validateToken('tok')).resolves.toMatchObject({ scopes: [], sub: 'u:9' });
     });
 
     it('throws UnauthorizedException on verify failure', async () => {

@@ -9,10 +9,7 @@ import { and, eq, or } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { friendships, userBans, users } from '../../database/schema';
-import {
-  EVENT_PUBLISHER,
-  IEventPublisher,
-} from '../../common/events/event-publisher.interface';
+import { EVENT_PUBLISHER, IEventPublisher } from '../../common/events/event-publisher.interface';
 
 export interface FriendRequestInput {
   requesterId: number;
@@ -274,4 +271,3 @@ export class FriendsService {
     }));
   }
 }
-

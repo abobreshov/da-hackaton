@@ -34,9 +34,7 @@ export interface MessagesStore {
   reset: () => void;
 }
 
-const sortByCreatedAtThenId = (
-  byId: Map<bigint, Message>,
-): bigint[] =>
+const sortByCreatedAtThenId = (byId: Map<bigint, Message>): bigint[] =>
   [...byId.keys()].sort((a, b) => {
     const ma = byId.get(a)!;
     const mb = byId.get(b)!;
@@ -45,11 +43,7 @@ const sortByCreatedAtThenId = (
     return ma.id < mb.id ? -1 : ma.id > mb.id ? 1 : 0;
   });
 
-const insertSorted = (
-  order: bigint[],
-  byId: Map<bigint, Message>,
-  id: bigint,
-): bigint[] => {
+const insertSorted = (order: bigint[], byId: Map<bigint, Message>, id: bigint): bigint[] => {
   // Composite (createdAt, id) sort, ascending — matches the keyset cursor
   // ordering on the server (AC-07-20). Already-present ids are no-ops so
   // re-applying the same WS broadcast doesn't dup the row.
@@ -131,8 +125,7 @@ const createMessagesStore = () =>
         byId.set(id, { ...prev, deletedAt });
         return { ...s, byId };
       }),
-    reset: () =>
-      set({ byId: new Map(), order: [], oldestCursor: null, hasMore: false }),
+    reset: () => set({ byId: new Map(), order: [], oldestCursor: null, hasMore: false }),
   }));
 
 export type MessagesStoreApi = ReturnType<typeof createMessagesStore>;

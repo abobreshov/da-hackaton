@@ -32,7 +32,10 @@ function makeReply() {
   };
 }
 
-function makeReq(cookies: Record<string, string> = {}, unsigned: Record<string, { value: string; valid: boolean }> = {}) {
+function makeReq(
+  cookies: Record<string, string> = {},
+  unsigned: Record<string, { value: string; valid: boolean }> = {},
+) {
   return {
     cookies,
     // @fastify/cookie mock: default to valid HMAC, whatever comes in round-trips out.
@@ -158,7 +161,10 @@ describe('CookieService', () => {
     });
 
     it('returns unsigned value when HMAC is valid', () => {
-      const req = makeReq({ session: 'signed-raw' }, { 'signed-raw': { value: 'inner-jwt', valid: true } });
+      const req = makeReq(
+        { session: 'signed-raw' },
+        { 'signed-raw': { value: 'inner-jwt', valid: true } },
+      );
       expect(svc.readSessionCookie(req)).toBe('inner-jwt');
       expect(req.unsignCookie).toHaveBeenCalledWith('signed-raw');
     });
@@ -176,7 +182,10 @@ describe('CookieService', () => {
     });
 
     it('returns unsigned refresh value when HMAC valid', () => {
-      const req = makeReq({ refresh: 'signed-refresh' }, { 'signed-refresh': { value: 'u:raw', valid: true } });
+      const req = makeReq(
+        { refresh: 'signed-refresh' },
+        { 'signed-refresh': { value: 'u:raw', valid: true } },
+      );
       expect(svc.readRefreshCookie(req)).toBe('u:raw');
     });
 
@@ -248,7 +257,7 @@ describe('CookieService', () => {
       jest.isolateModules(() => {
         mockEnv.COOKIE_SECURE_DISABLED = false;
         mockEnv.NODE_ENV = 'test';
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+         
         const mod = require('./cookie.service');
         const localSvc = new mod.CookieService(new JwtService({}));
         const reply = makeReply();
@@ -268,7 +277,7 @@ describe('CookieService', () => {
       jest.isolateModules(() => {
         mockEnv.COOKIE_SECURE_DISABLED = true;
         mockEnv.NODE_ENV = 'development';
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+         
         const mod = require('./cookie.service');
         const localSvc = new mod.CookieService(new JwtService({}));
         const reply = makeReply();

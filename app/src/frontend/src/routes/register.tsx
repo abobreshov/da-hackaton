@@ -68,10 +68,7 @@ export function RegisterPage(): React.ReactElement {
           <ChatChatLogo size={72} />
           <ChatChatWordmark className="mt-6" />
         </header>
-        <div
-          role="status"
-          className="mt-8 flex flex-col items-center gap-4 text-center"
-        >
+        <div role="status" className="mt-8 flex flex-col items-center gap-4 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
             <Icon icon={MailCheck} size={32} />
           </span>
@@ -80,12 +77,12 @@ export function RegisterPage(): React.ReactElement {
           </h1>
           <p className="font-body text-body-md text-on-surface-variant">
             We&apos;ve sent a confirmation link to{' '}
-            <span className="font-semibold text-on-surface">{submittedEmail}</span>.
-            Click the link to finish setting up your account.
+            <span className="font-semibold text-on-surface">{submittedEmail}</span>. Click the link
+            to finish setting up your account.
           </p>
           <p className="font-body text-body-sm text-on-surface-variant">
-            Didn&apos;t get anything? Check your spam folder, or try registering again
-            in a few minutes.
+            Didn&apos;t get anything? Check your spam folder, or try registering again in a few
+            minutes.
           </p>
         </div>
         <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">

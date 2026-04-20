@@ -89,10 +89,7 @@ export const updateRoom = (roomId: number, patch: RoomPatch): Promise<RoomRecord
  * don't have to pre-resolve ids. Resolution happens in BFF `RoomsService`
  * via `UsersService.resolveUserIdByUsername` before the backend RPC.
  */
-export const inviteUser = (
-  roomId: number,
-  username: string,
-): Promise<{ id: number }> =>
+export const inviteUser = (roomId: number, username: string): Promise<{ id: number }> =>
   apiFetch<{ id: number }>(`/api/v1/rooms/${roomId}/invitations`, {
     method: 'POST',
     body: JSON.stringify({ username }),

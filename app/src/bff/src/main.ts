@@ -90,10 +90,10 @@ async function bootstrap() {
   // backend AttachmentsService, so this is just the Fastify-level hard cap.
   await app.register(fastifyMultipart as any, {
     limits: {
-      fileSize: 20 * 1024 * 1024,  // 20 MiB ceiling (backend tightens to 3 MiB for images)
-      files: 10,                    // per-request
+      fileSize: 20 * 1024 * 1024, // 20 MiB ceiling (backend tightens to 3 MiB for images)
+      files: 10, // per-request
       fields: 10,
-      fieldSize: 1024,              // comment field
+      fieldSize: 1024, // comment field
     },
   });
 

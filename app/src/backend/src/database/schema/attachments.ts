@@ -37,10 +37,9 @@ export const attachments = pgTable(
     dmId: integer('dm_id').references(() => dmChannels.id, {
       onDelete: 'cascade',
     }),
-    messageId: bigint('message_id', { mode: 'bigint' }).references(
-      () => messages.id,
-      { onDelete: 'set null' },
-    ),
+    messageId: bigint('message_id', { mode: 'bigint' }).references(() => messages.id, {
+      onDelete: 'set null',
+    }),
     uploaderId: integer('uploader_id')
       .notNull()
       .references(() => users.id),

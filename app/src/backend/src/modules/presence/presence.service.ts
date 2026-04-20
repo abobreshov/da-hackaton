@@ -2,10 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type IORedis from 'ioredis';
 import { RedisKey } from '@app/contracts';
 import { env } from '../../config/environment';
-import {
-  PresencePublisher,
-  type PresenceState,
-} from '../transport/presence-publisher.service';
+import { PresencePublisher, type PresenceState } from '../transport/presence-publisher.service';
 import { PRESENCE_REDIS } from './presence.tokens';
 
 /**
@@ -163,10 +160,7 @@ export class PresenceService {
    *   - at least one session remembered (but all stale) → afk
    *   - empty HASH → offline
    */
-  private derive(
-    sessions: Record<string, string>,
-    now: number,
-  ): PresenceState {
+  private derive(sessions: Record<string, string>, now: number): PresenceState {
     const entries = Object.values(sessions);
     if (entries.length === 0) return 'offline';
 
@@ -186,16 +180,8 @@ export class PresenceService {
     return 'offline';
   }
 
-  private async writeState(
-    userId: number,
-    state: PresenceState,
-  ): Promise<void> {
-    await this.redis.set(
-      RedisKey.presenceState(userId),
-      state,
-      'EX',
-      this.STATE_TTL_SECONDS,
-    );
+  private async writeState(userId: number, state: PresenceState): Promise<void> {
+    await this.redis.set(RedisKey.presenceState(userId), state, 'EX', this.STATE_TTL_SECONDS);
   }
 
   /**

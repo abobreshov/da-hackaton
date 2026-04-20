@@ -54,9 +54,7 @@ export function VerifyEmailPage(): React.ReactElement {
         if (cancelled) return;
         setStatus('error');
         setErrorMessage(
-          err instanceof ApiError
-            ? err.message || 'Verification failed.'
-            : 'Verification failed.',
+          err instanceof ApiError ? err.message || 'Verification failed.' : 'Verification failed.',
         );
       }
     })();
@@ -79,10 +77,7 @@ export function VerifyEmailPage(): React.ReactElement {
       </header>
 
       {status === 'pending' && (
-        <div
-          role="status"
-          className="mt-8 flex flex-col items-center gap-4 text-center"
-        >
+        <div role="status" className="mt-8 flex flex-col items-center gap-4 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
             <Icon icon={Loader2} size={32} className="animate-spin" />
           </span>
@@ -96,10 +91,7 @@ export function VerifyEmailPage(): React.ReactElement {
       )}
 
       {status === 'success' && (
-        <div
-          role="status"
-          className="mt-8 flex flex-col items-center gap-4 text-center"
-        >
+        <div role="status" className="mt-8 flex flex-col items-center gap-4 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
             <Icon icon={CheckCircle2} size={32} />
           </span>
@@ -124,8 +116,7 @@ export function VerifyEmailPage(): React.ReactElement {
             {errorMessage ?? 'Your verification link is invalid or expired.'}
           </p>
           <p className="font-body text-body-sm text-on-surface-variant">
-            Request a new link by registering again, or sign in if your account is
-            already verified.
+            Request a new link by registering again, or sign in if your account is already verified.
           </p>
           <Button asChild size="lg" className="mt-2 w-full">
             <Link to="/login">Back to sign in</Link>

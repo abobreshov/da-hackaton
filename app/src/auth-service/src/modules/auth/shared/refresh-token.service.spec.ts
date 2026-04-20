@@ -22,7 +22,8 @@ function makeCache(): CacheService {
       return res === 'OK';
     },
     exists: async (k: string) => (await client.exists(k)) > 0,
-    del: (...keys: string[]) => (keys.length ? client.del(...keys).then(() => undefined) : Promise.resolve()),
+    del: (...keys: string[]) =>
+      keys.length ? client.del(...keys).then(() => undefined) : Promise.resolve(),
     sadd: (k: string, ...m: string[]) => client.sadd(k, ...m).then(() => undefined),
     srem: (k: string, ...m: string[]) => client.srem(k, ...m).then(() => undefined),
     smembers: (k: string) => client.smembers(k),
@@ -53,7 +54,8 @@ describe('RefreshTokenService', () => {
 
     it('applies the 24h TTL to the token key', async () => {
       const token = await svc.create('u', 2);
-      const client = (cache as unknown as { client: { ttl: (k: string) => Promise<number> } }).client;
+      const client = (cache as unknown as { client: { ttl: (k: string) => Promise<number> } })
+        .client;
       const { createHash } = await import('crypto');
       const key = `refresh:u:2:${createHash('sha256').update(token).digest('hex')}`;
       const ttl = await client.ttl(key);
@@ -72,7 +74,8 @@ describe('RefreshTokenService', () => {
 
     it('seeds a fresh familyId per login and records its member set', async () => {
       await svc.create('u', 20);
-      const client = (cache as unknown as { client: { keys: (p: string) => Promise<string[]> } }).client;
+      const client = (cache as unknown as { client: { keys: (p: string) => Promise<string[]> } })
+        .client;
       const famKeys = await client.keys('refresh:u:20:fam:*:members');
       expect(famKeys).toHaveLength(1);
 
@@ -110,7 +113,11 @@ describe('RefreshTokenService', () => {
       const key = `refresh:u:3:${hash}`;
       const familyId = randomUUID();
       const backdated = Date.now() - 8 * 24 * 60 * 60 * 1000; // 8 days ago
-      await cache.set(key, JSON.stringify({ id: 3, familyId, sessionStartedAt: backdated }), 24 * 60 * 60);
+      await cache.set(
+        key,
+        JSON.stringify({ id: 3, familyId, sessionStartedAt: backdated }),
+        24 * 60 * 60,
+      );
       await cache.sadd('refresh:u:3:tokens', key);
 
       await expect(svc.validateAndRotate('u', 3, token)).rejects.toThrow(/Session expired/);
@@ -124,13 +131,9 @@ describe('RefreshTokenService', () => {
       const original = await svc.create('u', 100);
       const rotated = await svc.validateAndRotate('u', 100, original);
       // Presenting the old token again ⇒ reuse.
-      await expect(svc.validateAndRotate('u', 100, original)).rejects.toThrow(
-        /reuse detected/i,
-      );
+      await expect(svc.validateAndRotate('u', 100, original)).rejects.toThrow(/reuse detected/i);
       // The rotated (previously-valid) sibling must now also be dead.
-      await expect(svc.validateAndRotate('u', 100, rotated)).rejects.toThrow(
-        /Invalid or expired/,
-      );
+      await expect(svc.validateAndRotate('u', 100, rotated)).rejects.toThrow(/Invalid or expired/);
     });
 
     it('REUSE: family revocation also kills any later-issued tokens from the same login', async () => {
@@ -153,9 +156,7 @@ describe('RefreshTokenService', () => {
       const fam2 = await svc.create('u', 102);
 
       // Reuse on family 1 → must not touch family 2.
-      await expect(svc.validateAndRotate('u', 102, fam1Initial)).rejects.toThrow(
-        /reuse detected/i,
-      );
+      await expect(svc.validateAndRotate('u', 102, fam1Initial)).rejects.toThrow(/reuse detected/i);
       // Family 2 can still rotate.
       await expect(svc.validateAndRotate('u', 102, fam2)).resolves.toMatch(/^u:102:/);
     });
@@ -178,9 +179,7 @@ describe('RefreshTokenService', () => {
       await svc.validateAndRotate('a', 7, adminOriginal);
       const customerToken = await svc.create('u', 7);
 
-      await expect(svc.validateAndRotate('a', 7, adminOriginal)).rejects.toThrow(
-        /reuse detected/i,
-      );
+      await expect(svc.validateAndRotate('a', 7, adminOriginal)).rejects.toThrow(/reuse detected/i);
       await expect(svc.validateAndRotate('u', 7, customerToken)).resolves.toMatch(/^u:7:/);
     });
   });

@@ -76,9 +76,7 @@ describe('MessagesService (BFF)', () => {
     it('propagates FORBIDDEN from upstream (not a room member)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not a member' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.create({ authorId: 1, roomId: 2, body: 'x' }),
-      ).rejects.toBe(rpc);
+      await expect(service.create({ authorId: 1, roomId: 2, body: 'x' })).rejects.toBe(rpc);
     });
 
     it('propagates 504 UPSTREAM_UNAVAILABLE (timeout)', async () => {
@@ -88,9 +86,7 @@ describe('MessagesService (BFF)', () => {
         message: 'upstream timeout',
       });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.create({ authorId: 1, roomId: 2, body: 'x' }),
-      ).rejects.toBe(rpc);
+      await expect(service.create({ authorId: 1, roomId: 2, body: 'x' })).rejects.toBe(rpc);
     });
   });
 
@@ -155,9 +151,7 @@ describe('MessagesService (BFF)', () => {
     it('propagates FORBIDDEN (not the author)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not the author' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.edit({ messageId: '101', actorId: 9, body: 'x' }),
-      ).rejects.toBe(rpc);
+      await expect(service.edit({ messageId: '101', actorId: 9, body: 'x' })).rejects.toBe(rpc);
     });
   });
 
@@ -177,9 +171,7 @@ describe('MessagesService (BFF)', () => {
     it('propagates NOT_FOUND from upstream', async () => {
       const rpc = new RpcException({ status: 404, message: 'no such message' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.delete({ messageId: '999', actorId: 7 }),
-      ).rejects.toBe(rpc);
+      await expect(service.delete({ messageId: '999', actorId: 7 })).rejects.toBe(rpc);
     });
   });
 
@@ -201,9 +193,7 @@ describe('MessagesService (BFF)', () => {
     it('propagates FORBIDDEN (not a member of room)', async () => {
       const rpc = new RpcException({ status: 403, message: 'not a member' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.getById({ messageId: '101', actorId: 9 }),
-      ).rejects.toBe(rpc);
+      await expect(service.getById({ messageId: '101', actorId: 9 })).rejects.toBe(rpc);
     });
   });
 

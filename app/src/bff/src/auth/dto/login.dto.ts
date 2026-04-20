@@ -1,10 +1,5 @@
 import { IsEmail, IsString, MinLength, MaxLength, Matches, IsOptional } from 'class-validator';
-import {
-  EMAIL_MAX,
-  PASSWORD_MAX,
-  PASSWORD_MIN,
-  TOTP_REGEX,
-} from '@app/contracts';
+import { EMAIL_MAX, PASSWORD_MAX, PASSWORD_MIN, TOTP_REGEX } from '@app/contracts';
 
 export class LoginDto {
   @IsEmail()

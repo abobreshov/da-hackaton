@@ -29,21 +29,41 @@ function sniffIsImage(buf: Buffer): boolean {
   if (buf.length < 8) return false;
   // PNG: 89 50 4E 47 0D 0A 1A 0A
   if (
-    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
-    buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
-  ) return true;
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  )
+    return true;
   // JPEG: FF D8 FF
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true;
   // GIF87a / GIF89a: 47 49 46 38 {37|39} 61
   if (
-    buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38 &&
-    (buf[4] === 0x37 || buf[4] === 0x39) && buf[5] === 0x61
-  ) return true;
+    buf[0] === 0x47 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x38 &&
+    (buf[4] === 0x37 || buf[4] === 0x39) &&
+    buf[5] === 0x61
+  )
+    return true;
   // WEBP: RIFF....WEBP
   if (
-    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
-    buf.length >= 12 && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
-  ) return true;
+    buf[0] === 0x52 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x46 &&
+    buf.length >= 12 &&
+    buf[8] === 0x57 &&
+    buf[9] === 0x45 &&
+    buf[10] === 0x42 &&
+    buf[11] === 0x50
+  )
+    return true;
   // BMP: 42 4D
   if (buf[0] === 0x42 && buf[1] === 0x4d) return true;
   return false;
@@ -157,7 +177,10 @@ export class AttachmentsService {
    * the room (or participant in the DM channel). Uploader-who-left retains
    * the row per AC-08-08 but cannot fetch.
    */
-  async download(attachmentId: string, viewerId: number): Promise<{
+  async download(
+    attachmentId: string,
+    viewerId: number,
+  ): Promise<{
     attachment: AttachmentRow;
     content: Buffer;
   }> {

@@ -10,7 +10,9 @@ export class MailerService implements OnModuleInit {
 
   onModuleInit(): void {
     if (!env.SMTP_HOST) {
-      this.logger.warn('SMTP_HOST not set — mailer is a no-op (password-reset links will only be logged).');
+      this.logger.warn(
+        'SMTP_HOST not set — mailer is a no-op (password-reset links will only be logged).',
+      );
       return;
     }
     this.transporter = nodemailer.createTransport({
@@ -50,9 +52,7 @@ If you did not create this account, you can safely ignore this email.`;
       await this.transporter.sendMail({ from: env.SMTP_FROM, to, subject, text, html });
     } catch (err) {
       // Swallow — must not leak whether the address exists.
-      this.logger.error(
-        `Failed to send verification email to ${to}: ${(err as Error).message}`,
-      );
+      this.logger.error(`Failed to send verification email to ${to}: ${(err as Error).message}`);
     }
   }
 
@@ -84,9 +84,7 @@ If this wasn't you, no action is needed — no new account was created.`;
     try {
       await this.transporter.sendMail({ from: env.SMTP_FROM, to, subject, text, html });
     } catch (err) {
-      this.logger.error(
-        `Failed to send account-exists email to ${to}: ${(err as Error).message}`,
-      );
+      this.logger.error(`Failed to send account-exists email to ${to}: ${(err as Error).message}`);
     }
   }
 
@@ -121,9 +119,7 @@ If you did not request this, you can safely ignore this email.`;
       });
     } catch (err) {
       // Do not propagate — a broken mailer must not leak that the email existed.
-      this.logger.error(
-        `Failed to send password-reset email to ${to}: ${(err as Error).message}`,
-      );
+      this.logger.error(`Failed to send password-reset email to ${to}: ${(err as Error).message}`);
     }
   }
 }

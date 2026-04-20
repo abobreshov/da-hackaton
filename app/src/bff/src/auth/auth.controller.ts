@@ -1,14 +1,4 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Delete,
-  Body,
-  Req,
-  Res,
-  HttpCode,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Req, Res, HttpCode, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CookieService } from './cookie.service';
 import { makeSub, parseSub, type SessionPayload } from './cookie.service';
@@ -102,10 +92,7 @@ export class AuthController {
   @Post('verify-email')
   @UseGuards(ThrottleGuard)
   @Throttle({ scope: 'verify-email', limit: 5, windowMs: 900_000, failClosed: true })
-  async verifyEmail(
-    @Body() dto: { token: string },
-    @Res({ passthrough: true }) reply: any,
-  ) {
+  async verifyEmail(@Body() dto: { token: string }, @Res({ passthrough: true }) reply: any) {
     const { user, refreshToken } = await this.authService.verifyEmail(dto.token);
     this.cookieService.issueAuthCookies(reply, {
       session: {
@@ -185,10 +172,7 @@ export class AuthController {
   @Delete('account')
   @HttpCode(204)
   @UseGuards(SessionGuard)
-  async deleteAccount(
-    @Req() req: any,
-    @Res({ passthrough: true }) reply: any,
-  ): Promise<void> {
+  async deleteAccount(@Req() req: any, @Res({ passthrough: true }) reply: any): Promise<void> {
     const userId = getUserIdFromSession(req.session);
     await this.authService.deleteAccount(userId);
     this.cookieService.clearCookies(reply);
@@ -231,9 +215,7 @@ export class AuthController {
  * them is a misconfigured route guard. We still fail closed on a bad
  * prefix rather than trusting the `type` field alone.
  */
-function getUserIdFromSession(
-  session: Partial<SessionPayload> | undefined,
-): number {
+function getUserIdFromSession(session: Partial<SessionPayload> | undefined): number {
   if (!session?.sub) throw new Error('no session sub');
   const { type, numericId } = parseSub(session.sub);
   if (type !== 'user') throw new Error('user endpoint called with non-user session');

@@ -175,7 +175,7 @@ describe('RpcExceptionFilter (auth-service)', () => {
 
   it('wraps non-Error throwable (string) as 500 Internal error', async () => {
     const e = await expectRpcReject<{ status: number; message: string; code: string }>(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       filter.catch('plain string' as any, rpcHost()),
     );
     expect(e.getError()).toMatchObject({
@@ -186,7 +186,7 @@ describe('RpcExceptionFilter (auth-service)', () => {
   });
 
   it('tolerates null / undefined by emitting a generic 500 envelope', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const a = await expectRpcReject(filter.catch(null as any, rpcHost()));
     expect(a.getError()).toMatchObject({ status: 500, message: 'Internal error' });
   });

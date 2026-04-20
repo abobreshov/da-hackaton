@@ -10,7 +10,10 @@ export const AUTH_SERVICE = 'AUTH_SERVICE';
 @Module({
   imports: [
     ClientsModule.register([
-      { name: BACKEND_SERVICE, ...buildTcpClientOptions(env.BACKEND_TCP_HOST, env.BACKEND_TCP_PORT) },
+      {
+        name: BACKEND_SERVICE,
+        ...buildTcpClientOptions(env.BACKEND_TCP_HOST, env.BACKEND_TCP_PORT),
+      },
       { name: AUTH_SERVICE, ...buildTcpClientOptions(env.AUTH_TCP_HOST, env.AUTH_TCP_PORT) },
     ]),
   ],

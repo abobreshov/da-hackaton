@@ -53,9 +53,7 @@ export class RoomChatPage extends RoomDetailPage {
   // Any bubble matching the given text. Scoped inside `message-list` so we
   // do not accidentally hit a quote preview elsewhere on the page.
   messageByText(text: string | RegExp): Locator {
-    return this.messageList
-      .getByTestId('message-bubble')
-      .filter({ hasText: text });
+    return this.messageList.getByTestId('message-bubble').filter({ hasText: text });
   }
 
   latestMessage(): Locator {
@@ -96,9 +94,7 @@ export class RoomChatPage extends RoomDetailPage {
     const bubble = this.latestMessage();
     await bubble.getByRole('button', { name: /^delete$/i }).click();
     // Confirmation dialog — "Delete message" / "Confirm" submit.
-    const confirm = this.messageList
-      .page()
-      .getByRole('button', { name: /^(delete|confirm)$/i });
+    const confirm = this.messageList.page().getByRole('button', { name: /^(delete|confirm)$/i });
     await confirm.click();
   }
 
@@ -120,9 +116,7 @@ export class RoomChatPage extends RoomDetailPage {
   async adminDeleteLatestFrom(username: string): Promise<void> {
     const bubble = this.latestMessageBy(username);
     await bubble.getByRole('button', { name: /^delete$/i }).click();
-    const confirm = this.messageList
-      .page()
-      .getByRole('button', { name: /^(delete|confirm)$/i });
+    const confirm = this.messageList.page().getByRole('button', { name: /^(delete|confirm)$/i });
     await confirm.click();
   }
 
@@ -207,9 +201,7 @@ export class RoomChatPage extends RoomDetailPage {
       `[data-testid="manage-room-member-row"][data-username="${username}"]`,
     );
     await row.getByRole('button', { name: /^ban$/i }).click();
-    const confirm = this.messageList
-      .page()
-      .getByRole('button', { name: /^(ban|confirm)$/i });
+    const confirm = this.messageList.page().getByRole('button', { name: /^(ban|confirm)$/i });
     await confirm.click();
   }
 

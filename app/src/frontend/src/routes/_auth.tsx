@@ -63,10 +63,7 @@ function AuthLayout() {
   return (
     <AppShell
       header={
-        <AppHeader
-          user={{ name: session?.name, email: session?.email }}
-          onLogout={handleLogout}
-        />
+        <AppHeader user={{ name: session?.name, email: session?.email }} onLogout={handleLogout} />
       }
     >
       <PresenceHeartbeat />

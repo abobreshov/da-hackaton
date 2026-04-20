@@ -41,9 +41,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
 
     // Asymmetric rounding — sm corner nearest the avatar, xl on the other three.
     // For "me" the tail sits bottom-right; for "them" it sits bottom-left.
-    const rounded = isMe
-      ? 'rounded-xl rounded-br-sm'
-      : 'rounded-xl rounded-bl-sm';
+    const rounded = isMe ? 'rounded-xl rounded-br-sm' : 'rounded-xl rounded-bl-sm';
 
     const surface = isMe
       ? 'bg-gradient-to-br from-primary to-primary-dim text-on-primary'
@@ -54,11 +52,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
         ref={ref}
         data-testid="message-bubble"
         data-message-id={message.id.toString()}
-        className={cn(
-          'flex flex-col gap-2',
-          isMe ? 'items-end' : 'items-start',
-          className,
-        )}
+        className={cn('flex flex-col gap-2', isMe ? 'items-end' : 'items-start', className)}
       >
         <div
           className={cn(

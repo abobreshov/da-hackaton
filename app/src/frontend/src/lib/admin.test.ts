@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  listReports,
-  resolveReport,
-  dismissReport,
-  listAuditLog,
-} from './admin';
+import { listReports, resolveReport, dismissReport, listAuditLog } from './admin';
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -128,10 +123,10 @@ describe('lib/admin', () => {
 
     it('surfaces ApiError on non-2xx resolve', async () => {
       fetchMock.mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ code: 'NOT_FOUND', message: 'gone' }),
-          { status: 404, headers: { 'Content-Type': 'application/json' } },
-        ),
+        new Response(JSON.stringify({ code: 'NOT_FOUND', message: 'gone' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }),
       );
       await expect(resolveReport('1')).rejects.toMatchObject({
         status: 404,

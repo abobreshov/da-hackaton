@@ -120,31 +120,21 @@ export function ContactsRoute() {
   return (
     <div className="animate-fade-up flex flex-col gap-8">
       <header>
-        <h1 className="font-display text-display-sm font-extrabold text-on-surface">
-          Contacts
-        </h1>
+        <h1 className="font-display text-display-sm font-extrabold text-on-surface">Contacts</h1>
         <p className="mt-2 font-body text-body-lg text-on-surface-variant">
           Your friends and pending invitations live here.
         </p>
       </header>
 
       {/* Add friend form */}
-      <GlassCard
-        as="section"
-        radius="lg"
-        padding="md"
-        aria-labelledby="add-friend-heading"
-      >
+      <GlassCard as="section" radius="lg" padding="md" aria-labelledby="add-friend-heading">
         <h2
           id="add-friend-heading"
           className="font-display text-title-md font-bold text-on-surface"
         >
           Add a friend
         </h2>
-        <form
-          onSubmit={handleSubmit}
-          className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
-        >
+        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Label htmlFor="friend-username">Add friend by username</Label>
             <Input
@@ -157,47 +147,27 @@ export function ContactsRoute() {
               disabled={mutating}
             />
           </div>
-          <Button
-            type="submit"
-            disabled={mutating || username.trim().length === 0}
-            size="md"
-          >
+          <Button type="submit" disabled={mutating || username.trim().length === 0} size="md">
             Send request
           </Button>
         </form>
         {submitError && (
-          <p
-            role="alert"
-            className="mt-3 font-body text-body-md text-on-error-container"
-          >
+          <p role="alert" className="mt-3 font-body text-body-md text-on-error-container">
             {submitError}
           </p>
         )}
       </GlassCard>
 
       {state.status === 'loading' && (
-        <div
-          data-testid="contacts-loading"
-          aria-busy="true"
-          className="space-y-3"
-        >
+        <div data-testid="contacts-loading" aria-busy="true" className="space-y-3">
           {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-16 rounded-[1.5rem] bg-surface-container-low animate-pulse"
-            />
+            <div key={i} className="h-16 rounded-[1.5rem] bg-surface-container-low animate-pulse" />
           ))}
         </div>
       )}
 
       {state.status === 'error' && (
-        <GlassCard
-          as="section"
-          tone="error"
-          radius="lg"
-          padding="md"
-          role="alert"
-        >
+        <GlassCard as="section" tone="error" radius="lg" padding="md" role="alert">
           <p className="font-display text-label-lg font-semibold uppercase tracking-[0.18em] text-on-error-container/80">
             {state.error.code}
           </p>
@@ -215,12 +185,7 @@ export function ContactsRoute() {
       {state.status === 'ok' && (
         <>
           {/* Friends pane */}
-          <GlassCard
-            as="section"
-            radius="lg"
-            padding="md"
-            aria-labelledby="friends-heading"
-          >
+          <GlassCard as="section" radius="lg" padding="md" aria-labelledby="friends-heading">
             <h2
               id="friends-heading"
               className="font-display text-title-md font-bold text-on-surface"
@@ -248,9 +213,7 @@ export function ContactsRoute() {
                     >
                       <span className="flex items-center gap-3">
                         <PresenceDot state={presenceFor(f.userId)} />
-                        <span className="font-body text-body-md text-on-surface">
-                          {f.username}
-                        </span>
+                        <span className="font-body text-body-md text-on-surface">{f.username}</span>
                       </span>
                     </UserPopover>
                     <Button
@@ -268,12 +231,7 @@ export function ContactsRoute() {
           </GlassCard>
 
           {/* Incoming requests */}
-          <GlassCard
-            as="section"
-            radius="lg"
-            padding="md"
-            aria-labelledby="incoming-heading"
-          >
+          <GlassCard as="section" radius="lg" padding="md" aria-labelledby="incoming-heading">
             <h2
               id="incoming-heading"
               className="font-display text-title-md font-bold text-on-surface"
@@ -318,12 +276,7 @@ export function ContactsRoute() {
           </GlassCard>
 
           {/* Outgoing requests */}
-          <GlassCard
-            as="section"
-            radius="lg"
-            padding="md"
-            aria-labelledby="outgoing-heading"
-          >
+          <GlassCard as="section" radius="lg" padding="md" aria-labelledby="outgoing-heading">
             <h2
               id="outgoing-heading"
               className="font-display text-title-md font-bold text-on-surface"
@@ -341,12 +294,8 @@ export function ContactsRoute() {
                     key={r.id}
                     className="flex items-center justify-between gap-3 rounded-full bg-surface-container-low px-4 py-2"
                   >
-                    <span className="font-body text-body-md text-on-surface">
-                      {r.to.username}
-                    </span>
-                    <span className="font-body text-body-sm text-on-surface-variant">
-                      Pending
-                    </span>
+                    <span className="font-body text-body-md text-on-surface">{r.to.username}</span>
+                    <span className="font-body text-body-sm text-on-surface-variant">Pending</span>
                   </li>
                 ))}
               </ul>

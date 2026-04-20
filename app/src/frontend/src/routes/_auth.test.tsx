@@ -43,9 +43,7 @@ import { useSession } from '@/hooks/useSession';
 import { presenceMapStore } from '@/hooks/usePresenceMap';
 
 type RouteOpts = {
-  beforeLoad: (args: {
-    context: { setSession: (s: unknown) => void };
-  }) => Promise<void>;
+  beforeLoad: (args: { context: { setSession: (s: unknown) => void } }) => Promise<void>;
   component: () => JSX.Element;
 };
 
@@ -73,9 +71,9 @@ describe('/_auth route — beforeLoad gate', () => {
     );
 
     const setSession = vi.fn();
-    await expect(
-      getOpts().beforeLoad({ context: { setSession } }),
-    ).rejects.toBeInstanceOf(RedirectSentinel);
+    await expect(getOpts().beforeLoad({ context: { setSession } })).rejects.toBeInstanceOf(
+      RedirectSentinel,
+    );
     expect(setSession).not.toHaveBeenCalled();
   });
 
@@ -95,9 +93,7 @@ describe('/_auth route — beforeLoad gate', () => {
     );
 
     const setSession = vi.fn();
-    await expect(
-      getOpts().beforeLoad({ context: { setSession } }),
-    ).resolves.toBeUndefined();
+    await expect(getOpts().beforeLoad({ context: { setSession } })).resolves.toBeUndefined();
     // fetchSession projects the wire shape via fromWire() → flat `id`.
     expect(setSession).toHaveBeenCalledWith({
       id: 5,
@@ -154,9 +150,7 @@ describe('<AuthLayout />', () => {
     expect(screen.getByRole('link', { name: /chatchat home/i })).toBeInTheDocument();
     // AppHeader renders the visible name in a sm+-only span; AvatarDisc also
     // exposes the name as sr-only text. Scope to the visible span.
-    expect(
-      screen.getByText('User One', { selector: 'span.sm\\:inline' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('User One', { selector: 'span.sm\\:inline' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /log ?out/i })).toBeInTheDocument();
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
   });

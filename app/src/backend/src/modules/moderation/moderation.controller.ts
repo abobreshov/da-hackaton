@@ -69,10 +69,7 @@ export class ModerationController {
   }
 
   @Get(':id/bans')
-  async listBans(
-    @CurrentUser() actor: { id: number },
-    @Param('id', ParseIntPipe) roomId: number,
-  ) {
+  async listBans(@CurrentUser() actor: { id: number }, @Param('id', ParseIntPipe) roomId: number) {
     return this.service.listBans({ roomId, viewerId: actor.id });
   }
 

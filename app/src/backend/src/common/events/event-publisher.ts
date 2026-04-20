@@ -31,9 +31,7 @@ export class LoggingEventPublisher implements IEventPublisher {
     try {
       this.bus.emit(name, payload);
     } catch (err) {
-      this.logger.warn(
-        `event.emit handler error for ${name}: ${(err as Error).message}`,
-      );
+      this.logger.warn(`event.emit handler error for ${name}: ${(err as Error).message}`);
     }
   }
 
@@ -43,15 +41,11 @@ export class LoggingEventPublisher implements IEventPublisher {
         const ret = handler(payload);
         if (ret && typeof (ret as Promise<unknown>).catch === 'function') {
           (ret as Promise<unknown>).catch((err) =>
-            this.logger.warn(
-              `event handler rejected for ${name}: ${(err as Error).message}`,
-            ),
+            this.logger.warn(`event handler rejected for ${name}: ${(err as Error).message}`),
           );
         }
       } catch (err) {
-        this.logger.warn(
-          `event handler threw for ${name}: ${(err as Error).message}`,
-        );
+        this.logger.warn(`event handler threw for ${name}: ${(err as Error).message}`);
       }
     });
   }

@@ -2,10 +2,7 @@ import { useCallback } from 'react';
 import { getSocket } from '@/lib/socket';
 import { WsEvent } from '@/lib/ws-events';
 import { normaliseMessage, type Message } from '@/lib/messages';
-import {
-  getMessagesStore,
-  type ConversationKeyArgs,
-} from './useMessagesStore';
+import { getMessagesStore, type ConversationKeyArgs } from './useMessagesStore';
 
 /**
  * Write-side actions: send / edit / delete. Each round-trips via the WS
@@ -29,9 +26,7 @@ export interface UseMessageActionsReturn {
   deleteMessage: (id: bigint) => Promise<void>;
 }
 
-const ackError = (
-  ack: { error?: { code: string; message: string } } | undefined,
-): Error | null => {
+const ackError = (ack: { error?: { code: string; message: string } } | undefined): Error | null => {
   if (!ack) return new Error('No ack from gateway');
   if (ack.error) {
     return Object.assign(new Error(ack.error.message), { code: ack.error.code });
@@ -39,9 +34,7 @@ const ackError = (
   return null;
 };
 
-export function useMessageActions(
-  args: ConversationKeyArgs,
-): UseMessageActionsReturn {
+export function useMessageActions(args: ConversationKeyArgs): UseMessageActionsReturn {
   const store = getMessagesStore(args);
 
   const sendMessage = useCallback(
@@ -51,15 +44,11 @@ export function useMessageActions(
         const payload: Record<string, unknown> = { body: send.body };
         if (args.roomId !== undefined) payload.roomId = args.roomId;
         if (args.dmUserId !== undefined) payload.dmUserId = args.dmUserId;
-        if (send.replyToId !== undefined)
-          payload.replyToId = send.replyToId.toString();
+        if (send.replyToId !== undefined) payload.replyToId = send.replyToId.toString();
         socket.emit(
           WsEvent.client.messageSend,
           payload,
-          (ack: {
-            message?: unknown;
-            error?: { code: string; message: string };
-          }) => {
+          (ack: { message?: unknown; error?: { code: string; message: string } }) => {
             const err = ackError(ack);
             if (err) {
               reject(err);

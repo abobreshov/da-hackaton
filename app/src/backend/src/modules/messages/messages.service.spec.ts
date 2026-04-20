@@ -234,12 +234,7 @@ describe('MessagesService', () => {
 
   describe('create — XOR scope', () => {
     it('rejects when neither roomId nor dmUserId is present', async () => {
-      const svc = new (require('./messages.service').MessagesService)(
-        repo,
-        makeRoomsAuth(),
-        attachments,
-        publisher,
-      );
+      const svc = new MessagesService(repo, makeRoomsAuth() as any, attachments, publisher as any);
       await expect(svc.create({ authorId: AUTHOR, body: 'hi' })).rejects.toBeInstanceOf(
         BadRequestException,
       );
@@ -654,7 +649,7 @@ describe('MessagesService', () => {
       // No cursor → all three, descending.
       const full = await svc.list({ roomId: 1, limit: 10 });
       expect(full.messages.map((m) => m.body)).toEqual(['c', 'b', 'a']);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       void c;
     });
 
@@ -665,7 +660,7 @@ describe('MessagesService', () => {
       await svc.delete({ id: two.message.id, actorId: AUTHOR, isRoomAdmin: false });
       const out = await svc.list({ roomId: 1, limit: 10 });
       expect(out.messages.map((m) => m.body)).toEqual(['keep']);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       void one;
     });
 
@@ -735,6 +730,6 @@ describe('MessagesService', () => {
     });
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const _unused_conflict = ConflictException;
 });

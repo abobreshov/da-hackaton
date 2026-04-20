@@ -29,10 +29,7 @@ export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
     return (
       <div
         ref={ref}
-        className={cn(
-          'rounded-[2rem] bg-surface-container-low/60 p-10 text-center',
-          className,
-        )}
+        className={cn('rounded-[2rem] bg-surface-container-low/60 p-10 text-center', className)}
         {...rest}
       >
         {icon ? (

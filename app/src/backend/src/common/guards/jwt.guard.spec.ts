@@ -92,9 +92,7 @@ describe('JwtGuard', () => {
   });
 
   it('converts RpcException-like error to 401 (no leak of remote status)', async () => {
-    auth.send.mockReturnValue(
-      throwError(() => ({ status: 403, message: 'banned' })),
-    );
+    auth.send.mockReturnValue(throwError(() => ({ status: 403, message: 'banned' })));
     const { ctx } = mockHttpContext({ authorization: 'Bearer x' });
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
   });

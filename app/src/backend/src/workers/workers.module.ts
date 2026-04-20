@@ -52,18 +52,11 @@ const redisConnectionProvider: Provider = {
  * Build a queue+worker provider for one named queue.
  * The returned pair is also pushed onto the central registry for shutdown.
  */
-function queuePairProvider(
-  token: string,
-  name: string,
-  processor: Processor<any, any>,
-): Provider {
+function queuePairProvider(token: string, name: string, processor: Processor<any, any>): Provider {
   return {
     provide: token,
     inject: [WORKERS_REDIS_CONNECTION, WORKERS_REGISTRY],
-    useFactory: (
-      connection: IORedis,
-      registry: WorkersRegistry,
-    ): Queue => {
+    useFactory: (connection: IORedis, registry: WorkersRegistry): Queue => {
       const pair: QueueFactoryResult = createQueuePair(name, processor, connection);
       registry.queues.push(pair.queue);
       registry.workers.push(pair.worker);
@@ -84,11 +77,7 @@ const queueProviders: Provider[] = [
     QueueName.userCascadeDelete,
     userCascadeDeleteProcessor,
   ),
-  queuePairProvider(
-    RETENTION_PRUNE_QUEUE,
-    QueueName.retentionPrune,
-    retentionPruneProcessor,
-  ),
+  queuePairProvider(RETENTION_PRUNE_QUEUE, QueueName.retentionPrune, retentionPruneProcessor),
   queuePairProvider(
     ATTACHMENTS_CLEANUP_QUEUE,
     QueueName.attachmentsCleanup,

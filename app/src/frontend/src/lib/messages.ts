@@ -92,8 +92,7 @@ interface WireMessageList {
   } | null;
 }
 
-const toBig = (v: string | number | bigint): bigint =>
-  typeof v === 'bigint' ? v : BigInt(v);
+const toBig = (v: string | number | bigint): bigint => (typeof v === 'bigint' ? v : BigInt(v));
 
 const toNullableBig = (v: string | number | null | undefined): bigint | null =>
   v === null || v === undefined ? null : toBig(v);
@@ -156,9 +155,7 @@ export async function listRoomMessages(
   cursor?: MessageCursor,
 ): Promise<MessageList> {
   const qs = cursorToQuery(cursor);
-  const raw = await apiFetch<WireMessageList>(
-    `/api/v1/rooms/${roomId}/messages${qs}`,
-  );
+  const raw = await apiFetch<WireMessageList>(`/api/v1/rooms/${roomId}/messages${qs}`);
   return normaliseList(raw);
 }
 
@@ -166,14 +163,9 @@ export async function listRoomMessages(
  * DM history for a conversation keyed by the other user's id. Shares the
  * same cursor semantics as `listRoomMessages`.
  */
-export async function listDmMessages(
-  userId: number,
-  cursor?: MessageCursor,
-): Promise<MessageList> {
+export async function listDmMessages(userId: number, cursor?: MessageCursor): Promise<MessageList> {
   const qs = cursorToQuery(cursor);
-  const raw = await apiFetch<WireMessageList>(
-    `/api/v1/dms/${userId}/messages${qs}`,
-  );
+  const raw = await apiFetch<WireMessageList>(`/api/v1/dms/${userId}/messages${qs}`);
   return normaliseList(raw);
 }
 
@@ -197,16 +189,13 @@ export async function getMessageById(id: bigint | string | number): Promise<Mess
  * so callers without a socket (background jobs, tests) can still post.
  */
 export async function sendMessageHttp(body: SendMessageBody): Promise<Message> {
-  const raw = await apiFetch<{ message: WireMessage } | WireMessage>(
-    '/api/v1/messages',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        ...body,
-        replyToId: body.replyToId?.toString(),
-      }),
-    },
-  );
+  const raw = await apiFetch<{ message: WireMessage } | WireMessage>('/api/v1/messages', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...body,
+      replyToId: body.replyToId?.toString(),
+    }),
+  });
   const wire =
     raw && typeof raw === 'object' && 'message' in raw
       ? (raw as { message: WireMessage }).message

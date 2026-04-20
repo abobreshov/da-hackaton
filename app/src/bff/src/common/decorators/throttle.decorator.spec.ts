@@ -8,10 +8,7 @@ describe('Throttle decorator', () => {
       @Throttle({ scope: 'reset', limit: 1, windowMs: 60_000, failClosed: true })
       method() {}
     }
-    const meta = new Reflector().get<ThrottleOptions[]>(
-      THROTTLE_METADATA_KEY,
-      X.prototype.method,
-    );
+    const meta = new Reflector().get<ThrottleOptions[]>(THROTTLE_METADATA_KEY, X.prototype.method);
     expect(Array.isArray(meta)).toBe(true);
     expect(meta).toHaveLength(1);
     expect(meta[0].scope).toBe('reset');
@@ -23,10 +20,7 @@ describe('Throttle decorator', () => {
       @Throttle({ scope: 'reset-ip', limit: 5, windowMs: 3_600_000, failClosed: true })
       method() {}
     }
-    const meta = new Reflector().get<ThrottleOptions[]>(
-      THROTTLE_METADATA_KEY,
-      X.prototype.method,
-    );
+    const meta = new Reflector().get<ThrottleOptions[]>(THROTTLE_METADATA_KEY, X.prototype.method);
     expect(Array.isArray(meta)).toBe(true);
     expect(meta.map((m) => m.scope).sort()).toEqual(['reset', 'reset-ip']);
   });

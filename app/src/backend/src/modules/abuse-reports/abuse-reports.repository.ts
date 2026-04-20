@@ -39,11 +39,7 @@ export class DrizzleAbuseReportsRepository implements AbuseReportsRepositoryPort
   }
 
   async findUserById(id: number): Promise<UserRoleRow | null> {
-    const rows = await (this.db as any)
-      .select()
-      .from(users)
-      .where(eq(users.id, id))
-      .limit(1);
+    const rows = await (this.db as any).select().from(users).where(eq(users.id, id)).limit(1);
     return (rows[0] as UserRoleRow | undefined) ?? null;
   }
 

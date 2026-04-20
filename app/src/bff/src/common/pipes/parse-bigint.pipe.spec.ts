@@ -20,9 +20,7 @@ describe('ParseBigIntPipe', () => {
   });
 
   it('rejects non-string input', () => {
-    expect(() => pipe.transform(undefined as any, meta)).toThrow(
-      BadRequestException,
-    );
+    expect(() => pipe.transform(undefined as any, meta)).toThrow(BadRequestException);
   });
 
   it('rejects negative numbers', () => {

@@ -23,8 +23,7 @@ const glassCardVariants = cva('backdrop-blur-xl', {
     tone: {
       default:
         'bg-surface-container-lowest/80 text-on-surface ring-1 ring-inset ring-outline-variant/30',
-      error:
-        'bg-error-container/70 text-on-error-container ring-1 ring-inset ring-error/20',
+      error: 'bg-error-container/70 text-on-error-container ring-1 ring-inset ring-error/20',
     },
     shadow: {
       ambient: 'shadow-ambient',
@@ -33,9 +32,9 @@ const glassCardVariants = cva('backdrop-blur-xl', {
       none: '',
     },
     radius: {
-      lg: 'rounded-[2rem]',      // 2rem — standard card
-      xl: 'rounded-[2.5rem]',    // 2.5rem — auth + hero
-      pill: 'rounded-full',       // nav pill
+      lg: 'rounded-[2rem]', // 2rem — standard card
+      xl: 'rounded-[2.5rem]', // 2.5rem — auth + hero
+      pill: 'rounded-full', // nav pill
     },
     padding: {
       none: '',
@@ -48,8 +47,7 @@ const glassCardVariants = cva('backdrop-blur-xl', {
 });
 
 export interface GlassCardProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof glassCardVariants> {
+  extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof glassCardVariants> {
   as?: 'div' | 'section' | 'article' | 'header' | 'aside';
 }
 
@@ -90,7 +88,10 @@ export const HeroCard = React.forwardRef<HTMLElement, HeroCardProps>(
       >
         <div
           aria-hidden="true"
-          className={cn('absolute -right-16 -top-20 h-64 w-64 rounded-full opacity-30 blur-3xl', blobTone)}
+          className={cn(
+            'absolute -right-16 -top-20 h-64 w-64 rounded-full opacity-30 blur-3xl',
+            blobTone,
+          )}
         />
         {children}
       </section>
@@ -100,8 +101,7 @@ export const HeroCard = React.forwardRef<HTMLElement, HeroCardProps>(
 HeroCard.displayName = 'HeroCard';
 
 // ----- SectionHeading ----- consistent display-font heading for cards + sections
-export interface SectionHeadingProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
+export interface SectionHeadingProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   eyebrow?: string;
   title: React.ReactNode;
   level?: 'h1' | 'h2' | 'h3';
@@ -166,8 +166,7 @@ const chipVariants = cva(
 );
 
 export interface ChipProps
-  extends React.HTMLAttributes<HTMLSpanElement>,
-    VariantProps<typeof chipVariants> {}
+  extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof chipVariants> {}
 
 export const Chip = React.forwardRef<HTMLSpanElement, ChipProps>(
   ({ className, tone, ...props }, ref) => (

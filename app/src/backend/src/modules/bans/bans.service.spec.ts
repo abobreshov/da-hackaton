@@ -37,20 +37,23 @@ function makeChain(resolve: () => any) {
  * then re-throwing. On error we record `rolledBack = true`. Callers inspect
  * `tx.<method>.mock.calls` to assert the sequence of operations.
  */
-function makeDb(options: {
-  friendshipsDeleteResult?: any;
-  dmUpdateResult?: any;
-  insertThrows?: boolean;
-  deleteThrows?: boolean;
-  updateThrows?: boolean;
-  outerUpdateResult?: any;
-} = {}) {
+function makeDb(
+  options: {
+    friendshipsDeleteResult?: any;
+    dmUpdateResult?: any;
+    insertThrows?: boolean;
+    deleteThrows?: boolean;
+    updateThrows?: boolean;
+    outerUpdateResult?: any;
+  } = {},
+) {
   const insertChain: any = {
     values: jest.fn(() => insertChain),
     onConflictDoNothing: jest.fn(() => {
       if (options.insertThrows) {
         return {
-          then: (onFulfilled: any, onRejected: any) => Promise.reject(new Error('db error')).then(onFulfilled, onRejected),
+          then: (onFulfilled: any, onRejected: any) =>
+            Promise.reject(new Error('db error')).then(onFulfilled, onRejected),
         };
       }
       return { then: (onFulfilled: any) => Promise.resolve(undefined).then(onFulfilled) };
@@ -60,10 +63,14 @@ function makeDb(options: {
     where: jest.fn(() => {
       if (options.deleteThrows) {
         return {
-          then: (onFulfilled: any, onRejected: any) => Promise.reject(new Error('db error')).then(onFulfilled, onRejected),
+          then: (onFulfilled: any, onRejected: any) =>
+            Promise.reject(new Error('db error')).then(onFulfilled, onRejected),
         };
       }
-      return { then: (onFulfilled: any) => Promise.resolve(options.friendshipsDeleteResult ?? undefined).then(onFulfilled) };
+      return {
+        then: (onFulfilled: any) =>
+          Promise.resolve(options.friendshipsDeleteResult ?? undefined).then(onFulfilled),
+      };
     }),
   };
   const updateChain: any = {
@@ -71,10 +78,14 @@ function makeDb(options: {
     where: jest.fn(() => {
       if (options.updateThrows) {
         return {
-          then: (onFulfilled: any, onRejected: any) => Promise.reject(new Error('db error')).then(onFulfilled, onRejected),
+          then: (onFulfilled: any, onRejected: any) =>
+            Promise.reject(new Error('db error')).then(onFulfilled, onRejected),
         };
       }
-      return { then: (onFulfilled: any) => Promise.resolve(options.dmUpdateResult ?? undefined).then(onFulfilled) };
+      return {
+        then: (onFulfilled: any) =>
+          Promise.resolve(options.dmUpdateResult ?? undefined).then(onFulfilled),
+      };
     }),
   };
 
@@ -102,7 +113,19 @@ function makeDb(options: {
     select: jest.fn(() => makeChain(() => [])),
   };
 
-  return { db, tx, insertChain, deleteChain, updateChain, get rolledBack() { return rolledBack; }, get committed() { return committed; } };
+  return {
+    db,
+    tx,
+    insertChain,
+    deleteChain,
+    updateChain,
+    get rolledBack() {
+      return rolledBack;
+    },
+    get committed() {
+      return committed;
+    },
+  };
 }
 
 describe('BansService', () => {
@@ -193,7 +216,9 @@ describe('BansService', () => {
       // clause — the SQL itself is validated via an integration spec later.
       expect(h.deleteChain.where).toHaveBeenCalledTimes(1);
       expect(h.updateChain.where).toHaveBeenCalledTimes(1);
-      expect(h.updateChain.set).toHaveBeenCalledWith(expect.objectContaining({ frozenAt: expect.any(Date) }));
+      expect(h.updateChain.set).toHaveBeenCalledWith(
+        expect.objectContaining({ frozenAt: expect.any(Date) }),
+      );
     });
 
     it('returns { ok: true } on success', async () => {

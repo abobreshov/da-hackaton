@@ -37,7 +37,9 @@ interface ResetPasswordPageProps {
   token?: string;
 }
 
-export function ResetPasswordPage({ token: tokenOverride }: ResetPasswordPageProps = {}): React.ReactElement {
+export function ResetPasswordPage({
+  token: tokenOverride,
+}: ResetPasswordPageProps = {}): React.ReactElement {
   // When rendered via TanStack Router, read the token from the validated
   // search params. Tests pass it in directly instead.
   let searchToken: string | undefined;
@@ -80,9 +82,7 @@ function AuthShell({
       </header>
       {children}
       {footer ? (
-        <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">
-          {footer}
-        </p>
+        <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">{footer}</p>
       ) : null}
     </GlassCard>
   );
@@ -126,8 +126,8 @@ function RequestForm(): React.ReactElement {
     return (
       <AuthShell headline="Check your email" footer={<BackToLoginLink />}>
         <p className="mt-6 text-center font-body text-body-md text-on-surface-variant">
-          If an account exists for that email, we sent a link to reset your password.
-          The link is valid for a limited time.
+          If an account exists for that email, we sent a link to reset your password. The link is
+          valid for a limited time.
         </p>
       </AuthShell>
     );

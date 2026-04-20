@@ -13,14 +13,7 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (opts: unknown) => ({ options: opts }),
   redirect: ({ to }: { to: string }) => new RedirectSentinel(to),
   Outlet: () => <div data-testid="outlet">admin child</div>,
-  Link: ({
-    children,
-    to,
-    ...rest
-  }: {
-    children: React.ReactNode;
-    to: string;
-  }) => (
+  Link: ({ children, to, ...rest }: { children: React.ReactNode; to: string }) => (
     <a href={to} {...rest}>
       {children}
     </a>
@@ -31,9 +24,7 @@ import { Route } from './_admin';
 import { useSession } from '@/hooks/useSession';
 
 type RouteOpts = {
-  beforeLoad: (args: {
-    context: { setSession: (s: unknown) => void };
-  }) => Promise<void>;
+  beforeLoad: (args: { context: { setSession: (s: unknown) => void } }) => Promise<void>;
   component: () => JSX.Element;
 };
 
@@ -104,9 +95,7 @@ describe('/_admin route — beforeLoad gate', () => {
       }),
     );
     const setSession = vi.fn();
-    await expect(
-      getOpts().beforeLoad({ context: { setSession } }),
-    ).resolves.toBeUndefined();
+    await expect(getOpts().beforeLoad({ context: { setSession } })).resolves.toBeUndefined();
     // fetchSession projects the wire shape via fromWire() → flat `id`.
     expect(setSession).toHaveBeenCalledWith({
       id: 1,
@@ -170,9 +159,7 @@ describe('<AdminLayout />', () => {
     render(<AdminLayout />);
     // The visible name is in a `sm:inline` span; AvatarDisc also exposes the
     // name as sr-only text. Scope the query to the visible span.
-    expect(
-      screen.getByText('Admin One', { selector: 'span.sm\\:inline' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Admin One', { selector: 'span.sm\\:inline' })).toBeInTheDocument();
   });
 
   it('renders a Log out button', () => {

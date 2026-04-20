@@ -7,7 +7,11 @@
  * unreachable — protects the WS plane from resource exhaustion even if the
  * limiter itself falls over.
  */
-import { WsConnectRateLimit, WS_CONNECT_LIMIT, WS_CONNECT_WINDOW_MS } from './ws-connect-rate-limit.service';
+import {
+  WsConnectRateLimit,
+  WS_CONNECT_LIMIT,
+  WS_CONNECT_WINDOW_MS,
+} from './ws-connect-rate-limit.service';
 
 function buildPipeline(runAll: () => Promise<unknown>) {
   const pipeline: any = {

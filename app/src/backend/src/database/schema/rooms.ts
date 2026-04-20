@@ -44,8 +44,7 @@ export const rooms = pgTable(
       'rooms_visibility_check',
       sql`${table.visibility} IN ('public','private')`,
     ),
-    nameTrgmIdx: index('rooms_name_trgm')
-      .using('gin', sql`${table.name} gin_trgm_ops`),
+    nameTrgmIdx: index('rooms_name_trgm').using('gin', sql`${table.name} gin_trgm_ops`),
   }),
 );
 

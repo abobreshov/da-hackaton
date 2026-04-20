@@ -7,10 +7,7 @@ import { ROOMS_REPOSITORY } from './rooms.types';
 
 @Module({
   controllers: [RoomsController, RoomsTcpController],
-  providers: [
-    RoomsService,
-    { provide: ROOMS_REPOSITORY, useClass: DrizzleRoomsRepository },
-  ],
+  providers: [RoomsService, { provide: ROOMS_REPOSITORY, useClass: DrizzleRoomsRepository }],
   exports: [RoomsService],
 })
 export class RoomsModule {}

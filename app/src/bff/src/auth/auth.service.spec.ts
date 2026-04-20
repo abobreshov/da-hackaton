@@ -52,7 +52,10 @@ describe('AuthService — new proxy methods', () => {
     });
 
     it('propagates RpcException NOT_FOUND for invalid or expired tokens', async () => {
-      const rpc = new RpcException({ status: 404, message: 'Verification token invalid or expired' });
+      const rpc = new RpcException({
+        status: 404,
+        message: 'Verification token invalid or expired',
+      });
       client.send.mockReturnValue(throwError(() => rpc));
       await expect(svc.verifyEmail('bad')).rejects.toBe(rpc);
     });

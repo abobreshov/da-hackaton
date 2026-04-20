@@ -69,9 +69,7 @@ export class AdminPage {
   }
 
   async expectAuditEntry(action: string): Promise<void> {
-    const row = this.auditTable.locator(
-      `[data-testid="admin-audit-row"][data-action="${action}"]`,
-    );
+    const row = this.auditTable.locator(`[data-testid="admin-audit-row"][data-action="${action}"]`);
     await expect(row.first()).toBeVisible();
   }
 

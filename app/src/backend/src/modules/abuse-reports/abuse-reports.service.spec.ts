@@ -55,8 +55,14 @@ class FakeAbuseReportsRepository implements AbuseReportsRepositoryPort {
       throw e;
     }
     const idx = this.openIndex();
-    if (idx.has(FakeAbuseReportsRepository.openKey(input.reporterId, input.targetType, input.targetId))) {
-      const err: any = new Error('duplicate key value violates unique constraint "abuse_reports_open_dedup_idx"');
+    if (
+      idx.has(
+        FakeAbuseReportsRepository.openKey(input.reporterId, input.targetType, input.targetId),
+      )
+    ) {
+      const err: any = new Error(
+        'duplicate key value violates unique constraint "abuse_reports_open_dedup_idx"',
+      );
       err.code = '23505';
       throw err;
     }
@@ -166,7 +172,12 @@ describe('AbuseReportsService', () => {
       const repo = seed();
       const svc = new AbuseReportsService(repo, makeEvents());
 
-      const first = await svc.create({ reporterId: 2, targetType: 'user', targetId: 3n, reason: 'r1' });
+      const first = await svc.create({
+        reporterId: 2,
+        targetType: 'user',
+        targetId: 3n,
+        reason: 'r1',
+      });
       const row = repo.byId.get(first.id)!;
       row.status = 'resolved';
 
@@ -299,8 +310,14 @@ describe('AbuseReportsService', () => {
       const repo = seed();
       const id = 42n;
       repo.byId.set(id, {
-        id, reporterId: 2, targetType: 'user', targetId: 3n,
-        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
+        id,
+        reporterId: 2,
+        targetType: 'user',
+        targetId: 3n,
+        reason: 'x',
+        status: 'open',
+        resolvedBy: null,
+        resolvedAt: null,
         createdAt: new Date(),
       });
       const events = makeEvents();
@@ -321,8 +338,14 @@ describe('AbuseReportsService', () => {
       const repo = seed();
       const id = 7n;
       repo.byId.set(id, {
-        id, reporterId: 2, targetType: 'user', targetId: 3n,
-        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
+        id,
+        reporterId: 2,
+        targetType: 'user',
+        targetId: 3n,
+        reason: 'x',
+        status: 'open',
+        resolvedBy: null,
+        resolvedAt: null,
         createdAt: new Date(),
       });
       const svc = new AbuseReportsService(repo, makeEvents());
@@ -343,8 +366,14 @@ describe('AbuseReportsService', () => {
       const repo = seed();
       const id = 8n;
       repo.byId.set(id, {
-        id, reporterId: 2, targetType: 'user', targetId: 3n,
-        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
+        id,
+        reporterId: 2,
+        targetType: 'user',
+        targetId: 3n,
+        reason: 'x',
+        status: 'open',
+        resolvedBy: null,
+        resolvedAt: null,
         createdAt: new Date(),
       });
       const events = makeEvents();
@@ -364,8 +393,14 @@ describe('AbuseReportsService', () => {
       const repo = seed();
       const id = 9n;
       repo.byId.set(id, {
-        id, reporterId: 2, targetType: 'user', targetId: 3n,
-        reason: 'x', status: 'open', resolvedBy: null, resolvedAt: null,
+        id,
+        reporterId: 2,
+        targetType: 'user',
+        targetId: 3n,
+        reason: 'x',
+        status: 'open',
+        resolvedBy: null,
+        resolvedAt: null,
         createdAt: new Date(),
       });
       const svc = new AbuseReportsService(repo, makeEvents());

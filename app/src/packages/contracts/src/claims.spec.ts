@@ -33,10 +33,10 @@ describe('parseSub', () => {
     'u:abc',
     'x:5',
     'u:-5',
-    'U:7',          // case-sensitive
-    'u: 7',         // whitespace
+    'U:7', // case-sensitive
+    'u: 7', // whitespace
     '',
-    'u:0',          // zero is not a valid id
+    'u:0', // zero is not a valid id
   ])('throws on malformed sub "%s"', (sub) => {
     expect(() => parseSub(sub)).toThrow();
   });

@@ -100,9 +100,7 @@ describe('lib/moderation', () => {
       description: 'new desc',
       visibility: 'public' as const,
     };
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ id: 7, ...patch, memberCount: 1 }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 7, ...patch, memberCount: 1 }));
     await updateRoom(7, patch);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/api\/v1\/rooms\/7$/);
@@ -123,10 +121,10 @@ describe('lib/moderation', () => {
 
   it('surfaces ApiError on non-2xx responses', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'FORBIDDEN', message: 'not owner' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'not owner' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     await expect(deleteRoom(7)).rejects.toMatchObject({
       status: 403,

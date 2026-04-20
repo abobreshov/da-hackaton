@@ -71,9 +71,9 @@ describe('UnreadService', () => {
 
   describe('markRead — XOR scope', () => {
     it('rejects when neither roomId nor dmId is present', async () => {
-      await expect(
-        svc.markRead({ userId: USER, lastReadId: 10n }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.markRead({ userId: USER, lastReadId: 10n })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('rejects when both roomId and dmId are present', async () => {
@@ -84,16 +84,12 @@ describe('UnreadService', () => {
 
     it('upserts room scope', async () => {
       await svc.markRead({ userId: USER, roomId: 7, lastReadId: 100n });
-      expect(repo.marks).toEqual([
-        { userId: USER, roomId: 7, lastReadId: 100n },
-      ]);
+      expect(repo.marks).toEqual([{ userId: USER, roomId: 7, lastReadId: 100n }]);
     });
 
     it('upserts dm scope', async () => {
       await svc.markRead({ userId: USER, dmId: 3, lastReadId: 55n });
-      expect(repo.marks).toEqual([
-        { userId: USER, dmId: 3, lastReadId: 55n },
-      ]);
+      expect(repo.marks).toEqual([{ userId: USER, dmId: 3, lastReadId: 55n }]);
     });
 
     it('repeated markRead on the same scope overwrites the previous row', async () => {
@@ -140,15 +136,13 @@ describe('UnreadService', () => {
 
   describe('countSince', () => {
     it('rejects when neither roomId nor dmId is present', async () => {
-      await expect(
-        svc.countSince({ userId: USER }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.countSince({ userId: USER })).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects when both roomId and dmId are present', async () => {
-      await expect(
-        svc.countSince({ userId: USER, roomId: 1, dmId: 2 }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.countSince({ userId: USER, roomId: 1, dmId: 2 })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('returns the single-scope count for room', async () => {

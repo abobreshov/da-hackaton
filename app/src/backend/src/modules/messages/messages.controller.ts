@@ -64,11 +64,7 @@ export class MessagesController {
   }
 
   @Patch(':id')
-  edit(
-    @Param('id') id: string,
-    @Body() dto: EditMessageDto,
-    @Req() req: AuthedRequest,
-  ) {
+  edit(@Param('id') id: string, @Body() dto: EditMessageDto, @Req() req: AuthedRequest) {
     return this.service.edit({
       id: BigInt(id),
       actorId: getUserId(req),

@@ -50,9 +50,7 @@ describe('<RegisterPage /> (OWASP V3.1.1 enumeration-safe)', () => {
 
   it('renders the Kinetic Playground brand hero + headline + sign-in link', () => {
     render(<RegisterPage />);
-    expect(
-      screen.getByRole('heading', { level: 1, name: /create account/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /create account/i })).toBeInTheDocument();
     const signIn = screen.getByRole('link', { name: /sign in/i });
     expect(signIn).toBeInTheDocument();
     expect(signIn).toHaveAttribute('href', '/login');
@@ -61,7 +59,10 @@ describe('<RegisterPage /> (OWASP V3.1.1 enumeration-safe)', () => {
   it('submits to /api/v1/auth/register and renders the "check your inbox" card on 202', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ ok: true, message: 'If the address is available, check your inbox to verify.' }),
+        JSON.stringify({
+          ok: true,
+          message: 'If the address is available, check your inbox to verify.',
+        }),
         { status: 202, headers: { 'Content-Type': 'application/json' } },
       ),
     );
@@ -90,10 +91,10 @@ describe('<RegisterPage /> (OWASP V3.1.1 enumeration-safe)', () => {
 
   it('shows a generic error on non-2xx (does NOT leak email-taken copy)', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'RATE_LIMITED', message: 'Too many attempts' }),
-        { status: 429, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'RATE_LIMITED', message: 'Too many attempts' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
 
     render(<RegisterPage />);

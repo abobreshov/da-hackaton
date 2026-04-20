@@ -6,7 +6,8 @@ process.env.JWT_ACCESS_TOKEN_EXPIRATION = process.env.JWT_ACCESS_TOKEN_EXPIRATIO
 // Default for the suite: admin accounts must have 2FA. Individual tests that
 // exercise the dev escape hatch flip this before importing the service via
 // jest.resetModules() below.
-process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN = process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN ?? 'false';
+process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN =
+  process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN ?? 'false';
 
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AdminAuthService } from './admin-auth.service';
@@ -23,7 +24,9 @@ function builder(defaultResult: unknown = undefined) {
   const thenable: any = {
     from: jest.fn().mockImplementation(() => thenable),
     where: jest.fn().mockImplementation(() => thenable),
-    limit: jest.fn().mockImplementation(() => Promise.resolve(state.terminals.limit ?? state.default)),
+    limit: jest
+      .fn()
+      .mockImplementation(() => Promise.resolve(state.terminals.limit ?? state.default)),
     __setTerminal: (name: string, value: unknown) => {
       state.terminals[name] = value;
       return thenable;
@@ -94,16 +97,16 @@ describe('AdminAuthService', () => {
     it('throws UnauthorizedException on password mismatch', async () => {
       deps.selectBuilder.__setTerminal('limit', [baseAdmin()]);
       pw.compare.mockResolvedValue(false);
-      await expect(svc.login({ email: 'admin@example.com', password: 'pw' })).rejects.toBeInstanceOf(
-        UnauthorizedException,
-      );
+      await expect(
+        svc.login({ email: 'admin@example.com', password: 'pw' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('throws ForbiddenException on inactive account', async () => {
       deps.selectBuilder.__setTerminal('limit', [baseAdmin({ accessStatus: 'INACTIVE' })]);
-      await expect(svc.login({ email: 'admin@example.com', password: 'pw' })).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        svc.login({ email: 'admin@example.com', password: 'pw' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     // ---- Fix 3 — admin TOTP enforcement ----
@@ -121,9 +124,9 @@ describe('AdminAuthService', () => {
 
     it('returns { requires2fa: true } when 2FA enabled and no code supplied', async () => {
       deps.selectBuilder.__setTerminal('limit', [baseAdmin()]);
-      await expect(
-        svc.login({ email: 'admin@example.com', password: 'pw' }),
-      ).resolves.toEqual({ requires2fa: true });
+      await expect(svc.login({ email: 'admin@example.com', password: 'pw' })).resolves.toEqual({
+        requires2fa: true,
+      });
     });
 
     it('throws UnauthorizedException on invalid totpCode', async () => {

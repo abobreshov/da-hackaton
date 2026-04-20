@@ -70,10 +70,7 @@ describe('ReportsController (BFF) — POST /reports', () => {
     const rpc = new RpcException({ status: 404, message: 'target missing' });
     svc.create.mockRejectedValue(rpc);
     await expect(
-      controller.create(
-        { targetType: 'user', targetId: '1', reason: 'x' } as any,
-        sessionReq(1),
-      ),
+      controller.create({ targetType: 'user', targetId: '1', reason: 'x' } as any, sessionReq(1)),
     ).rejects.toBe(rpc);
   });
 });
@@ -81,17 +78,15 @@ describe('ReportsController (BFF) — POST /reports', () => {
 describe('ReportsController — guard wiring + throttle metadata', () => {
   it('class-level metadata includes SessionGuard', () => {
     const { SessionGuard } = require('../../auth/session.guard');
-    const guards =
-      Reflect.getMetadata('__guards__', ReportsController) ?? [];
+    const guards = Reflect.getMetadata('__guards__', ReportsController) ?? [];
     expect(guards).toEqual(expect.arrayContaining([SessionGuard]));
   });
 
   // AC-14-13 — POST /reports: 10/hr per userId, fail-open.
   it('POST /reports carries a throttle bucket {scope:report-create, limit:10, windowMs:3_600_000, failClosed:false}', () => {
-    const meta = Reflect.getMetadata(
-      THROTTLE_METADATA_KEY,
-      ReportsController.prototype.create,
-    ) as ThrottleOptions[] | undefined;
+    const meta = Reflect.getMetadata(THROTTLE_METADATA_KEY, ReportsController.prototype.create) as
+      | ThrottleOptions[]
+      | undefined;
 
     expect(Array.isArray(meta)).toBe(true);
     const bucket = (meta ?? []).find((m) => m.scope === 'report-create');

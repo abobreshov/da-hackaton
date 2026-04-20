@@ -10,10 +10,7 @@ describe('WsEvent', () => {
   });
 
   it('has no possessive suffixes (.me or .you) anywhere in values', () => {
-    const allValues = [
-      ...Object.values(WsEvent.client),
-      ...Object.values(WsEvent.server),
-    ];
+    const allValues = [...Object.values(WsEvent.client), ...Object.values(WsEvent.server)];
     for (const v of allValues) {
       expect(v).not.toMatch(/\.me($|\.)/);
       expect(v).not.toMatch(/\.you($|\.)/);
@@ -21,10 +18,7 @@ describe('WsEvent', () => {
   });
 
   it('has no duplicate event strings across client + server maps', () => {
-    const allValues = [
-      ...Object.values(WsEvent.client),
-      ...Object.values(WsEvent.server),
-    ];
+    const allValues = [...Object.values(WsEvent.client), ...Object.values(WsEvent.server)];
     expect(new Set(allValues).size).toBe(allValues.length);
   });
 });

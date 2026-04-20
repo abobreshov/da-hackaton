@@ -40,9 +40,7 @@ describe('<PresenceDot />', () => {
   });
 
   it('forwards className + extra span props to the root element', () => {
-    render(
-      <PresenceDot state="online" className="custom-ring" data-testid="dot-root" />,
-    );
+    render(<PresenceDot state="online" className="custom-ring" data-testid="dot-root" />);
     const dot = screen.getByTestId('dot-root');
     expect(dot.className).toContain('custom-ring');
   });

@@ -137,8 +137,7 @@ const createMessagesStore = () =>
         byId.set(id, { ...prev, deletedAt });
         return { ...s, byId };
       }),
-    reset: () =>
-      set({ byId: new Map(), order: [], oldestCursor: null, hasMore: false }),
+    reset: () => set({ byId: new Map(), order: [], oldestCursor: null, hasMore: false }),
   }));
 
 // Store factory cache. Each conversation gets its own zustand store so
@@ -228,14 +227,9 @@ export interface UseMessagesReturn {
  */
 export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
   const store = getMessagesStore(args);
-  const { byId, order } = store(
-    useShallow((s) => ({ byId: s.byId, order: s.order })),
-  );
+  const { byId, order } = store(useShallow((s) => ({ byId: s.byId, order: s.order })));
   const hasMore = store((s) => s.hasMore);
-  const messages = useMemo(
-    () => order.map((id) => byId.get(id)!).filter(Boolean),
-    [byId, order],
-  );
+  const messages = useMemo(() => order.map((id) => byId.get(id)!).filter(Boolean), [byId, order]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);

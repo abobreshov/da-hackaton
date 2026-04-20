@@ -32,9 +32,7 @@ export class WsOriginGuard implements CanActivate {
     const origin: string | undefined = client?.handshake?.headers?.origin;
 
     if (!origin || !this.allowed.has(origin)) {
-      this.logger.warn(
-        `WS handshake blocked — origin=${origin ?? '<missing>'} not in allow-list`,
-      );
+      this.logger.warn(`WS handshake blocked — origin=${origin ?? '<missing>'} not in allow-list`);
       // Socket.IO reserves 4000–4999 for application-defined close codes.
       // 4403 = our "origin forbidden" signal; mirrors the REST 403 semantics.
       try {

@@ -18,10 +18,7 @@ import { EVENT_PUBLISHER } from './event-publisher.interface';
 @Global()
 @Module({
   imports: [AuditModule],
-  providers: [
-    { provide: EVENT_PUBLISHER, useClass: LoggingEventPublisher },
-    AuditSubscriber,
-  ],
+  providers: [{ provide: EVENT_PUBLISHER, useClass: LoggingEventPublisher }, AuditSubscriber],
   exports: [EVENT_PUBLISHER],
 })
 export class EventsModule {}

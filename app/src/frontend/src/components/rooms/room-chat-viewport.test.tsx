@@ -22,8 +22,7 @@ const useMessagesMock = vi.fn(() => ({
 }));
 
 vi.mock('@/hooks/useMessages', () => ({
-  useMessages: (args: { roomId?: number; dmUserId?: number }) =>
-    useMessagesMock(args),
+  useMessages: (args: { roomId?: number; dmUserId?: number }) => useMessagesMock(args),
 }));
 
 import { RoomChatViewport } from './room-chat-viewport';

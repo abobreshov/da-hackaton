@@ -9,7 +9,10 @@ jest.mock('../../config/environment', () => ({
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { OriginGuard } from './origin.guard';
 
-function mockContext(method: string, headers: Record<string, string | undefined>): ExecutionContext {
+function mockContext(
+  method: string,
+  headers: Record<string, string | undefined>,
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => ({ method, url: '/api/v1/test', headers }),
@@ -25,9 +28,7 @@ describe('OriginGuard', () => {
   });
 
   it('allows mutation when Origin is in the allowlist', () => {
-    expect(
-      guard.canActivate(mockContext('POST', { origin: 'http://localhost:3007' })),
-    ).toBe(true);
+    expect(guard.canActivate(mockContext('POST', { origin: 'http://localhost:3007' }))).toBe(true);
   });
 
   it('blocks mutation with Origin outside the allowlist', () => {
@@ -50,15 +51,13 @@ describe('OriginGuard', () => {
   });
 
   it('rejects malformed Referer values', () => {
-    expect(() =>
-      guard.canActivate(mockContext('DELETE', { referer: 'not-a-url' })),
-    ).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(mockContext('DELETE', { referer: 'not-a-url' }))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('is case-insensitive on HTTP method', () => {
     expect(guard.canActivate(mockContext('get', {}))).toBe(true);
-    expect(
-      guard.canActivate(mockContext('post', { origin: 'http://localhost:3007' })),
-    ).toBe(true);
+    expect(guard.canActivate(mockContext('post', { origin: 'http://localhost:3007' }))).toBe(true);
   });
 });

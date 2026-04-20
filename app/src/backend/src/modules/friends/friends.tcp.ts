@@ -15,7 +15,12 @@ export class FriendsTcpController {
   @MessagePattern({ cmd: TcpCmd.friends.request })
   request(
     @Payload()
-    data: { requesterId: number; targetUsername: string; text?: string; _sys?: string },
+    data: {
+      requesterId: number;
+      targetUsername: string;
+      text?: string;
+      _sys?: string;
+    },
   ) {
     return this.service.request({
       requesterId: data.requesterId,

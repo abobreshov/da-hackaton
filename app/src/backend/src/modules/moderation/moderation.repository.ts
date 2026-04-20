@@ -3,12 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { roomBans, roomMemberships, rooms } from '../../database/schema';
-import {
-  BanMemberRepoInput,
-  ModerationRepositoryPort,
-  Role,
-  RoomBanRow,
-} from './moderation.types';
+import { BanMemberRepoInput, ModerationRepositoryPort, Role, RoomBanRow } from './moderation.types';
 
 /**
  * Drizzle adapter for `ModerationRepositoryPort`. Owns every Drizzle call
@@ -44,10 +39,7 @@ export class DrizzleModerationRepository implements ModerationRepositoryPort {
       await tx
         .delete(roomMemberships)
         .where(
-          and(
-            eq(roomMemberships.roomId, input.roomId),
-            eq(roomMemberships.userId, input.userId),
-          ),
+          and(eq(roomMemberships.roomId, input.roomId), eq(roomMemberships.userId, input.userId)),
         );
     });
   }
@@ -82,9 +74,6 @@ export class DrizzleModerationRepository implements ModerationRepositoryPort {
   }
 
   async deleteRoom(roomId: number, deletedAt: Date): Promise<void> {
-    await (this.db as any)
-      .update(rooms)
-      .set({ deletedAt })
-      .where(eq(rooms.id, roomId));
+    await (this.db as any).update(rooms).set({ deletedAt }).where(eq(rooms.id, roomId));
   }
 }

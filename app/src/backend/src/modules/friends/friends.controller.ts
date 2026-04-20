@@ -46,19 +46,13 @@ export class FriendsController {
 
   @Post('requests/:id/accept')
   @HttpCode(204)
-  async accept(
-    @CurrentUser() user: { id: number },
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async accept(@CurrentUser() user: { id: number }, @Param('id', ParseIntPipe) id: number) {
     await this.service.accept({ userId: user.id, requestId: id });
   }
 
   @Post('requests/:id/reject')
   @HttpCode(204)
-  async reject(
-    @CurrentUser() user: { id: number },
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async reject(@CurrentUser() user: { id: number }, @Param('id', ParseIntPipe) id: number) {
     await this.service.reject({ userId: user.id, requestId: id });
   }
 

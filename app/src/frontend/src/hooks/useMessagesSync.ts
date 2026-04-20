@@ -2,16 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { getSocket } from '@/lib/socket';
 import { WsEvent } from '@/lib/ws-events';
-import {
-  listRoomMessages,
-  listDmMessages,
-  normaliseMessage,
-  type Message,
-} from '@/lib/messages';
-import {
-  getMessagesStore,
-  type ConversationKeyArgs,
-} from './useMessagesStore';
+import { listRoomMessages, listDmMessages, normaliseMessage, type Message } from '@/lib/messages';
+import { getMessagesStore, type ConversationKeyArgs } from './useMessagesStore';
 
 /**
  * Hydration + WS subscription for one conversation. Owns:
@@ -59,18 +51,11 @@ export interface UseMessagesSyncReturn {
   hasMore: boolean;
 }
 
-export function useMessagesSync(
-  args: ConversationKeyArgs,
-): UseMessagesSyncReturn {
+export function useMessagesSync(args: ConversationKeyArgs): UseMessagesSyncReturn {
   const store = getMessagesStore(args);
-  const { byId, order } = store(
-    useShallow((s) => ({ byId: s.byId, order: s.order })),
-  );
+  const { byId, order } = store(useShallow((s) => ({ byId: s.byId, order: s.order })));
   const hasMore = store((s) => s.hasMore);
-  const messages = useMemo(
-    () => order.map((id) => byId.get(id)!).filter(Boolean),
-    [byId, order],
-  );
+  const messages = useMemo(() => order.map((id) => byId.get(id)!).filter(Boolean), [byId, order]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);

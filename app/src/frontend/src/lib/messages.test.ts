@@ -78,9 +78,7 @@ describe('lib/messages', () => {
   });
 
   it('listRoomMessages() encodes cursor as before + beforeId query params', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ messages: [], nextCursor: null }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ messages: [], nextCursor: null }));
     await listRoomMessages(42, {
       createdAt: '2026-04-19T00:00:00.000Z',
       id: 100n,
@@ -91,9 +89,7 @@ describe('lib/messages', () => {
   });
 
   it('listDmMessages() GETs /api/v1/dms/:userId/messages', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ messages: [], nextCursor: null }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ messages: [], nextCursor: null }));
     await listDmMessages(7);
     const [url] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/api\/v1\/dms\/7\/messages$/);
@@ -120,13 +116,16 @@ describe('lib/messages', () => {
 
   it('sendMessageHttp() POSTs /api/v1/messages with stringified replyToId', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        id: '10',
-        roomId: 42,
-        author: { id: 1, username: 'a' },
-        body: 'hi',
-        createdAt: '2026-04-20T10:00:00.000Z',
-      }, 201),
+      jsonResponse(
+        {
+          id: '10',
+          roomId: 42,
+          author: { id: 1, username: 'a' },
+          body: 'hi',
+          createdAt: '2026-04-20T10:00:00.000Z',
+        },
+        201,
+      ),
     );
     await sendMessageHttp({ roomId: 42, body: 'hi', replyToId: 9n });
     const [url, init] = fetchMock.mock.calls[0];
@@ -166,10 +165,10 @@ describe('lib/messages', () => {
 
   it('surfaces ApiError on non-2xx responses', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'DM_FROZEN', message: 'frozen' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'DM_FROZEN', message: 'frozen' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     await expect(sendMessageHttp({ dmUserId: 5, body: 'hi' })).rejects.toMatchObject({
       status: 403,

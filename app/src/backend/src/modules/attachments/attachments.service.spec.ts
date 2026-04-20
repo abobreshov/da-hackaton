@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  PayloadTooLargeException,
+} from '@nestjs/common';
 import {
   AttachmentRow,
   AttachmentsRepositoryPort,
@@ -64,7 +69,7 @@ class FakeStorage implements AttachmentStoragePort {
 }
 
 class FakeRooms {
-  memberships = new Set<string>();   // `${roomId}:${userId}`
+  memberships = new Set<string>(); // `${roomId}:${userId}`
   allow(roomId: number, userId: number) {
     this.memberships.add(`${roomId}:${userId}`);
   }
@@ -164,7 +169,7 @@ describe('AttachmentsService', () => {
 
   describe('upload — membership gate', () => {
     it('non-member in room-scope → ForbiddenException via ensureMember', async () => {
-      const { service } = makeService();   // no allow
+      const { service } = makeService(); // no allow
       await expect(
         service.upload({
           uploaderId: 42,
@@ -275,14 +280,28 @@ describe('AttachmentsService', () => {
     it('returns only rows with matching messageId', async () => {
       const { service, repo } = makeService();
       await repo.insertAttachment({
-        id: 'a1', roomId: 1, dmId: null, uploaderId: 42,
-        filename: 'a.txt', mime: 'text/plain', sizeBytes: 1, path: 'p',
-        comment: null, isImage: false,
+        id: 'a1',
+        roomId: 1,
+        dmId: null,
+        uploaderId: 42,
+        filename: 'a.txt',
+        mime: 'text/plain',
+        sizeBytes: 1,
+        path: 'p',
+        comment: null,
+        isImage: false,
       });
       await repo.insertAttachment({
-        id: 'a2', roomId: 1, dmId: null, uploaderId: 42,
-        filename: 'b.txt', mime: 'text/plain', sizeBytes: 1, path: 'p2',
-        comment: null, isImage: false,
+        id: 'a2',
+        roomId: 1,
+        dmId: null,
+        uploaderId: 42,
+        filename: 'b.txt',
+        mime: 'text/plain',
+        sizeBytes: 1,
+        path: 'p2',
+        comment: null,
+        isImage: false,
       });
       repo.rows.get('a1')!.messageId = 7n;
       const found = await service.findByMessageId(7n);

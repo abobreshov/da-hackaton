@@ -40,10 +40,7 @@ export const dmChannels = pgTable(
     frozenAt: timestamp('frozen_at', { withTimezone: true }),
   },
   (table) => ({
-    pairUnique: uniqueIndex('dm_channels_pair_unique').on(
-      table.userLow,
-      table.userHigh,
-    ),
+    pairUnique: uniqueIndex('dm_channels_pair_unique').on(table.userLow, table.userHigh),
     canonicalOrderCheck: check(
       'dm_channels_canonical_order_check',
       sql`${table.userLow} < ${table.userHigh}`,
@@ -77,10 +74,9 @@ export const messages = pgTable(
       .notNull()
       .references(() => users.id),
     body: text('body').notNull(),
-    replyTo: bigint('reply_to', { mode: 'bigint' }).references(
-      (): AnyPgColumn => messages.id,
-      { onDelete: 'set null' },
-    ),
+    replyTo: bigint('reply_to', { mode: 'bigint' }).references((): AnyPgColumn => messages.id, {
+      onDelete: 'set null',
+    }),
     editedAt: timestamp('edited_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
@@ -101,10 +97,7 @@ export const messages = pgTable(
     replyToIdx: index('messages_reply_to_idx')
       .on(table.replyTo)
       .where(sql`${table.replyTo} IS NOT NULL`),
-    authorIdx: index('messages_author_idx').on(
-      table.authorId,
-      table.createdAt.desc(),
-    ),
+    authorIdx: index('messages_author_idx').on(table.authorId, table.createdAt.desc()),
     createdPruneIdx: index('messages_created_prune_idx')
       .on(table.createdAt)
       .where(sql`${table.deletedAt} IS NULL`),

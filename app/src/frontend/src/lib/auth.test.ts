@@ -126,9 +126,9 @@ describe('auth API wrappers', () => {
   const empty = (status = 204) => new Response(null, { status });
 
   // URLs are prefixed with VITE_BFF_URL when the env var is set (dev-local
-   // setup), and bare when unset (Docker stack proxies /api via nginx). Accept
-   // both by matching the suffix.
-   const urlEndsWith = (url: unknown, suffix: string) => {
+  // setup), and bare when unset (Docker stack proxies /api via nginx). Accept
+  // both by matching the suffix.
+  const urlEndsWith = (url: unknown, suffix: string) => {
     expect(typeof url).toBe('string');
     expect(url as string).toMatch(new RegExp(`${suffix.replace(/[/]/g, '\\/')}$`));
   };
@@ -161,7 +161,9 @@ describe('auth API wrappers', () => {
 
   it('confirmPasswordReset — POSTs token + newPassword, resolves on 204', async () => {
     fetchMock.mockResolvedValueOnce(empty(204));
-    await expect(confirmPasswordReset('tok_0123456789abcdef', 'NewPW1234!')).resolves.toBeUndefined();
+    await expect(
+      confirmPasswordReset('tok_0123456789abcdef', 'NewPW1234!'),
+    ).resolves.toBeUndefined();
     const [url, init] = fetchMock.mock.calls[0];
     urlEndsWith(url, '/api/v1/auth/password-reset/confirm');
     expect(JSON.parse(init.body)).toEqual({
@@ -227,9 +229,7 @@ describe('auth API wrappers', () => {
   });
 
   it('loginAdmin — POSTs with type=admin and returns admin payload', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonOk({ admin: { id: 9, email: 'root@x', name: 'root' } }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonOk({ admin: { id: 9, email: 'root@x', name: 'root' } }));
     const res = await loginAdmin('root@x', 'AdminPW1!', '000111');
     expect(res.admin.email).toBe('root@x');
     const [url, init] = fetchMock.mock.calls[0];
@@ -244,9 +244,7 @@ describe('auth API wrappers', () => {
   });
 
   it('loginAdmin — omits totpCode when not provided', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonOk({ admin: { id: 9, email: 'root@x', name: 'root' } }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonOk({ admin: { id: 9, email: 'root@x', name: 'root' } }));
     await loginAdmin('root@x', 'AdminPW1!');
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);

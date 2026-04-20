@@ -116,7 +116,9 @@ async function seed(): Promise<void> {
     console.log(`  TOTP secret for user2fa@example.com: ${totpSecret}`);
     console.log(`  otpauth URI: ${authenticator.keyuri('user2fa@example.com', 'App', totpSecret)}`);
     console.log(`  TOTP secret for admin@example.com:   ${adminTotpSecret}`);
-    console.log(`  otpauth URI: ${authenticator.keyuri('admin@example.com', 'App', adminTotpSecret)}`);
+    console.log(
+      `  otpauth URI: ${authenticator.keyuri('admin@example.com', 'App', adminTotpSecret)}`,
+    );
 
     // Export the TOTP secret to a dev-only, gitignored file so Playwright /
     // other local test runners can generate live codes without re-querying the

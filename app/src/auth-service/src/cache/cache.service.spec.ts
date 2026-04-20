@@ -6,7 +6,7 @@ process.env.SYSTEM_KEY = process.env.SYSTEM_KEY ?? 'z'.repeat(48);
 // Use ioredis-mock as a drop-in in place of ioredis for this suite.
 // Not setting it globally in jest.config to preserve production behavior elsewhere.
 jest.mock('ioredis', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+   
   return require('ioredis-mock');
 });
 
@@ -67,7 +67,9 @@ describe('CacheService', () => {
 
     it('applies the TTL', async () => {
       await svc.setNx('nx', 'v', 45);
-      const ttl = await (svc.client as unknown as { ttl: (k: string) => Promise<number> }).ttl('nx');
+      const ttl = await (svc.client as unknown as { ttl: (k: string) => Promise<number> }).ttl(
+        'nx',
+      );
       expect(ttl).toBeGreaterThan(0);
       expect(ttl).toBeLessThanOrEqual(45);
     });

@@ -51,9 +51,7 @@ describe('ModerationService (BFF)', () => {
     it('propagates FORBIDDEN when actor is not owner', async () => {
       const rpc = new RpcException({ status: 403, message: 'only owner can promote' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.promote({ roomId: 1, userId: 2, actorId: 3 }),
-      ).rejects.toBe(rpc);
+      await expect(service.promote({ roomId: 1, userId: 2, actorId: 3 })).rejects.toBe(rpc);
     });
   });
 
@@ -73,9 +71,7 @@ describe('ModerationService (BFF)', () => {
     it('propagates NOT_FOUND', async () => {
       const rpc = new RpcException({ status: 404, message: 'member not found' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.demote({ roomId: 1, userId: 2, actorId: 3 }),
-      ).rejects.toBe(rpc);
+      await expect(service.demote({ roomId: 1, userId: 2, actorId: 3 })).rejects.toBe(rpc);
     });
   });
 
@@ -95,9 +91,7 @@ describe('ModerationService (BFF)', () => {
     it('propagates FORBIDDEN', async () => {
       const rpc = new RpcException({ status: 403, message: 'insufficient role' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
-      await expect(
-        service.banMember({ roomId: 1, userId: 2, actorId: 3 }),
-      ).rejects.toBe(rpc);
+      await expect(service.banMember({ roomId: 1, userId: 2, actorId: 3 })).rejects.toBe(rpc);
     });
   });
 

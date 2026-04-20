@@ -49,7 +49,7 @@ describe('RetentionScheduler', () => {
 
   it('handles non-Error rejections via String(err)', async () => {
     queue.add = jest.fn(async () => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw 'raw-string';
     });
     const sched = new RetentionScheduler(queue as any);

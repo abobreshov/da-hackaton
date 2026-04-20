@@ -16,20 +16,20 @@ import { ErrorCode, WireError } from '@app/contracts';
 // (stack fragments, SQL snippets, upstream service names, etc.) to the
 // browser. Outside production we keep verbose upstream text for debugging.
 const SAFE_MESSAGES: Record<ErrorCode, string> = {
-  [ErrorCode.UNAUTHENTICATED]:      'Authentication required',
-  [ErrorCode.FORBIDDEN]:            'Forbidden',
-  [ErrorCode.NOT_FOUND]:            'Not found',
-  [ErrorCode.CONFLICT]:             'Conflict',
-  [ErrorCode.VALIDATION_FAILED]:    'Validation failed',
-  [ErrorCode.RATE_LIMITED]:         'Too many requests',
+  [ErrorCode.UNAUTHENTICATED]: 'Authentication required',
+  [ErrorCode.FORBIDDEN]: 'Forbidden',
+  [ErrorCode.NOT_FOUND]: 'Not found',
+  [ErrorCode.CONFLICT]: 'Conflict',
+  [ErrorCode.VALIDATION_FAILED]: 'Validation failed',
+  [ErrorCode.RATE_LIMITED]: 'Too many requests',
   [ErrorCode.UPSTREAM_UNAVAILABLE]: 'Service temporarily unavailable',
-  [ErrorCode.CSRF_INVALID]:         'CSRF validation failed',
-  [ErrorCode.DM_FROZEN]:            'Conversation is frozen',
-  [ErrorCode.FRIEND_REQUIRED]:      'Friendship required',
-  [ErrorCode.BANNED_FROM_ROOM]:     'Access to this room has been revoked',
-  [ErrorCode.TOTP_REQUIRED]:        'Two-factor authentication required',
-  [ErrorCode.TOTP_INVALID]:         'Two-factor authentication failed',
-  [ErrorCode.INTERNAL]:             'Request failed',
+  [ErrorCode.CSRF_INVALID]: 'CSRF validation failed',
+  [ErrorCode.DM_FROZEN]: 'Conversation is frozen',
+  [ErrorCode.FRIEND_REQUIRED]: 'Friendship required',
+  [ErrorCode.BANNED_FROM_ROOM]: 'Access to this room has been revoked',
+  [ErrorCode.TOTP_REQUIRED]: 'Two-factor authentication required',
+  [ErrorCode.TOTP_INVALID]: 'Two-factor authentication failed',
+  [ErrorCode.INTERNAL]: 'Request failed',
 };
 const GENERIC_SAFE_MESSAGE = 'Request failed';
 
@@ -68,11 +68,12 @@ function inferCode(status: number): ErrorCode {
 
 function buildEnvelope(error: any, requestId?: string): { status: number; body: WireError } {
   const rawCode = typeof error?.code === 'string' ? (error.code as ErrorCode) : undefined;
-  const rawStatus = typeof error?.status === 'number'
-    ? error.status
-    : typeof error?.statusCode === 'number'
-      ? error.statusCode
-      : undefined;
+  const rawStatus =
+    typeof error?.status === 'number'
+      ? error.status
+      : typeof error?.statusCode === 'number'
+        ? error.statusCode
+        : undefined;
 
   const code: ErrorCode = rawCode ?? inferCode(rawStatus ?? 500);
   const status = rawStatus ?? CODE_TO_STATUS[code] ?? 500;
@@ -123,7 +124,9 @@ export class RpcErrorInterceptor implements NestInterceptor {
             res.header('X-Request-Id', requestId);
           }
 
-          return throwError(() => new HttpException(body as unknown as Record<string, unknown>, status));
+          return throwError(
+            () => new HttpException(body as unknown as Record<string, unknown>, status),
+          );
         }
         return throwError(() => err);
       }),

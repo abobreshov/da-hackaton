@@ -117,7 +117,7 @@ Hard rules (PR-rejecting):
 
 When editing or adding UI primitives under `src/frontend/src/components/ui/`, consult the spec first. Token gaps (missing Tailwind utility for a surface tier, missing font scale) are additions to `tailwind.config.ts`, not exceptions to the rules.
 
-**shadcn/ui pattern:** primitives are copy-pasted into `src/frontend/src/components/ui/*` — not imported from an npm theme library. Radix (`@radix-ui/react-*`) handles behaviour + a11y; we own the surface and re-theme to Kinetic Playground tokens. Variant API via `cva` + `clsx` + `tailwind-merge` (already in deps). Standard shape: `Button(variant, size)`, `Input(variant)`. `npx shadcn add` is allowed for pulling *new* primitives but the generated file must be immediately retheme-d (strip greys, replace default borders with tonal shifts, swap to token utilities) before commit.
+**shadcn/ui pattern:** primitives are copy-pasted into `src/frontend/src/components/ui/*` — not imported from an npm theme library. Radix (`@radix-ui/react-*`) handles behaviour + a11y; we own the surface and re-theme to Kinetic Playground tokens. Variant API via `cva` + `clsx` + `tailwind-merge` (already in deps). Standard shape: `Button(variant, size)`, `Input(variant)`. `npx shadcn add` is allowed for pulling _new_ primitives but the generated file must be immediately retheme-d (strip greys, replace default borders with tonal shifts, swap to token utilities) before commit.
 
 ## Gotchas
 

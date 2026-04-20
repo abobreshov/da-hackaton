@@ -42,7 +42,9 @@ function httpHost(): ArgumentsHost {
   } as unknown as ArgumentsHost;
 }
 
-async function expectRpcReject<T = unknown>(obs$: unknown): Promise<RpcException & { getError: () => T }> {
+async function expectRpcReject<T = unknown>(
+  obs$: unknown,
+): Promise<RpcException & { getError: () => T }> {
   try {
     await firstValueFrom(obs$ as any);
     throw new Error('expected observable to error');
@@ -177,7 +179,7 @@ describe('RpcExceptionFilter', () => {
 
   it('wraps string throwable as RpcException(500) with generic message', async () => {
     const e = await expectRpcReject<{ status: number; message: string; code: string }>(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       filter.catch('string-value' as any, rpcHost()),
     );
     expect(e.getError()).toMatchObject({
@@ -188,10 +190,10 @@ describe('RpcExceptionFilter', () => {
   });
 
   it('tolerates null / undefined by emitting a generic 500 envelope', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const a = await expectRpcReject(filter.catch(null as any, rpcHost()));
     expect(a.getError()).toMatchObject({ status: 500, message: 'Internal error' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const b = await expectRpcReject(filter.catch(undefined as any, rpcHost()));
     expect(b.getError()).toMatchObject({ status: 500, message: 'Internal error' });
   });

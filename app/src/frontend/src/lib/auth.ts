@@ -124,9 +124,7 @@ export const registerUser = (
  * Exchange a verification token from the emailed link for a live session.
  * BFF sets session + refresh cookies on success, identical to login.
  */
-export const verifyEmail = (
-  token: string,
-): Promise<{ user: AuthenticatedUser }> =>
+export const verifyEmail = (token: string): Promise<{ user: AuthenticatedUser }> =>
   apiFetch('/api/v1/auth/verify-email', {
     method: 'POST',
     body: JSON.stringify({ token }),
@@ -155,10 +153,7 @@ export const confirmPasswordReset = (token: string, newPassword: string): Promis
  * Change password of the currently signed-in user. Requires a valid session
  * (BFF's SessionGuard enforces this).
  */
-export const changePassword = (
-  currentPassword: string,
-  newPassword: string,
-): Promise<void> =>
+export const changePassword = (currentPassword: string, newPassword: string): Promise<void> =>
   apiFetch('/api/v1/auth/password-change', {
     method: 'POST',
     body: JSON.stringify({ currentPassword, newPassword }),

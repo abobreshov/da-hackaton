@@ -159,9 +159,7 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     useMessagesMock.mockClear();
     const RoomRoute = getComponent();
     render(<RoomRoute />);
-    expect(useMessagesMock).toHaveBeenCalledWith(
-      expect.objectContaining({ roomId: 42 }),
-    );
+    expect(useMessagesMock).toHaveBeenCalledWith(expect.objectContaining({ roomId: 42 }));
   });
 
   it('renders a PresenceDot per member reflecting the shared presence map', async () => {

@@ -46,10 +46,7 @@ export interface FormFieldProps extends InputProps {
 }
 
 export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
-  (
-    { id, label, labelAction, error, hint, wrapperClassName, ...inputProps },
-    ref,
-  ) => {
+  ({ id, label, labelAction, error, hint, wrapperClassName, ...inputProps }, ref) => {
     const hasError = Boolean(error);
     const describedById = hasError ? `${id}-error` : hint ? `${id}-hint` : undefined;
 
@@ -78,10 +75,7 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
             {error}
           </FormError>
         ) : hint ? (
-          <p
-            id={`${id}-hint`}
-            className="ml-1 font-body text-body-sm text-on-surface-variant"
-          >
+          <p id={`${id}-hint`} className="ml-1 font-body text-body-sm text-on-surface-variant">
             {hint}
           </p>
         ) : null}

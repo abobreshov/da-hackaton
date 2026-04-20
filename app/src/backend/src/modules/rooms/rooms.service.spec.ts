@@ -9,7 +9,12 @@
  * Integration tests cover the real Drizzle query behaviour separately.
  */
 
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import type {
   CreateRoomInput,
@@ -69,7 +74,9 @@ class FakeRoomsRepository implements RoomsRepositoryPort {
     const roomIds = new Set(
       this.memberships.filter((m) => m.userId === userId).map((m) => m.roomId),
     );
-    return this.rooms.filter((r) => roomIds.has(r.id) && r.deletedAt == null).map((r) => ({ ...r }));
+    return this.rooms
+      .filter((r) => roomIds.has(r.id) && r.deletedAt == null)
+      .map((r) => ({ ...r }));
   }
 
   async insertMembership(input: InsertMembershipInput): Promise<MembershipRow> {
@@ -113,7 +120,9 @@ class FakeRoomsRepository implements RoomsRepositoryPort {
   }
 
   async insertInvitation(input: InsertInvitationInput): Promise<InvitationRow> {
-    if (this.invitations.some((i) => i.roomId === input.roomId && i.inviteeId === input.inviteeId)) {
+    if (
+      this.invitations.some((i) => i.roomId === input.roomId && i.inviteeId === input.inviteeId)
+    ) {
       const err: any = new Error('duplicate key value violates unique constraint');
       err.code = '23505';
       throw err;
@@ -144,11 +153,14 @@ class FakeRoomsRepository implements RoomsRepositoryPort {
       });
   }
 
-  async updateRoom(id: number, patch: {
-    name?: string;
-    description?: string | null;
-    visibility?: 'public' | 'private';
-  }): Promise<RoomRow | null> {
+  async updateRoom(
+    id: number,
+    patch: {
+      name?: string;
+      description?: string | null;
+      visibility?: 'public' | 'private';
+    },
+  ): Promise<RoomRow | null> {
     const row = this.rooms.find((r) => r.id === id && r.deletedAt == null);
     if (!row) return null;
     if (patch.name !== undefined) {
@@ -244,9 +256,9 @@ describe('RoomsService', () => {
         insertMembership: jest.fn(),
       };
       const svc = new RoomsService(brokenRepo);
-      await expect(
-        svc.create({ ownerId: OWNER, name: 'x', visibility: 'public' }),
-      ).rejects.toThrow('connection refused');
+      await expect(svc.create({ ownerId: OWNER, name: 'x', visibility: 'public' })).rejects.toThrow(
+        'connection refused',
+      );
       expect(brokenRepo.insertMembership).not.toHaveBeenCalled();
     });
   });
@@ -293,7 +305,10 @@ describe('RoomsService', () => {
       const r = await service.create({ ownerId: OWNER, name: 'lounge', visibility: 'public' });
       await service.join({ userId: MEMBER, roomId: r.id });
       expect(
-        repo.memberships.filter((m) => m.roomId === r.id).map((m) => m.userId).sort(),
+        repo.memberships
+          .filter((m) => m.roomId === r.id)
+          .map((m) => m.userId)
+          .sort(),
       ).toEqual([OWNER, MEMBER].sort());
     });
 
@@ -308,9 +323,7 @@ describe('RoomsService', () => {
       const r = await service.create({ ownerId: OWNER, name: 'club2', visibility: 'private' });
       await service.invite({ inviterId: OWNER, inviteeId: MEMBER, roomId: r.id });
       await service.join({ userId: MEMBER, roomId: r.id });
-      expect(
-        repo.memberships.find((m) => m.roomId === r.id && m.userId === MEMBER),
-      ).toBeDefined();
+      expect(repo.memberships.find((m) => m.roomId === r.id && m.userId === MEMBER)).toBeDefined();
     });
 
     it('throws NotFoundException when room does not exist', async () => {
@@ -340,9 +353,9 @@ describe('RoomsService', () => {
         createdAt: new Date(),
         deletedAt: null,
       });
-      await expect(
-        service.join({ userId: MEMBER, roomId: 999 }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.join({ userId: MEMBER, roomId: 999 })).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('treats racy double-join unique violation as success (lines 116-121)', async () => {
@@ -354,7 +367,12 @@ describe('RoomsService', () => {
         findMembership: jest
           .fn()
           .mockResolvedValueOnce(null) // first probe
-          .mockResolvedValueOnce({ roomId: room.id, userId: MEMBER, role: 'member', joinedAt: new Date() }), // after 23505
+          .mockResolvedValueOnce({
+            roomId: room.id,
+            userId: MEMBER,
+            role: 'member',
+            joinedAt: new Date(),
+          }), // after 23505
         insertMembership: jest.fn(() => {
           const err: any = new Error('duplicate');
           err.code = '23505';
@@ -499,10 +517,7 @@ describe('RoomsService', () => {
     it('returns members joined with usernames', async () => {
       const r = await service.create({ ownerId: OWNER, name: 'hall', visibility: 'public' });
       await service.join({ userId: MEMBER, roomId: r.id });
-      repo.users.push(
-        { id: OWNER, username: 'alice' },
-        { id: MEMBER, username: 'bob' },
-      );
+      repo.users.push({ id: OWNER, username: 'alice' }, { id: MEMBER, username: 'bob' });
 
       const out = await service.membersOf(r.id);
 
@@ -546,24 +561,24 @@ describe('RoomsService', () => {
 
     it('throws ForbiddenException when user is not a member (FORBIDDEN WireError)', async () => {
       const r = await service.create({ ownerId: OWNER, name: 'locked', visibility: 'public' });
-      await expect(
-        service.ensureMember({ roomId: r.id, userId: OUTSIDER }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.ensureMember({ roomId: r.id, userId: OUTSIDER })).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('throws NotFoundException when room is deleted (NOT_FOUND WireError)', async () => {
       const r = await service.create({ ownerId: OWNER, name: 'dead', visibility: 'public' });
       const row = repo.rooms.find((rr) => rr.id === r.id)!;
       row.deletedAt = new Date();
-      await expect(
-        service.ensureMember({ roomId: r.id, userId: OWNER }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.ensureMember({ roomId: r.id, userId: OWNER })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('throws NotFoundException when room does not exist', async () => {
-      await expect(
-        service.ensureMember({ roomId: 9999, userId: OWNER }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.ensureMember({ roomId: 9999, userId: OWNER })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

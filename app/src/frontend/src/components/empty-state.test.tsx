@@ -4,9 +4,7 @@ import { EmptyState } from './empty-state';
 
 describe('<EmptyState />', () => {
   it('renders headline + description', () => {
-    render(
-      <EmptyState title="No rooms yet" description="Start a conversation to see it here." />,
-    );
+    render(<EmptyState title="No rooms yet" description="Start a conversation to see it here." />);
     expect(screen.getByRole('heading', { name: /no rooms yet/i })).toBeInTheDocument();
     expect(screen.getByText(/start a conversation to see it here/i)).toBeInTheDocument();
   });
@@ -32,9 +30,7 @@ describe('<EmptyState />', () => {
   });
 
   it('does not render any border in its default output (No-Line rule)', () => {
-    const { container } = render(
-      <EmptyState title="No rooms yet" description="blah" />,
-    );
+    const { container } = render(<EmptyState title="No rooms yet" description="blah" />);
     // Tonal shift is the only separator — no border-* utility anywhere.
     expect(container.querySelector('.border')).toBeNull();
     expect(container.querySelector('[class*="border-"]')).toBeNull();

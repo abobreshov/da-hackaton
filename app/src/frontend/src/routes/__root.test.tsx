@@ -14,8 +14,8 @@ import { Route } from './__root';
 
 describe('<RootLayout />', () => {
   it('renders the router Outlet', () => {
-    const RootLayout = (Route as unknown as { options: { component: () => JSX.Element } })
-      .options.component;
+    const RootLayout = (Route as unknown as { options: { component: () => JSX.Element } }).options
+      .component;
     render(<RootLayout />);
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
   });

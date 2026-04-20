@@ -93,11 +93,7 @@ describe('PresenceService', () => {
 
       await service.touch(42, 'sess1');
 
-      expect(redis.hset).toHaveBeenCalledWith(
-        'presence:sessions:42',
-        'sess1',
-        String(NOW),
-      );
+      expect(redis.hset).toHaveBeenCalledWith('presence:sessions:42', 'sess1', String(NOW));
     });
 
     it('on new user (no prior state) derives online + publishes', async () => {
@@ -106,12 +102,7 @@ describe('PresenceService', () => {
 
       await service.touch(42, 'sess1');
 
-      expect(redis.set).toHaveBeenCalledWith(
-        'presence:state:42',
-        'online',
-        'EX',
-        90,
-      );
+      expect(redis.set).toHaveBeenCalledWith('presence:state:42', 'online', 'EX', 90);
       expect(publisher.publish).toHaveBeenCalledWith(42, 'online');
     });
 
@@ -122,12 +113,7 @@ describe('PresenceService', () => {
       await service.touch(42, 'sess1');
 
       expect(publisher.publish).toHaveBeenCalledWith(42, 'online');
-      expect(redis.set).toHaveBeenCalledWith(
-        'presence:state:42',
-        'online',
-        'EX',
-        90,
-      );
+      expect(redis.set).toHaveBeenCalledWith('presence:state:42', 'online', 'EX', 90);
     });
 
     it('online → online does NOT publish (no transition)', async () => {
@@ -151,8 +137,7 @@ describe('PresenceService', () => {
         ([k, ttl]) => k === 'presence:state:42' && ttl === 90,
       );
       const refreshedBySet = (redis.set as jest.Mock).mock.calls.some(
-        ([k, _v, flag, ttl]) =>
-          k === 'presence:state:42' && flag === 'EX' && ttl === 90,
+        ([k, _v, flag, ttl]) => k === 'presence:state:42' && flag === 'EX' && ttl === 90,
       );
       expect(refreshedByExpire || refreshedBySet).toBe(true);
     });
@@ -196,12 +181,7 @@ describe('PresenceService', () => {
       await service.disconnect(42, 'sess1');
 
       expect(publisher.publish).toHaveBeenCalledWith(42, 'afk');
-      expect(redis.set).toHaveBeenCalledWith(
-        'presence:state:42',
-        'afk',
-        'EX',
-        90,
-      );
+      expect(redis.set).toHaveBeenCalledWith('presence:state:42', 'afk', 'EX', 90);
     });
   });
 
@@ -245,12 +225,7 @@ describe('PresenceService', () => {
       await service.evaluate();
 
       expect(publisher.publish).toHaveBeenCalledWith(42, 'afk');
-      expect(redis.set).toHaveBeenCalledWith(
-        'presence:state:42',
-        'afk',
-        'EX',
-        90,
-      );
+      expect(redis.set).toHaveBeenCalledWith('presence:state:42', 'afk', 'EX', 90);
     });
 
     it('empty sessions HASH → offline + DEL state + publish', async () => {

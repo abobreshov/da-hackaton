@@ -1,8 +1,4 @@
-import {
-  assertMessageScope,
-  isMessageScope,
-  type MessageScope,
-} from './scopes';
+import { assertMessageScope, isMessageScope, type MessageScope } from './scopes';
 
 describe('MessageScope — runtime XOR guards', () => {
   describe('isMessageScope (pure predicate)', () => {
@@ -55,9 +51,7 @@ describe('MessageScope — runtime XOR guards', () => {
     });
 
     it('throws TypeError when BOTH keys are provided', () => {
-      expect(() => assertMessageScope({ roomId: 1, dmUserId: 2 })).toThrow(
-        TypeError,
-      );
+      expect(() => assertMessageScope({ roomId: 1, dmUserId: 2 })).toThrow(TypeError);
       expect(() => assertMessageScope({ roomId: 1, dmUserId: 2 })).toThrow(
         /exactly one of roomId or dmUserId/,
       );
@@ -65,9 +59,7 @@ describe('MessageScope — runtime XOR guards', () => {
 
     it('throws TypeError when NEITHER key is provided', () => {
       expect(() => assertMessageScope({})).toThrow(TypeError);
-      expect(() => assertMessageScope({})).toThrow(
-        /exactly one of roomId or dmUserId/,
-      );
+      expect(() => assertMessageScope({})).toThrow(/exactly one of roomId or dmUserId/);
     });
 
     it('throws TypeError for wrong value types', () => {

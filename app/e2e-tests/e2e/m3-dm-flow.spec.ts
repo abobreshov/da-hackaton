@@ -58,9 +58,7 @@ test.describe('M3 — DM flow with block → frozen', () => {
       await adminContacts.expectFriend(USER.username);
 
       const userRowTrigger = adminPage
-        .locator(
-          `[data-testid="friend-row"][data-username="${USER.username}"]`,
-        )
+        .locator(`[data-testid="friend-row"][data-username="${USER.username}"]`)
         .getByTestId('user-popover-trigger');
       await userRowTrigger.click();
       await adminPage.getByTestId('user-popover-action-open-dm').click();
@@ -73,9 +71,7 @@ test.describe('M3 — DM flow with block → frozen', () => {
       await userContacts.expectFriend(ADMIN.username);
 
       const adminRowTrigger = userPage
-        .locator(
-          `[data-testid="friend-row"][data-username="${ADMIN.username}"]`,
-        )
+        .locator(`[data-testid="friend-row"][data-username="${ADMIN.username}"]`)
         .getByTestId('user-popover-trigger');
       await adminRowTrigger.click();
       await userPage.getByTestId('user-popover-action-open-dm').click();

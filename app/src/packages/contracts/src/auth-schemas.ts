@@ -47,14 +47,9 @@ export const passwordSchema = z
   .regex(/[A-Z]/, 'Needs an uppercase letter')
   .regex(/\d/, 'Needs a digit');
 
-export const emailSchema = z
-  .string()
-  .email('Enter a valid email')
-  .max(EMAIL_MAX, 'Email too long');
+export const emailSchema = z.string().email('Enter a valid email').max(EMAIL_MAX, 'Email too long');
 
-export const totpSchema = z
-  .string()
-  .regex(TOTP_REGEX, 'Six digits');
+export const totpSchema = z.string().regex(TOTP_REGEX, 'Six digits');
 
 export const usernameSchema = z
   .string()

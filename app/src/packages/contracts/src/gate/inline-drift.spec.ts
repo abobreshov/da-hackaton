@@ -49,16 +49,9 @@ const ALLOW_LIST: Record<string, string[]> = {
     'auth.customer.validateToken',
     'auth.customer.verifyEmail',
   ],
-  'app/src/backend/src/common/guards/jwt.guard.ts': [
-    'auth.customer.validateToken',
-  ],
-  'app/src/backend/src/modules/audit/audit.controller.ts': [
-    'auth.customer.validateToken',
-  ],
-  'app/src/backend/src/modules/bans/bans.service.ts': [
-    'dm.frozen',
-    'friend.removed',
-  ],
+  'app/src/backend/src/common/guards/jwt.guard.ts': ['auth.customer.validateToken'],
+  'app/src/backend/src/modules/audit/audit.controller.ts': ['auth.customer.validateToken'],
+  'app/src/backend/src/modules/bans/bans.service.ts': ['dm.frozen', 'friend.removed'],
   'app/src/backend/src/modules/friends/friends.service.ts': [
     'friend.removed',
     'friend.request.accepted',
@@ -89,10 +82,7 @@ const ALLOW_LIST: Record<string, string[]> = {
 function findRepoRoot(start: string): string {
   let dir = start;
   for (let i = 0; i < 10; i++) {
-    if (
-      fs.existsSync(path.join(dir, 'app')) &&
-      fs.existsSync(path.join(dir, 'mng'))
-    ) {
+    if (fs.existsSync(path.join(dir, 'app')) && fs.existsSync(path.join(dir, 'mng'))) {
       return dir;
     }
     const parent = path.dirname(dir);

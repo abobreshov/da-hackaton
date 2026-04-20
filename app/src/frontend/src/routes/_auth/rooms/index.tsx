@@ -42,22 +42,14 @@ export function RoomsCatalog() {
   return (
     <div className="animate-fade-up flex max-w-3xl flex-col gap-8">
       <header>
-        <SectionHeading
-          level="h1"
-          eyebrow="Community"
-          title="Rooms"
-        />
+        <SectionHeading level="h1" eyebrow="Community" title="Rooms" />
         <p className="mt-3 max-w-xl font-body text-body-lg text-on-surface-variant">
           Browse public rooms the community has opened up.
         </p>
       </header>
 
       {state.status === 'loading' && (
-        <div
-          data-testid="rooms-loading"
-          className="flex flex-col gap-4"
-          aria-busy="true"
-        >
+        <div data-testid="rooms-loading" className="flex flex-col gap-4" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <div
               key={i}
@@ -70,9 +62,7 @@ export function RoomsCatalog() {
       {state.status === 'error' && (
         <FormError className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-display text-title-sm font-semibold">
-              Couldn&apos;t load rooms
-            </p>
+            <p className="font-display text-title-sm font-semibold">Couldn&apos;t load rooms</p>
             <p className="mt-1 font-body text-body-md">{state.message}</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => void load()}>

@@ -39,9 +39,7 @@ const twMerge = extendTailwindMerge({
           ],
         },
       ],
-      shadow: [
-        { shadow: ['ambient-sm', 'ambient', 'ambient-lg', 'ambient-xl', 'glow-primary'] },
-      ],
+      shadow: [{ shadow: ['ambient-sm', 'ambient', 'ambient-lg', 'ambient-xl', 'glow-primary'] }],
       animate: [{ animate: ['float-slow', 'float-med', 'float-fast', 'fade-up'] }],
     },
   },

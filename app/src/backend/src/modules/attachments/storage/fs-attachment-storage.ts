@@ -22,12 +22,15 @@ export class FsAttachmentStorage implements AttachmentStoragePort {
   private readonly root = env.ATTACHMENTS_DIR;
 
   private sanitizeFilename(raw: string): string {
-    return raw
-      .replace(/[\x00-\x1f]/g, '')       // control chars
-      .replace(/[\/\\]/g, '_')           // path separators
-      .replace(/\s+/g, ' ')              // collapse whitespace
-      .trim()
-      .slice(0, 200) || 'file';
+    return (
+      raw
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\x00-\x1f]/g, '') // control chars
+        .replace(/[/\\]/g, '_') // path separators
+        .replace(/\s+/g, ' ') // collapse whitespace
+        .trim()
+        .slice(0, 200) || 'file'
+    );
   }
 
   private assertInsideRoot(absPath: string): void {

@@ -119,7 +119,7 @@ describe('CustomerAuthController', () => {
         refreshToken: 'u:7:rt',
       } as any);
       const dto = { currentPassword: 'old', newPassword: 'NewPass123' };
-      const req = { user: { userId: 7, email: 'u@x.com', role: 'USER', scopes: [] } };
+      const req = { user: { sub: 'u:7', type: 'user', email: 'u@x.com', scopes: [] } };
       await controller.passwordChange(dto as any, req as any);
       expect(service.passwordChange).toHaveBeenCalledWith({ ...dto, userId: 7 });
     });
@@ -136,7 +136,7 @@ describe('CustomerAuthController', () => {
   describe('deleteAccount', () => {
     it('injects userId from req.user and delegates', async () => {
       service.deleteAccount.mockResolvedValue(undefined);
-      const req = { user: { userId: 12, email: 'u@x.com', role: 'USER', scopes: [] } };
+      const req = { user: { sub: 'u:12', type: 'user', email: 'u@x.com', scopes: [] } };
       await controller.deleteAccount(req as any);
       expect(service.deleteAccount).toHaveBeenCalledWith({ userId: 12 });
     });

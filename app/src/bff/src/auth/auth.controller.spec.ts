@@ -18,10 +18,7 @@ jest.mock('../config/environment', () => ({
 import 'reflect-metadata';
 import { RpcException } from '@nestjs/microservices';
 import { AuthController } from './auth.controller';
-import {
-  THROTTLE_METADATA_KEY,
-  ThrottleOptions,
-} from '../common/decorators/throttle.decorator';
+import { THROTTLE_METADATA_KEY, ThrottleOptions } from '../common/decorators/throttle.decorator';
 
 function makeCookieServiceMock() {
   const svc: any = {
@@ -130,12 +127,13 @@ describe('AuthController — new endpoints', () => {
     });
 
     it('propagates upstream NOT_FOUND and does not touch cookies', async () => {
-      const rpc = new RpcException({ status: 404, message: 'Verification token invalid or expired' });
+      const rpc = new RpcException({
+        status: 404,
+        message: 'Verification token invalid or expired',
+      });
       authSvc.verifyEmail.mockRejectedValue(rpc);
       const reply = makeReply();
-      await expect(
-        controller.verifyEmail({ token: 'bad' } as any, reply as any),
-      ).rejects.toBe(rpc);
+      await expect(controller.verifyEmail({ token: 'bad' } as any, reply as any)).rejects.toBe(rpc);
       expect(cookieSvc.setSessionCookie).not.toHaveBeenCalled();
       expect(cookieSvc.setRefreshCookie).not.toHaveBeenCalled();
     });

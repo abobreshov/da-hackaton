@@ -44,7 +44,8 @@ const inputVariants = cva(
 );
 
 export interface InputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'>,
+  extends
+    Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'>,
     Pick<VariantProps<typeof inputVariants>, 'variant' | 'sizing'> {
   leading?: React.ReactNode;
   trailing?: React.ReactNode;

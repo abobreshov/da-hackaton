@@ -10,11 +10,7 @@
  * service's).
  */
 
-import {
-  ForbiddenException,
-  HttpException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
 import { ModerationService } from './moderation.service';
 import type {
   BanMemberRepoInput,
@@ -126,27 +122,27 @@ describe('ModerationService', () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.banMember({ roomId: 1, adminId: 30, userId: 40 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.banMember({ roomId: 1, adminId: 30, userId: 40 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('cannot ban the owner', async () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.banMember({ roomId: 1, adminId: 20, userId: 10 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.banMember({ roomId: 1, adminId: 20, userId: 10 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('refuses to ban a non-member (NOT_FOUND)', async () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.banMember({ roomId: 1, adminId: 20, userId: 99 }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(svc.banMember({ roomId: 1, adminId: 20, userId: 99 })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('maps repo unique-violation (23505) to wire CONFLICT (409)', async () => {
@@ -179,9 +175,9 @@ describe('ModerationService', () => {
       const events = makeEvents();
       const svc = new ModerationService(repo, events);
 
-      await expect(
-        svc.banMember({ roomId: 1, adminId: 20, userId: 30 }),
-      ).rejects.toThrow('pg down');
+      await expect(svc.banMember({ roomId: 1, adminId: 20, userId: 30 })).rejects.toThrow(
+        'pg down',
+      );
       expect(events.emit).not.toHaveBeenCalled();
     });
   });
@@ -212,9 +208,9 @@ describe('ModerationService', () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.unbanMember({ roomId: 1, adminId: 40, userId: 30 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.unbanMember({ roomId: 1, adminId: 40, userId: 30 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -222,10 +218,16 @@ describe('ModerationService', () => {
     it('returns bans for a room (admin access)', async () => {
       const repo = seed();
       repo.bans.set(FakeModerationRepository.key(1, 30), {
-        roomId: 1, userId: 30, bannedBy: 20, bannedAt: new Date(),
+        roomId: 1,
+        userId: 30,
+        bannedBy: 20,
+        bannedAt: new Date(),
       });
       repo.bans.set(FakeModerationRepository.key(1, 40), {
-        roomId: 1, userId: 40, bannedBy: 20, bannedAt: new Date(),
+        roomId: 1,
+        userId: 40,
+        bannedBy: 20,
+        bannedAt: new Date(),
       });
       const svc = new ModerationService(repo, makeEvents());
 
@@ -238,9 +240,7 @@ describe('ModerationService', () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.listBans({ roomId: 1, viewerId: 999 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.listBans({ roomId: 1, viewerId: 999 })).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -265,9 +265,9 @@ describe('ModerationService', () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.promote({ roomId: 1, actorId: 20, userId: 30 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.promote({ roomId: 1, actorId: 20, userId: 30 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('owner demotes an admin to member + emits room.role.demote', async () => {
@@ -290,9 +290,9 @@ describe('ModerationService', () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.demote({ roomId: 1, actorId: 10, userId: 10 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.demote({ roomId: 1, actorId: 10, userId: 10 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('promote is idempotent when target is already admin (no event)', async () => {
@@ -308,17 +308,17 @@ describe('ModerationService', () => {
     it('promote refuses to promote non-member (NotFound)', async () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
-      await expect(
-        svc.promote({ roomId: 1, actorId: 10, userId: 999 }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(svc.promote({ roomId: 1, actorId: 10, userId: 999 })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('promote forbidden when target is the owner', async () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
-      await expect(
-        svc.promote({ roomId: 1, actorId: 10, userId: 10 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.promote({ roomId: 1, actorId: 10, userId: 10 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('demote is idempotent when target is already member (no event)', async () => {
@@ -334,20 +334,22 @@ describe('ModerationService', () => {
     it('demote refuses to demote non-member (NotFound)', async () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
-      await expect(
-        svc.demote({ roomId: 1, actorId: 10, userId: 999 }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(svc.demote({ roomId: 1, actorId: 10, userId: 999 })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('demote forbidden when target is the owner', async () => {
       const repo = seed();
       repo.memberships.set(FakeModerationRepository.key(1, 50), {
-        roomId: 1, userId: 50, role: 'owner',
+        roomId: 1,
+        userId: 50,
+        role: 'owner',
       });
       const svc = new ModerationService(repo, makeEvents());
-      await expect(
-        svc.demote({ roomId: 1, actorId: 10, userId: 50 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.demote({ roomId: 1, actorId: 10, userId: 50 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -370,9 +372,7 @@ describe('ModerationService', () => {
       const repo = seed();
       const svc = new ModerationService(repo, makeEvents());
 
-      await expect(
-        svc.deleteRoom({ roomId: 1, actorId: 20 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.deleteRoom({ roomId: 1, actorId: 20 })).rejects.toThrow(ForbiddenException);
     });
   });
 });

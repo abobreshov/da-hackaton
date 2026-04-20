@@ -1,5 +1,10 @@
 import * as fs from 'node:fs';
-import { MicroserviceOptions, Transport, RpcException, ClientProvider } from '@nestjs/microservices';
+import {
+  MicroserviceOptions,
+  Transport,
+  RpcException,
+  ClientProvider,
+} from '@nestjs/microservices';
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { env } from '../config/environment';
 

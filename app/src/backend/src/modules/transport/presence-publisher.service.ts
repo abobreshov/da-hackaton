@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import type IORedis from 'ioredis';
 import { RedisChannel } from '@app/contracts';
 import { TRANSPORT_REDIS_PUB } from './transport.tokens';
@@ -36,9 +31,7 @@ export class PresencePublisher implements OnModuleDestroy {
   private pending = new Map<number, PresenceState>();
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(
-    @Inject(TRANSPORT_REDIS_PUB) private readonly redis: IORedis,
-  ) {}
+  constructor(@Inject(TRANSPORT_REDIS_PUB) private readonly redis: IORedis) {}
 
   /**
    * Enqueue a presence delta. Does NOT publish synchronously. Within the
@@ -84,10 +77,10 @@ export class PresencePublisher implements OnModuleDestroy {
   private async flush(): Promise<void> {
     if (this.pending.size === 0) return;
 
-    const deltas: PresenceDelta[] = Array.from(
-      this.pending,
-      ([userId, state]) => ({ userId, state }),
-    );
+    const deltas: PresenceDelta[] = Array.from(this.pending, ([userId, state]) => ({
+      userId,
+      state,
+    }));
     this.pending.clear();
 
     const payload = JSON.stringify({ deltas });
@@ -96,9 +89,7 @@ export class PresencePublisher implements OnModuleDestroy {
     } catch (err) {
       // Presence is best-effort: log and drop rather than crash the app
       // or retry (retries would just hand the BFF stale state anyway).
-      this.logger.warn(
-        `presence.publish failed: ${(err as Error)?.message ?? err}`,
-      );
+      this.logger.warn(`presence.publish failed: ${(err as Error)?.message ?? err}`);
     }
   }
 }

@@ -118,9 +118,7 @@ export const UserPopover: React.FC<UserPopoverProps> = ({
       setError('Please describe the issue.');
       return;
     }
-    await runAction(() =>
-      reportUser({ targetType: 'user', targetId: userId, reason: trimmed }),
-    );
+    await runAction(() => reportUser({ targetType: 'user', targetId: userId, reason: trimmed }));
   };
 
   return (
@@ -153,9 +151,7 @@ export const UserPopover: React.FC<UserPopoverProps> = ({
           )}
         >
           <header className="px-2 pt-1 pb-2">
-            <p className="font-display text-label-lg font-semibold text-on-surface">
-              {username}
-            </p>
+            <p className="font-display text-label-lg font-semibold text-on-surface">{username}</p>
           </header>
 
           {mode === 'actions' ? (
@@ -286,10 +282,7 @@ export const UserPopover: React.FC<UserPopoverProps> = ({
           )}
 
           {error && (
-            <p
-              role="alert"
-              className="mt-2 px-2 font-body text-body-sm text-on-error-container"
-            >
+            <p role="alert" className="mt-2 px-2 font-body text-body-sm text-on-error-container">
               {error}
             </p>
           )}

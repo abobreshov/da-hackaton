@@ -21,7 +21,9 @@ describe('SystemKeyRpcGuard', () => {
   const guard = new SystemKeyRpcGuard();
 
   it('allows RPC call with correct _sys', () => {
-    expect(guard.canActivate(mockRpcContext({ _sys: 'test-system-key-32-char-value-abcde', x: 1 }))).toBe(true);
+    expect(
+      guard.canActivate(mockRpcContext({ _sys: 'test-system-key-32-char-value-abcde', x: 1 })),
+    ).toBe(true);
   });
 
   it('rejects RPC call without _sys', () => {
@@ -49,7 +51,11 @@ describe('withSys', () => {
   it('adds _sys field from env without mutating caller payload', () => {
     const original = { email: 'u@x', password: 'pw' };
     const wrapped = withSys(original);
-    expect(wrapped).toEqual({ email: 'u@x', password: 'pw', _sys: 'test-system-key-32-char-value-abcde' });
+    expect(wrapped).toEqual({
+      email: 'u@x',
+      password: 'pw',
+      _sys: 'test-system-key-32-char-value-abcde',
+    });
     expect(original).not.toHaveProperty('_sys');
   });
 

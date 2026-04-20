@@ -95,11 +95,7 @@ describe('BansService (BFF)', () => {
 
       const out = await service.listBans({ userId: 3 });
 
-      expect(proxy.forward).toHaveBeenCalledWith(
-        client,
-        { cmd: 'users.listBans' },
-        { userId: 3 },
-      );
+      expect(proxy.forward).toHaveBeenCalledWith(client, { cmd: 'users.listBans' }, { userId: 3 });
       expect(out).toBe(rows);
     });
 

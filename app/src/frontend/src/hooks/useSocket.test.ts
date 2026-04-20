@@ -24,9 +24,7 @@ describe('useSocket', () => {
 
   it('subscribes on mount and unsubscribes on unmount', () => {
     const handler = vi.fn();
-    const { unmount } = renderHook(() =>
-      useSocket(WsEvent.server.messageNew, handler),
-    );
+    const { unmount } = renderHook(() => useSocket(WsEvent.server.messageNew, handler));
 
     expect(onMock).toHaveBeenCalledTimes(1);
     expect(onMock).toHaveBeenCalledWith('message.new', expect.any(Function));

@@ -16,13 +16,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { seedDemo } from '../../scripts/seed-demo';
 import { startTestStack } from './integration-harness';
-import {
-  users,
-  rooms,
-  roomMemberships,
-  friendships,
-  messages,
-} from '../database/schema';
+import { users, rooms, roomMemberships, friendships, messages } from '../database/schema';
 
 describe('seed-demo integration', () => {
   let connectionString: string;
@@ -111,10 +105,7 @@ describe('seed-demo integration', () => {
 
     // Messages — 8 per room
     for (const r of roomRows) {
-      const rows = await db.drizzle
-        .select()
-        .from(messages)
-        .where(eq(messages.roomId, r.id));
+      const rows = await db.drizzle.select().from(messages).where(eq(messages.roomId, r.id));
       expect(rows).toHaveLength(8);
     }
 

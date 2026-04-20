@@ -139,10 +139,7 @@ describe('RedisSubscriberService', () => {
       await svc.watchPresenceOf('s1', [42]);
       await svc.watchPresenceOf('s2', [99]);
 
-      redis.__trigger(
-        'presence:global',
-        JSON.stringify({ userId: 42, state: 'online' }),
-      );
+      redis.__trigger('presence:global', JSON.stringify({ userId: 42, state: 'online' }));
 
       expect(s1.emit).toHaveBeenCalledWith('presence.update', { userId: 42, state: 'online' });
       expect(s2.emit).not.toHaveBeenCalled();

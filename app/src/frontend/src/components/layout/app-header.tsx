@@ -82,10 +82,7 @@ export function AppHeader({
                 </span>
               ) : null}
               {user ? (
-                <AvatarDisc
-                  name={user.name ?? undefined}
-                  email={user.email ?? undefined}
-                />
+                <AvatarDisc name={user.name ?? undefined} email={user.email ?? undefined} />
               ) : null}
               {onLogout ? (
                 <Button variant="ghost" size="sm" onClick={onLogout}>

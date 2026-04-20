@@ -17,10 +17,7 @@ export function ChatChatLogo({
   const iconSize = Math.round(size * 0.48);
   return (
     <div
-      className={cn(
-        'relative grid place-items-center rounded-full shadow-ambient-lg',
-        className,
-      )}
+      className={cn('relative grid place-items-center rounded-full shadow-ambient-lg', className)}
       style={{
         width: size,
         height: size,

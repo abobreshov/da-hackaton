@@ -48,9 +48,7 @@ export class DmChatPage {
   }
 
   messageByText(text: string | RegExp): Locator {
-    return this.messageList
-      .getByTestId('message-bubble')
-      .filter({ hasText: text });
+    return this.messageList.getByTestId('message-bubble').filter({ hasText: text });
   }
 
   latestMessage(): Locator {

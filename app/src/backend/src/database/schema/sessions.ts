@@ -1,12 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  integer,
-  text,
-  timestamp,
-  inet,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, text, timestamp, inet, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from './users';
 
@@ -32,12 +24,8 @@ export const userSessions = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     userAgent: text('user_agent'),
     ip: inet('ip'),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
   },
   (table) => ({

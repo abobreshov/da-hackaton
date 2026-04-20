@@ -64,10 +64,7 @@ describe('RoomsController', () => {
 
     it('falls back to user.sub when user.id is missing', async () => {
       service.create.mockResolvedValue({ id: 1 } as any);
-      await controller.create(
-        { name: 'x', visibility: 'public' } as any,
-        req(42, 'sub'),
-      );
+      await controller.create({ name: 'x', visibility: 'public' } as any, req(42, 'sub'));
       expect(service.create).toHaveBeenCalledWith(expect.objectContaining({ ownerId: 42 }));
     });
 

@@ -99,7 +99,16 @@ function makeDb(rowsByTable: Record<string, any[]> = {}, opts: { insertThrows?: 
       returning: jest.fn(async () => {
         calls.inserts.push({ table, values: vals, returning: true });
         if (opts.insertThrows) throw opts.insertThrows;
-        return [{ id: 1n, ...vals, status: 'open', resolvedBy: null, resolvedAt: null, createdAt: new Date() }];
+        return [
+          {
+            id: 1n,
+            ...vals,
+            status: 'open',
+            resolvedBy: null,
+            resolvedAt: null,
+            createdAt: new Date(),
+          },
+        ];
       }),
     })),
   });

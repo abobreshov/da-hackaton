@@ -7,10 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ErrorCode, WireError } from '@app/contracts';
-import {
-  EVENT_PUBLISHER,
-  IEventPublisher,
-} from '../../common/events/event-publisher.interface';
+import { EVENT_PUBLISHER, IEventPublisher } from '../../common/events/event-publisher.interface';
 import {
   MODERATION_REPOSITORY,
   ModerationRepositoryPort,

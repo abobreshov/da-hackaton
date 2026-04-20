@@ -89,7 +89,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     wasAtBottomRef.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // IntersectionObserver on the top sentinel — fires `onLoadOlder` when the
@@ -118,10 +118,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       ref={scrollerRef}
       onScroll={handleScroll}
       data-testid="message-list"
-      className={cn(
-        'flex h-full flex-col gap-3 overflow-y-auto px-2 py-4',
-        className,
-      )}
+      className={cn('flex h-full flex-col gap-3 overflow-y-auto px-2 py-4', className)}
     >
       {/* Top sentinel — triggers `loadOlder` via IntersectionObserver. */}
       <div ref={topSentinelRef} data-testid="message-list-top-sentinel" aria-hidden="true" />
@@ -142,18 +139,12 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       {messages.map((m) => {
-        const parent = m.replyTo !== null ? byId.get(m.replyTo) ?? null : null;
-        const isMe = currentUserId !== null && currentUserId !== undefined
-          ? m.author.id === currentUserId
-          : false;
-        return (
-          <MessageBubble
-            key={m.id.toString()}
-            message={m}
-            isMe={isMe}
-            parent={parent}
-          />
-        );
+        const parent = m.replyTo !== null ? (byId.get(m.replyTo) ?? null) : null;
+        const isMe =
+          currentUserId !== null && currentUserId !== undefined
+            ? m.author.id === currentUserId
+            : false;
+        return <MessageBubble key={m.id.toString()} message={m} isMe={isMe} parent={parent} />;
       })}
     </div>
   );

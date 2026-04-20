@@ -80,10 +80,10 @@ describe('lib/friends', () => {
 
   it('surfaces ApiError on non-2xx responses', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ code: 'NOT_FOUND', message: 'no such user' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ code: 'NOT_FOUND', message: 'no such user' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
     await expect(sendFriendRequest('ghost')).rejects.toMatchObject({
       status: 404,

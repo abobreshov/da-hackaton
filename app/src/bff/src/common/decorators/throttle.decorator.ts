@@ -34,10 +34,7 @@ export const THROTTLE_METADATA_KEY = 'bff:throttle';
 export const Throttle = (opts: ThrottleOptions): MethodDecorator & ClassDecorator => {
   return ((target: any, propertyKey?: any, descriptor?: any) => {
     const existing: ThrottleOptions[] = Reflect.getMetadata
-      ? Reflect.getMetadata(
-          THROTTLE_METADATA_KEY,
-          descriptor ? descriptor.value : target,
-        ) ?? []
+      ? (Reflect.getMetadata(THROTTLE_METADATA_KEY, descriptor ? descriptor.value : target) ?? [])
       : [];
     const merged = Array.isArray(existing) ? [...existing, opts] : [existing, opts];
     return SetMetadata(THROTTLE_METADATA_KEY, merged)(target, propertyKey, descriptor);
