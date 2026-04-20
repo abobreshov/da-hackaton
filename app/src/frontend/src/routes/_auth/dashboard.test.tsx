@@ -27,7 +27,7 @@ describe('<Dashboard />', () => {
   it('greets the user by name when a name is present', () => {
     useSession.setState({
       session: {
-        userId: 1,
+        id: 1,
         email: 'alice@x',
         name: 'Alice',
         type: 'user',
@@ -50,7 +50,7 @@ describe('<Dashboard />', () => {
     useSession.setState({
       // name omitted on purpose — `??` only falls back on null/undefined.
       session: {
-        userId: 1,
+        id: 1,
         email: 'bob@x',
         type: 'user',
         scopes: [],

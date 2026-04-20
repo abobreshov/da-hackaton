@@ -176,4 +176,57 @@ describe('RoomsService (BFF)', () => {
       ).rejects.toBe(rpc);
     });
   });
+
+  describe('update({roomId, actorId, patch})', () => {
+    it('sends rooms.update with full patch', async () => {
+      const updated = { id: 5, name: 'renamed', description: 'new', visibility: 'private' };
+      client.send.mockReturnValueOnce(of(updated));
+
+      const result = await service.update({
+        roomId: 5,
+        actorId: 3,
+        patch: { name: 'renamed', description: 'new', visibility: 'private' },
+      });
+
+      expect(client.send).toHaveBeenCalledWith(
+        { cmd: 'rooms.update' },
+        expect.objectContaining({
+          _sys: 'test-sys-key',
+          roomId: 5,
+          actorId: 3,
+          patch: { name: 'renamed', description: 'new', visibility: 'private' },
+        }),
+      );
+      expect(result).toEqual(updated);
+    });
+
+    it('sends rooms.update with partial patch (name only)', async () => {
+      client.send.mockReturnValueOnce(of({ id: 5, name: 'x' }));
+
+      await service.update({ roomId: 5, actorId: 3, patch: { name: 'x' } });
+
+      const [, payload] = client.send.mock.calls[0];
+      expect(payload).toMatchObject({
+        roomId: 5,
+        actorId: 3,
+        patch: { name: 'x' },
+      });
+    });
+
+    it('propagates FORBIDDEN (not the owner)', async () => {
+      const rpc = new RpcException({ status: 403, message: 'not the owner' });
+      client.send.mockReturnValueOnce(throwError(() => rpc));
+      await expect(
+        service.update({ roomId: 5, actorId: 9, patch: { name: 'x' } }),
+      ).rejects.toBe(rpc);
+    });
+
+    it('propagates CONFLICT (name taken)', async () => {
+      const rpc = new RpcException({ status: 409, message: 'name taken' });
+      client.send.mockReturnValueOnce(throwError(() => rpc));
+      await expect(
+        service.update({ roomId: 5, actorId: 3, patch: { name: 'dup' } }),
+      ).rejects.toBe(rpc);
+    });
+  });
 });

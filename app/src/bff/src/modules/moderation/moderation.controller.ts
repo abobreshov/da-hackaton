@@ -11,17 +11,18 @@ import {
 } from '@nestjs/common';
 import { ModerationService } from './moderation.service';
 import { SessionGuard } from '../../auth/session.guard';
+import { parseSub } from '../../auth/cookie.service';
 
 interface SessionRequest {
-  session?: { userId?: number; type?: string };
+  session?: { sub?: string; type?: string };
 }
 
 function getActorId(req: SessionRequest): number {
-  const raw = req.session?.userId;
-  if (typeof raw !== 'number') {
-    throw new Error('no userId in session');
-  }
-  return raw;
+  const sub = req.session?.sub;
+  if (!sub) throw new Error('no userId in session');
+  const { type, numericId } = parseSub(sub);
+  if (type !== 'user') throw new Error('no userId in session');
+  return numericId;
 }
 
 /**

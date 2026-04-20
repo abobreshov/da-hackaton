@@ -13,35 +13,39 @@ import { cn } from '@/lib/utils';
  */
 
 // ----- GlassCard ----- floating translucent panel (auth, dashboard, modals)
-const glassCardVariants = cva(
-  [
-    'bg-surface-container-lowest/80 backdrop-blur-xl',
-    'ring-1 ring-inset ring-outline-variant/30',
-    'text-on-surface',
-  ].join(' '),
-  {
-    variants: {
-      shadow: {
-        ambient: 'shadow-ambient',
-        lg: 'shadow-ambient-lg',
-        xl: 'shadow-ambient-xl',
-        none: '',
-      },
-      radius: {
-        lg: 'rounded-[2rem]',      // 2rem — standard card
-        xl: 'rounded-[2.5rem]',    // 2.5rem — auth + hero
-        pill: 'rounded-full',       // nav pill
-      },
-      padding: {
-        none: '',
-        md: 'p-6',
-        lg: 'p-8',
-        xl: 'p-10',
-      },
+//
+// `tone` swaps the tinted background + ring + on-surface text colour as
+// one bundle so error surfaces stop forking a second inline recipe.
+// `backdrop-blur-xl` stays in the base because the frosted look is
+// independent of tone — it's the "glass" in GlassCard.
+const glassCardVariants = cva('backdrop-blur-xl', {
+  variants: {
+    tone: {
+      default:
+        'bg-surface-container-lowest/80 text-on-surface ring-1 ring-inset ring-outline-variant/30',
+      error:
+        'bg-error-container/70 text-on-error-container ring-1 ring-inset ring-error/20',
     },
-    defaultVariants: { shadow: 'ambient', radius: 'lg', padding: 'lg' },
+    shadow: {
+      ambient: 'shadow-ambient',
+      lg: 'shadow-ambient-lg',
+      xl: 'shadow-ambient-xl',
+      none: '',
+    },
+    radius: {
+      lg: 'rounded-[2rem]',      // 2rem — standard card
+      xl: 'rounded-[2.5rem]',    // 2.5rem — auth + hero
+      pill: 'rounded-full',       // nav pill
+    },
+    padding: {
+      none: '',
+      md: 'p-6',
+      lg: 'p-8',
+      xl: 'p-10',
+    },
   },
-);
+  defaultVariants: { tone: 'default', shadow: 'ambient', radius: 'lg', padding: 'lg' },
+});
 
 export interface GlassCardProps
   extends React.HTMLAttributes<HTMLDivElement>,
@@ -50,10 +54,10 @@ export interface GlassCardProps
 }
 
 export const GlassCard = React.forwardRef<HTMLDivElement, GlassCardProps>(
-  ({ className, shadow, radius, padding, as: Tag = 'div', ...props }, ref) => (
+  ({ className, tone, shadow, radius, padding, as: Tag = 'div', ...props }, ref) => (
     <Tag
       ref={ref as never}
-      className={cn(glassCardVariants({ shadow, radius, padding }), className)}
+      className={cn(glassCardVariants({ tone, shadow, radius, padding }), className)}
       {...props}
     />
   ),

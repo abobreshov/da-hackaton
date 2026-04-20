@@ -18,12 +18,17 @@ Room + DM messaging. Text/emoji/reply/edit/delete, infinite history, offline del
 | AC-07-07 | DM allowed only if friends AND neither banned other AND dm_channels.frozen_at IS NULL (ban transaction owned by EPIC-04) |
 | AC-07-08 | Messages delivered to online recipients ≤3s |
 | AC-07-09 | Messages persisted; chat history scrollable backward (infinite scroll) |
-| AC-07-10 | Offline user receives unread messages on next login |
+| AC-07-10 | Offline user sees previously-missed messages on next login via history fetch (GET) + `messages.since {lastSeenId}` sync-reconnect hydrate (EPIC-03 AC-03-09). No WS replay push on login. |
 | AC-07-11 | Room with 10k messages remains usable |
-| AC-07-12 | Global rate-limit 30 msg / 5s per user (sliding window); exceed → 429 REST / `error {code:'RATE_LIMITED', retryAfterMs}` WS (per EPIC-14) |
+| AC-07-12 | `messages.create` rate-limit 30/5s per user sliding window. `messages.edit` + `messages.delete` share separate 60/min budget (self-correction, low abuse). |
 | AC-07-13 | dm_channels has FK to users(id) ON DELETE CASCADE on both sides → account delete removes orphan DM rows |
 | AC-07-14 | messages.reply_to ON DELETE SET NULL → retention prune of parent message leaves orphan replies intact (body preserved, "replying to deleted message" in UI) |
 | AC-07-15 | Indexed: reply_to (partial), (author_id, created_at DESC), (created_at) WHERE deleted_at IS NULL — retention sweeps avoid seq scans |
+| AC-07-16 | dm_channels row created lazily on first `messages.create {dmUserId}` via `INSERT ... ON CONFLICT (user_low, user_high) DO UPDATE SET id=id RETURNING id`. Friendship accept does NOT create dm_channels. Ban on non-existent channel is no-op. |
+| AC-07-17 | No time-window on author edit/delete for MVP. `edited_at` stamped on every update. Admin deletes logged to audit_log per EPIC-06 AC-06-12. |
+| AC-07-18 | WS payload contract: `message.new` `{message}`, `message.edited` `{id, body, editedAt, roomId|dmId}`, `message.deleted` `{id, roomId|dmId, deletedAt}` — body omitted on delete; client replaces with tombstone placeholder. |
+| AC-07-19 | DM eligibility atomic: `INSERT INTO messages ... SELECT ... WHERE NOT EXISTS (SELECT 1 FROM dm_channels WHERE id=:dmId AND frozen_at IS NOT NULL)` — 0 rows affected → 403 WireError DM_FROZEN. Closes race between frozen_at read and insert. |
+| AC-07-20 | Keyset pagination composite cursor `(created_at, id) < (:beforeTs, :beforeId)`. Index `messages_room_created_idx` extended to `(room_id, created_at DESC, id DESC)` via migration. |
 
 ## Data model
 
@@ -66,6 +71,7 @@ Soft delete (`deleted_at`) for audit. UI treat `deleted_at IS NOT NULL` as gone.
 - `DELETE /api/v1/messages/:id` (author or room admin) → 204
 - `GET /api/v1/rooms/:id/messages?before=&limit=50` → `{messages[]}` (cursor)
 - `GET /api/v1/dms/:userId/messages?before=&limit=50`
+- `GET /api/v1/messages/:id` → `{ message }` (for reply-chip hover / report target hydration)
 
 ## Send flow
 1. BFF `@SubscribeMessage('message.send')`: validate session, enforce rate-limit 30 msg/5s per user (Redis `ratelimit:msg:{userId}`, sliding window; see EPIC-14).

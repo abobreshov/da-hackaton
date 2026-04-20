@@ -2,18 +2,17 @@ import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TcpCmd } from '@app/contracts';
 import { ModerationService } from './moderation.service';
-import { toRpc } from './rpc.util';
 
 /**
- * TCP-facing controller mirroring `ModerationController` for BFF → backend
+ * TCP-facing controller mirroring `ModerationController` for BFF -> backend
  * RPC. Fills the M2 blocker where `ModerationModule` shipped only an HTTP
  * surface — promote / demote / ban / unban / listBans / deleteRoom are now
  * reachable over the internal Nest microservice transport.
  *
- * House rules (see `rooms.tcp.ts` / `friends.tcp.ts`):
- *   - Each @MessagePattern wraps the service call with `toRpc()` so
- *     HttpException-kind failures surface as RpcException({ status, message })
- *     and the BFF's `RpcErrorInterceptor` re-raises the matching HTTP class.
+ * House rules:
+ *   - HttpException -> RpcException translation happens globally via
+ *     `RpcExceptionFilter` (see `common/rpc/rpc-exception.filter.ts`).
+ *     Handlers dispatch straight to the service.
  *   - Actor identity is named `actorId` on the wire. The service internally
  *     uses `adminId` (ban/unban) and `viewerId` (listBans); the controller
  *     renames without exposing that ambiguity to RPC callers.
@@ -54,65 +53,53 @@ export class ModerationTcpController {
 
   @MessagePattern({ cmd: TcpCmd.rooms.members.promote })
   promote(@Payload() data: RoleChangePayload) {
-    return toRpc(() =>
-      this.service.promote({
-        roomId: data.roomId,
-        actorId: data.actorId,
-        userId: data.userId,
-      }),
-    );
+    return this.service.promote({
+      roomId: data.roomId,
+      actorId: data.actorId,
+      userId: data.userId,
+    });
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.members.demote })
   demote(@Payload() data: RoleChangePayload) {
-    return toRpc(() =>
-      this.service.demote({
-        roomId: data.roomId,
-        actorId: data.actorId,
-        userId: data.userId,
-      }),
-    );
+    return this.service.demote({
+      roomId: data.roomId,
+      actorId: data.actorId,
+      userId: data.userId,
+    });
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.members.ban })
   banMember(@Payload() data: BanPayload) {
-    return toRpc(() =>
-      this.service.banMember({
-        roomId: data.roomId,
-        adminId: data.actorId,
-        userId: data.userId,
-      }),
-    );
+    return this.service.banMember({
+      roomId: data.roomId,
+      adminId: data.actorId,
+      userId: data.userId,
+    });
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.bans.unban })
   unbanMember(@Payload() data: BanPayload) {
-    return toRpc(() =>
-      this.service.unbanMember({
-        roomId: data.roomId,
-        adminId: data.actorId,
-        userId: data.userId,
-      }),
-    );
+    return this.service.unbanMember({
+      roomId: data.roomId,
+      adminId: data.actorId,
+      userId: data.userId,
+    });
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.bans.list })
   listBans(@Payload() data: ListBansPayload) {
-    return toRpc(() =>
-      this.service.listBans({
-        roomId: data.roomId,
-        viewerId: data.actorId,
-      }),
-    );
+    return this.service.listBans({
+      roomId: data.roomId,
+      viewerId: data.actorId,
+    });
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.delete })
   deleteRoom(@Payload() data: DeleteRoomPayload) {
-    return toRpc(() =>
-      this.service.deleteRoom({
-        roomId: data.roomId,
-        actorId: data.actorId,
-      }),
-    );
+    return this.service.deleteRoom({
+      roomId: data.roomId,
+      actorId: data.actorId,
+    });
   }
 }

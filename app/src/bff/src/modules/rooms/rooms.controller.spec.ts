@@ -26,12 +26,13 @@ function makeServiceMock() {
     join: jest.fn(),
     leave: jest.fn(),
     invite: jest.fn(),
+    update: jest.fn(),
   };
 }
 
 function sessionReq(userId: number) {
   return {
-    session: { userId, email: 'u@x', name: 'u', type: 'user', scopes: [] },
+    session: { sub: `u:${userId}`, email: 'u@x', name: 'u', type: 'user', scopes: [] },
   } as any;
 }
 
@@ -187,6 +188,54 @@ describe('RoomsController (BFF)', () => {
       ).rejects.toBe(rpc);
     });
   });
+
+  describe('PATCH /rooms/:id', () => {
+    it('delegates to service.update with actorId from session + body patch', async () => {
+      const updated = { id: 5, name: 'renamed', description: 'new', visibility: 'private' };
+      svc.update.mockResolvedValue(updated);
+
+      const res = await controller.update(
+        5,
+        { name: 'renamed', description: 'new', visibility: 'private' } as any,
+        sessionReq(3),
+      );
+
+      expect(svc.update).toHaveBeenCalledWith({
+        roomId: 5,
+        actorId: 3,
+        patch: { name: 'renamed', description: 'new', visibility: 'private' },
+      });
+      expect(res).toEqual(updated);
+    });
+
+    it('forwards partial patch (name only, others undefined)', async () => {
+      svc.update.mockResolvedValue({ id: 5, name: 'x' });
+
+      await controller.update(5, { name: 'x' } as any, sessionReq(3));
+
+      expect(svc.update).toHaveBeenCalledWith({
+        roomId: 5,
+        actorId: 3,
+        patch: { name: 'x', description: undefined, visibility: undefined },
+      });
+    });
+
+    it('propagates FORBIDDEN (not the owner)', async () => {
+      const rpc = new RpcException({ status: 403, message: 'not the owner' });
+      svc.update.mockRejectedValue(rpc);
+      await expect(
+        controller.update(5, { name: 'x' } as any, sessionReq(9)),
+      ).rejects.toBe(rpc);
+    });
+
+    it('propagates CONFLICT (name taken)', async () => {
+      const rpc = new RpcException({ status: 409, message: 'name taken' });
+      svc.update.mockRejectedValue(rpc);
+      await expect(
+        controller.update(5, { name: 'dup' } as any, sessionReq(3)),
+      ).rejects.toBe(rpc);
+    });
+  });
 });
 
 describe('RoomsController — guard wiring (unauth 401 surface)', () => {
@@ -198,5 +247,31 @@ describe('RoomsController — guard wiring (unauth 401 surface)', () => {
     const guards =
       Reflect.getMetadata('__guards__', RoomsController) ?? [];
     expect(guards).toEqual(expect.arrayContaining([SessionGuard]));
+  });
+});
+
+describe('RoomsController — throttle metadata (AC-14-13)', () => {
+  const {
+    THROTTLE_METADATA_KEY,
+  } = require('../../common/decorators/throttle.decorator');
+
+  it('POST /rooms carries a throttle bucket {scope:room-create, limit:10, windowMs:3_600_000, failClosed:false}', () => {
+    const meta = Reflect.getMetadata(
+      THROTTLE_METADATA_KEY,
+      RoomsController.prototype.create,
+    );
+
+    expect(Array.isArray(meta)).toBe(true);
+    const bucket = (meta ?? []).find((m: any) => m.scope === 'room-create');
+    expect(bucket).toBeDefined();
+    expect(bucket.limit).toBe(10);
+    expect(bucket.windowMs).toBe(3_600_000);
+    // Fail-open — we do not want to block room creation when Redis is down,
+    // the spam bucket is advisory, not an auth boundary.
+    expect(bucket.failClosed).toBe(false);
+    expect(typeof bucket.keyFn).toBe('function');
+
+    const key = bucket.keyFn({ session: { sub: 'u:42' } } as any);
+    expect(key).toBe('u:42');
   });
 });

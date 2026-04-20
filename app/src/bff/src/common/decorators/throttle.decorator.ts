@@ -14,8 +14,8 @@ export interface ThrottleOptions {
    */
   failClosed?: boolean;
   /**
-   * Optional key override. If omitted, the guard uses
-   * `session.userId ?? session.adminId ?? req.ip`.
+   * Optional key override. If omitted, the guard uses the OIDC-style
+   * `session.sub` (`u:<id>` / `a:<id>`) and falls back to `ip:<addr>`.
    */
   keyFn?: (req: any) => string;
 }

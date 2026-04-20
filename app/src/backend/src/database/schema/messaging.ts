@@ -90,11 +90,13 @@ export const messages = pgTable(
       'messages_scope_xor_check',
       sql`(${table.roomId} IS NOT NULL) <> (${table.dmId} IS NOT NULL)`,
     ),
+    // AC-07-20 — composite keyset cursor `(created_at DESC, id DESC)`.
+    // `id DESC` tiebreaks identical timestamps so pagination is deterministic.
     roomCreatedIdx: index('messages_room_created_idx')
-      .on(table.roomId, table.createdAt.desc())
+      .on(table.roomId, table.createdAt.desc(), table.id.desc())
       .where(sql`${table.deletedAt} IS NULL`),
     dmCreatedIdx: index('messages_dm_created_idx')
-      .on(table.dmId, table.createdAt.desc())
+      .on(table.dmId, table.createdAt.desc(), table.id.desc())
       .where(sql`${table.deletedAt} IS NULL`),
     replyToIdx: index('messages_reply_to_idx')
       .on(table.replyTo)

@@ -2,7 +2,6 @@ import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TcpCmd } from '@app/contracts';
 import { RoomsService } from './rooms.service';
-import { toRpc } from './rpc.util';
 
 interface CreatePayload {
   ownerId: number;
@@ -35,10 +34,22 @@ interface EnsureMemberPayload {
   userId: number;
 }
 
+interface UpdatePayload {
+  roomId: number;
+  actorId: number;
+  patch: {
+    name?: string;
+    description?: string | null;
+    visibility?: 'public' | 'private';
+  };
+  _sys?: string;
+}
+
 /**
- * TCP-facing controller mirroring the HTTP surface for BFF → backend RPC.
- * Errors are normalised via `toRpc` so HttpException-kind failures surface
- * as RpcException({status, message}) — matches how auth-service wraps.
+ * TCP-facing controller mirroring the HTTP surface for BFF -> backend RPC.
+ * Handlers dispatch straight to the service; HttpException translation to
+ * RpcException is done once, globally, by `RpcExceptionFilter` wired in
+ * `microservice.ts`. See `common/rpc/rpc-exception.filter.ts`.
  */
 @Controller()
 export class RoomsTcpController {
@@ -46,44 +57,51 @@ export class RoomsTcpController {
 
   @MessagePattern({ cmd: TcpCmd.rooms.create })
   create(@Payload() data: CreatePayload) {
-    return toRpc(() => this.service.create(data));
+    return this.service.create(data);
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.join })
   join(@Payload() data: JoinLeavePayload) {
-    return toRpc(() => this.service.join(data));
+    return this.service.join(data);
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.leave })
-  leave(@Payload() data: JoinLeavePayload) {
-    return toRpc(async () => {
-      await this.service.leave(data);
-      return { ok: true };
-    });
+  async leave(@Payload() data: JoinLeavePayload) {
+    await this.service.leave(data);
+    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.invite })
   invite(@Payload() data: InvitePayload) {
-    return toRpc(() => this.service.invite(data));
+    return this.service.invite(data);
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.listMy })
   listMy(@Payload() data: ListMyPayload) {
-    return toRpc(() => this.service.listMy(data.userId));
+    return this.service.listMy(data.userId);
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.catalog })
   catalog() {
-    return toRpc(() => this.service.catalog());
+    return this.service.catalog();
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.membersOf })
   membersOf(@Payload() data: MembersOfPayload) {
-    return toRpc(() => this.service.membersOf(data.roomId));
+    return this.service.membersOf(data.roomId);
   }
 
   @MessagePattern({ cmd: TcpCmd.rooms.ensureMember })
   ensureMember(@Payload() data: EnsureMemberPayload) {
-    return toRpc(() => this.service.ensureMember(data));
+    return this.service.ensureMember(data);
+  }
+
+  @MessagePattern({ cmd: TcpCmd.rooms.update })
+  update(@Payload() data: UpdatePayload) {
+    return this.service.update({
+      roomId: data.roomId,
+      actorId: data.actorId,
+      patch: data.patch ?? {},
+    });
   }
 }

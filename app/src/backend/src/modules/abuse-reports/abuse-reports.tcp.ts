@@ -2,7 +2,6 @@ import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TcpCmd } from '@app/contracts';
 import { AbuseReportsService } from './abuse-reports.service';
-import { toRpc } from './rpc.util';
 
 interface CreatePayload {
   reporterId: number;
@@ -30,58 +29,54 @@ function toBig(v: number | string | bigint): bigint {
   return typeof v === 'bigint' ? v : BigInt(v);
 }
 
+/**
+ * TCP surface for abuse reports. HttpException -> RpcException translation is
+ * handled globally by `RpcExceptionFilter`; handlers just delegate.
+ */
 @Controller()
 export class AbuseReportsTcpController {
   constructor(private readonly service: AbuseReportsService) {}
 
   @MessagePattern({ cmd: TcpCmd.reports.create })
   create(@Payload() data: CreatePayload) {
-    return toRpc(() =>
-      this.service.create({
-        reporterId: data.reporterId,
-        targetType: data.targetType,
-        targetId: toBig(data.targetId),
-        reason: data.reason,
-      }),
-    );
+    return this.service.create({
+      reporterId: data.reporterId,
+      targetType: data.targetType,
+      targetId: toBig(data.targetId),
+      reason: data.reason,
+    });
   }
 
   @MessagePattern({ cmd: TcpCmd.reports.resolve })
-  resolve(@Payload() data: ResolvePayload) {
-    return toRpc(async () => {
-      await this.service.resolve({
-        id: toBig(data.id),
-        adminId: data.adminId,
-        note: data.note,
-      });
-      return { ok: true };
+  async resolve(@Payload() data: ResolvePayload) {
+    await this.service.resolve({
+      id: toBig(data.id),
+      adminId: data.adminId,
+      note: data.note,
     });
+    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.reports.dismiss })
-  dismiss(@Payload() data: DismissPayload) {
-    return toRpc(async () => {
-      await this.service.dismiss({
-        id: toBig(data.id),
-        adminId: data.adminId,
-        note: data.note,
-      });
-      return { ok: true };
+  async dismiss(@Payload() data: DismissPayload) {
+    await this.service.dismiss({
+      id: toBig(data.id),
+      adminId: data.adminId,
+      note: data.note,
     });
+    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.reports.list })
   list(@Payload() data: ListPayload) {
-    return toRpc(() => {
-      const before =
-        data.beforeCreatedAt && data.beforeId !== undefined
-          ? { createdAt: new Date(data.beforeCreatedAt), id: toBig(data.beforeId) }
-          : undefined;
-      return this.service.listOpen({
-        adminId: data.adminId,
-        limit: data.limit,
-        before,
-      });
+    const before =
+      data.beforeCreatedAt && data.beforeId !== undefined
+        ? { createdAt: new Date(data.beforeCreatedAt), id: toBig(data.beforeId) }
+        : undefined;
+    return this.service.listOpen({
+      adminId: data.adminId,
+      limit: data.limit,
+      before,
     });
   }
 }

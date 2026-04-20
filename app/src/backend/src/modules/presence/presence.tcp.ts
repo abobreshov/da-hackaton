@@ -8,10 +8,10 @@ import type { PresenceState } from '../transport/presence-publisher.service';
  * PresenceTcpController — RPC surface called by the BFF's WS gateway.
  *
  * The three commands are best-effort heartbeat/bookkeeping, not domain
- * writes, so they don't need the `toRpc` HttpException→RpcException wrap
- * used by other controllers. Any real infrastructure error (Redis down)
- * is swallowed one level up: the scheduler rides it out, the eager path
- * here lets the error bubble as a plain RpcException.
+ * writes, so they don't typically throw HttpException. Any real infrastructure
+ * error (Redis down) is swallowed one level up: the scheduler rides it out;
+ * on the eager path, errors fall through to the global `RpcExceptionFilter`
+ * which wraps them as RpcException({ status: 500, code: 'UPSTREAM_UNAVAILABLE' }).
  *
  * `stateOf` returns a `Record<userId, state>` instead of a Map because
  * NestJS microservice JSON encoding doesn't preserve Map semantics.

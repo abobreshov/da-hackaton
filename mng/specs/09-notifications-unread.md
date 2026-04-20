@@ -15,6 +15,7 @@ Track unread per user per room/DM. Visual badges near room + contact names. Low-
 | AC-09-04 | Presence state changes appear within ≤2s |
 | AC-09-05 | Presence events observed from `user:{userId}` channel (EPIC-03); EPIC-09 never writes presence state |
 | AC-09-06 | user_last_read scoped UNIQUE via functional index (user_id + COALESCE'd room_id/dm_id); XOR CHECK enforces exactly one of room_id / dm_id set |
+| AC-09-07 | No per-message read-receipt broadcast in MVP. Last-read tracked server-side via user_last_read; other parties do not see read state. WS `unread.changed` fires only on count delta. |
 
 ## Data model
 

@@ -22,6 +22,7 @@ WebSocket transport between FE, BFF, BE. BFF terminate WS; BE publish events via
 | AC-03-11 | BFF subscribes `RedisChannel.presenceGlobal` for all presence deltas (500ms debounced coalescer). Per-socket interest filter = room co-members ∪ friends. Does NOT per-user subscribe for presence. `user:{id}` reserved for friend/ban/DM events. |
 | AC-03-12 | WS `error` event uses WireError envelope (EPIC-15 AC-15-03) — identical shape to REST error body. Close code 4401 on auth fail, 4403 on origin reject, 4429 on rate-limit close. |
 | AC-03-13 | BFF maintains in-memory interest graph: `Map<socketId, {rooms:Set<roomId>, presenceOf:Set<userId>}>`. Refcount adjusts on join/leave/disconnect; unsubscribe Redis channels when refcount zero. |
+| AC-03-14 | Per-room WS message fan-out uses Socket.IO room membership + @socket.io/redis-adapter — BFF calls `this.server.to('room:'+roomId).emit(event, payload)` directly. Backend publishes on `RedisChannel.room(id)` Redis channel; BFF subscribes once (via IoAdapter); adapter propagates cross-replica. BFF does NOT query DB members per broadcast. Presence-specific `user:{id}` path stays via explicit RedisSubscriberService interest graph. |
 
 ## BFF WebSocket gateway
 
@@ -85,6 +86,7 @@ EPIC-15 contracts (error envelope, channel names); EPIC-14 rate-limits.
 ## Risks
 - Sticky sessions or Redis adapter required for multi-BFF
 - Zombie subscriptions on disconnect → per-room ref-count, scheduled sweep
+- Message fan-out vs presence fan-out use different paths: messages → Socket.IO room + redis-adapter (implicit cross-replica); presence → explicit RedisSubscriberService subscription + interest-graph filter. Two paths justified by per-channel semantics.
 
 ## Out of scope
 WebTransport / QUIC, SSE fallback.

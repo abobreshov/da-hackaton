@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CookieService } from './cookie.service';
+import { makeSub, parseSub, type SessionPayload } from './cookie.service';
 import { SessionGuard } from './session.guard';
 import { ThrottleGuard } from '../common/guards/throttle.guard';
 import { Throttle } from '../common/decorators/throttle.decorator';
@@ -50,7 +51,7 @@ export class AuthController {
       const { admin, refreshToken } = result;
       this.cookieService.issueAuthCookies(reply, {
         session: {
-          adminId: admin.id,
+          sub: makeSub('admin', admin.id),
           email: admin.email,
           name: admin.name,
           type: 'admin',
@@ -65,7 +66,7 @@ export class AuthController {
       const { user, refreshToken } = result;
       this.cookieService.issueAuthCookies(reply, {
         session: {
-          userId: user.id,
+          sub: makeSub('user', user.id),
           email: user.email,
           name: user.name,
           type: 'user',
@@ -89,7 +90,7 @@ export class AuthController {
     );
     this.cookieService.issueAuthCookies(reply, {
       session: {
-        userId: user.id,
+        sub: makeSub('user', user.id),
         email: user.email,
         name: user.name,
         type: 'user',
@@ -139,7 +140,7 @@ export class AuthController {
     @Body() dto: PasswordChangeDto,
     @Req() req: any,
   ): Promise<void> {
-    const userId = req.session?.userId;
+    const userId = getUserIdFromSession(req.session);
     await this.authService.passwordChange(userId, dto.currentPassword, dto.newPassword);
   }
 
@@ -150,7 +151,7 @@ export class AuthController {
     @Req() req: any,
     @Res({ passthrough: true }) reply: any,
   ): Promise<void> {
-    const userId = req.session?.userId;
+    const userId = getUserIdFromSession(req.session);
     await this.authService.deleteAccount(userId);
     this.cookieService.clearCookies(reply);
   }
@@ -183,4 +184,20 @@ export class AuthController {
     }
     this.cookieService.clearCookies(reply);
   }
+}
+
+/**
+ * Extract the numeric user id from a user session's OIDC-style `sub`.
+ * Used by the two self-service endpoints below (`passwordChange`,
+ * `deleteAccount`) — these are user-only, so an admin session reaching
+ * them is a misconfigured route guard. We still fail closed on a bad
+ * prefix rather than trusting the `type` field alone.
+ */
+function getUserIdFromSession(
+  session: Partial<SessionPayload> | undefined,
+): number {
+  if (!session?.sub) throw new Error('no session sub');
+  const { type, numericId } = parseSub(session.sub);
+  if (type !== 'user') throw new Error('user endpoint called with non-user session');
+  return numericId;
 }

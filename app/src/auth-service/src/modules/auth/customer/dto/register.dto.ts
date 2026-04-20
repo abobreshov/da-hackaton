@@ -1,23 +1,31 @@
 import { IsEmail, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  EMAIL_MAX,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  USERNAME_MAX,
+  USERNAME_MIN,
+  USERNAME_REGEX,
+} from '@app/contracts';
 
 export class RegisterDto {
   @IsEmail()
-  @MaxLength(255)
+  @MaxLength(EMAIL_MAX)
   email!: string;
 
   @IsString()
-  @MinLength(3)
-  @MaxLength(32)
-  @Matches(/^[A-Za-z0-9_.\-]+$/, {
+  @MinLength(USERNAME_MIN)
+  @MaxLength(USERNAME_MAX)
+  @Matches(USERNAME_REGEX, {
     message: 'username may only contain letters, digits, underscore, dot, or hyphen',
   })
   username!: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
+  @MinLength(PASSWORD_MIN)
+  @MaxLength(PASSWORD_MAX)
   @Matches(/[a-z]/, { message: 'password must contain a lowercase letter' })
   @Matches(/[A-Z]/, { message: 'password must contain an uppercase letter' })
-  @Matches(/[0-9]/, { message: 'password must contain a digit' })
+  @Matches(/\d/, { message: 'password must contain a digit' })
   password!: string;
 }

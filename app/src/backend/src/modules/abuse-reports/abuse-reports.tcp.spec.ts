@@ -1,7 +1,8 @@
 /**
- * TCP-layer AbuseReportsTcpController — @MessagePattern handlers that
- * dispatch to the service and wrap HttpException-kind failures via `toRpc`
- * into RpcException envelopes.
+ * TCP-layer AbuseReportsTcpController — @MessagePattern handlers dispatch
+ * straight to the service. HttpException -> RpcException translation is
+ * handled by the global `RpcExceptionFilter` (covered in its own spec); here
+ * we assert wiring, cursor parsing, and raw HttpException propagation.
  */
 
 jest.mock('../../config/environment', () => ({
@@ -13,7 +14,6 @@ jest.mock('../../database/connection', () => ({
 }));
 
 import { ForbiddenException } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
 import { AbuseReportsTcpController } from './abuse-reports.tcp';
 import type { AbuseReportsService } from './abuse-reports.service';
 
@@ -114,15 +114,11 @@ describe('AbuseReportsTcpController', () => {
     });
   });
 
-  it('reports.list wraps ForbiddenException (non-admin) as RpcException(403)', async () => {
+  it('reports.list propagates ForbiddenException (filter maps to Rpc(403))', async () => {
     service.listOpen.mockRejectedValue(new ForbiddenException('admin required'));
-    try {
-      await controller.list({ adminId: 9, limit: 10 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 403, message: 'admin required' });
-    }
+    await expect(controller.list({ adminId: 9, limit: 10 })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   // ---------------------------------------------------------------------------

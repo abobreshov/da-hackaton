@@ -15,6 +15,7 @@ import {
   ROOMS_REPOSITORY,
   RoomsRepositoryPort,
   RoomVisibility,
+  UpdateRoomInput,
 } from './rooms.types';
 
 export interface CreateRoomParams {
@@ -38,6 +39,12 @@ export interface InviteParams {
 export interface EnsureMemberParams {
   roomId: number;
   userId: number;
+}
+
+export interface UpdateRoomParams {
+  roomId: number;
+  actorId: number;
+  patch: UpdateRoomInput;
 }
 
 const VALID_VISIBILITY: ReadonlySet<string> = new Set(['public', 'private']);
@@ -195,6 +202,52 @@ export class RoomsService {
       throw new ForbiddenException('not a member of this room');
     }
     return { ok: true };
+  }
+
+  /**
+   * EPIC-05 AC-05-13. Owner-only partial update of name / description /
+   * visibility. Unique name collision surfaces as ConflictException (→ 409
+   * WireError on the BFF). Empty patches are a no-op returning the current
+   * row so idempotent PATCH retries stay safe.
+   */
+  async update(params: UpdateRoomParams): Promise<RoomRow> {
+    const room = await this.requireRoom(params.roomId);
+    if (room.ownerId !== params.actorId) {
+      throw new ForbiddenException('only the owner can update this room');
+    }
+
+    const patch = params.patch ?? {};
+
+    if (patch.visibility !== undefined && !VALID_VISIBILITY.has(patch.visibility)) {
+      throw new BadRequestException(`invalid visibility: ${String(patch.visibility)}`);
+    }
+    if (patch.name !== undefined && (!patch.name || patch.name.trim().length === 0)) {
+      throw new BadRequestException('name may not be empty');
+    }
+
+    // Empty patch → no DB round-trip; return current row.
+    if (
+      patch.name === undefined &&
+      patch.description === undefined &&
+      patch.visibility === undefined
+    ) {
+      return room;
+    }
+
+    let updated: RoomRow | null;
+    try {
+      updated = await this.repo.updateRoom(room.id, patch);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException(`room name "${patch.name}" already taken`);
+      }
+      throw err;
+    }
+    if (!updated) {
+      // Raced with a soft-delete; treat as gone.
+      throw new NotFoundException(`room ${room.id} not found`);
+    }
+    return updated;
   }
 
   // ——— helpers ———

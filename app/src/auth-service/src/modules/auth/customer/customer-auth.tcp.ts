@@ -7,69 +7,63 @@ import { RegisterDto } from './dto/register.dto';
 import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
 import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { PasswordChangeDto } from './dto/password-change.dto';
-import { toRpc } from '../../../common/rpc-exception.util';
 
+/**
+ * Customer auth TCP surface. HttpException -> RpcException translation is done
+ * globally by `RpcExceptionFilter` (registered via APP_FILTER in AppModule).
+ * Handlers dispatch straight to the service; no per-method wrapping.
+ */
 @Controller()
 export class CustomerAuthTcpController {
   constructor(private readonly service: CustomerAuthService) {}
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.login })
   login(@Payload() dto: CustomerLoginDto) {
-    return toRpc(() => this.service.login(dto));
+    return this.service.login(dto);
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.refresh })
   refresh(@Payload() data: { refreshToken: string }) {
-    return toRpc(() => this.service.refresh(data.refreshToken));
+    return this.service.refresh(data.refreshToken);
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.logout })
   async logout(@Payload() data: { refreshToken: string }) {
-    return toRpc(async () => {
-      await this.service.logout(data.refreshToken);
-      return { ok: true };
-    });
+    await this.service.logout(data.refreshToken);
+    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.validateToken })
   validateToken(@Payload() data: { token: string }) {
-    return toRpc(() => this.service.validateToken(data.token));
+    return this.service.validateToken(data.token);
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.register })
   register(@Payload() dto: RegisterDto) {
-    return toRpc(() => this.service.register(dto));
+    return this.service.register(dto);
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.passwordResetRequest })
-  passwordResetRequest(@Payload() dto: PasswordResetRequestDto) {
-    return toRpc(async () => {
-      await this.service.passwordResetRequest(dto);
-      return { ok: true };
-    });
+  async passwordResetRequest(@Payload() dto: PasswordResetRequestDto) {
+    await this.service.passwordResetRequest(dto);
+    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.passwordResetConfirm })
-  passwordResetConfirm(@Payload() dto: PasswordResetConfirmDto) {
-    return toRpc(async () => {
-      await this.service.passwordResetConfirm(dto);
-      return { ok: true };
-    });
+  async passwordResetConfirm(@Payload() dto: PasswordResetConfirmDto) {
+    await this.service.passwordResetConfirm(dto);
+    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.passwordChange })
-  passwordChange(@Payload() data: PasswordChangeDto & { userId: number }) {
-    return toRpc(async () => {
-      await this.service.passwordChange(data);
-      return { ok: true };
-    });
+  async passwordChange(@Payload() data: PasswordChangeDto & { userId: number }) {
+    await this.service.passwordChange(data);
+    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.delete })
-  deleteAccount(@Payload() data: { userId: number }) {
-    return toRpc(async () => {
-      await this.service.deleteAccount(data);
-      return { ok: true };
-    });
+  async deleteAccount(@Payload() data: { userId: number }) {
+    await this.service.deleteAccount(data);
+    return { ok: true };
   }
 }

@@ -27,6 +27,22 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ roomId: '42' }),
 }));
 
+// Stub the messages hook so the route doesn't actually hit HTTP + WS for
+// initial history hydration. This test focuses on the room-join ack path.
+const useMessagesMock = vi.fn(() => ({
+  messages: [],
+  sendMessage: vi.fn(),
+  editMessage: vi.fn(),
+  deleteMessage: vi.fn(),
+  loadOlder: vi.fn(),
+  loading: false,
+  error: null,
+  hasMore: false,
+}));
+vi.mock('@/hooks/useMessages', () => ({
+  useMessages: (args: { roomId?: number; dmUserId?: number }) => useMessagesMock(args),
+}));
+
 import { Route } from './$roomId';
 import { presenceMapStore } from '@/hooks/usePresenceMap';
 
@@ -96,7 +112,7 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     expect(list.querySelectorAll('li')).toHaveLength(2);
   });
 
-  it('renders the "chat coming soon" placeholder (no composer in M2)', async () => {
+  it('renders the chat viewport (MessageList + MessageComposer) once joined', async () => {
     const RoomRoute = getComponent();
     render(<RoomRoute />);
     act(() => {
@@ -106,10 +122,33 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
       });
     });
     await waitFor(() => {
-      expect(screen.getByText(/room chat coming soon/i)).toBeInTheDocument();
+      expect(screen.getByTestId('message-list')).toBeInTheDocument();
     });
-    // No composer / textarea yet.
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByTestId('message-composer-input')).toBeInTheDocument();
+    expect(screen.getByTestId('message-composer-send')).toBeInTheDocument();
+  });
+
+  it('renders a "Manage room" button in the header', async () => {
+    const RoomRoute = getComponent();
+    render(<RoomRoute />);
+    act(() => {
+      takeJoinAck()({
+        room: { id: 42, name: 'general', description: null },
+        members: [],
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('room-manage-button')).toBeInTheDocument();
+    });
+  });
+
+  it('wires useMessages with the parsed roomId', async () => {
+    useMessagesMock.mockClear();
+    const RoomRoute = getComponent();
+    render(<RoomRoute />);
+    expect(useMessagesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ roomId: 42 }),
+    );
   });
 
   it('renders a PresenceDot per member reflecting the shared presence map', async () => {

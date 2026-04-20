@@ -13,17 +13,20 @@ import {
 import { FriendsService } from './friends.service';
 import { FriendRequestDto } from './dto/friend-request.dto';
 import { SessionGuard } from '../../auth/session.guard';
+import { ThrottleGuard } from '../../common/guards/throttle.guard';
+import { Throttle } from '../../common/decorators/throttle.decorator';
+import { parseSub } from '../../auth/cookie.service';
 
 interface SessionRequest {
-  session?: { userId?: number; type?: string };
+  session?: { sub?: string; type?: string };
 }
 
 function getUserId(req: SessionRequest): number {
-  const raw = req.session?.userId;
-  if (typeof raw !== 'number') {
-    throw new Error('no userId in session');
-  }
-  return raw;
+  const sub = req.session?.sub;
+  if (!sub) throw new Error('no userId in session');
+  const { type, numericId } = parseSub(sub);
+  if (type !== 'user') throw new Error('no userId in session');
+  return numericId;
 }
 
 /**
@@ -47,6 +50,17 @@ export class FriendsController {
 
   @Post('request')
   @HttpCode(201)
+  // AC-14-13 — spam suppression: 20 friend-requests per hour per user.
+  // Fail-open: Redis outage must not block social actions; this is advisory,
+  // not a security boundary like login/reset.
+  @UseGuards(ThrottleGuard)
+  @Throttle({
+    scope: 'friend-req',
+    limit: 20,
+    windowMs: 3_600_000,
+    failClosed: false,
+    keyFn: (req: any) => req?.session?.sub ?? 'ip:unknown',
+  })
   request(@Body() dto: FriendRequestDto, @Req() req: SessionRequest) {
     return this.service.request({
       requesterId: getUserId(req),

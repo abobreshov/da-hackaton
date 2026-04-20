@@ -18,7 +18,7 @@ jest.mock('../config/environment', () => ({
 }));
 
 import { JwtService } from '@nestjs/jwt';
-import { CookieService, SessionPayload } from './cookie.service';
+import { CookieService, SessionPayload, makeSub, parseSub } from './cookie.service';
 
 function makeReply() {
   return {
@@ -35,6 +35,27 @@ function makeReq(cookies: Record<string, string> = {}, unsigned: Record<string, 
   } as any;
 }
 
+describe('makeSub / parseSub', () => {
+  it('makeSub builds the `u:<id>` / `a:<id>` form', () => {
+    expect(makeSub('user', 7)).toBe('u:7');
+    expect(makeSub('admin', 42)).toBe('a:42');
+  });
+
+  it('parseSub reverses makeSub', () => {
+    expect(parseSub('u:7')).toEqual({ type: 'user', numericId: 7 });
+    expect(parseSub('a:42')).toEqual({ type: 'admin', numericId: 42 });
+  });
+
+  it('parseSub throws on malformed input', () => {
+    expect(() => parseSub('' as any)).toThrow();
+    expect(() => parseSub('garbage')).toThrow();
+    expect(() => parseSub('x:1')).toThrow();
+    expect(() => parseSub('u:abc')).toThrow();
+    expect(() => parseSub('u:-1')).toThrow();
+    expect(() => parseSub('u:0')).toThrow();
+  });
+});
+
 describe('CookieService', () => {
   let jwt: JwtService;
   let svc: CookieService;
@@ -48,7 +69,7 @@ describe('CookieService', () => {
     it('signs the payload as a JWT and sets a fastify-signed cookie', () => {
       const reply = makeReply();
       const payload: Omit<SessionPayload, 'iat' | 'exp'> = {
-        userId: 7,
+        sub: makeSub('user', 7),
         email: 'a@b.com',
         name: 'alice',
         type: 'user',
@@ -103,7 +124,7 @@ describe('CookieService', () => {
     it('sets both session and refresh cookies in one call', () => {
       const reply = makeReply();
       const session: Omit<SessionPayload, 'iat' | 'exp'> = {
-        adminId: 1,
+        sub: makeSub('admin', 1),
         email: 'x@y',
         name: 'admin',
         type: 'admin',
@@ -162,7 +183,7 @@ describe('CookieService', () => {
     it('roundtrips sign → verify with the configured secret', () => {
       const reply = makeReply();
       svc.setSessionCookie(reply as any, {
-        userId: 11,
+        sub: makeSub('user', 11),
         email: 'r@t.com',
         name: 'r',
         type: 'user',
@@ -171,7 +192,7 @@ describe('CookieService', () => {
       const token = reply.setCookie.mock.calls[0][1];
       const decoded = svc.verifySession(token);
       expect(decoded).toEqual(
-        expect.objectContaining({ userId: 11, email: 'r@t.com', type: 'user' }),
+        expect.objectContaining({ sub: 'u:11', email: 'r@t.com', type: 'user' }),
       );
       // JwtService adds iat/exp → presence proves real signing ran.
       expect(typeof decoded!.iat).toBe('number');
@@ -180,9 +201,10 @@ describe('CookieService', () => {
 
     it('returns null for a token signed with a different secret', () => {
       const otherJwt = new JwtService({});
-      const bad = otherJwt.sign({ userId: 1, email: 'x', name: 'x', type: 'user', scopes: [] }, {
-        secret: 'z'.repeat(32),
-      });
+      const bad = otherJwt.sign(
+        { sub: 'u:1', email: 'x', name: 'x', type: 'user', scopes: [] },
+        { secret: 'z'.repeat(32) },
+      );
       expect(svc.verifySession(bad)).toBeNull();
     });
 
@@ -193,7 +215,7 @@ describe('CookieService', () => {
     it('returns null for an expired token', () => {
       // Sign with past exp.
       const tok = jwt.sign(
-        { userId: 1, email: 'x', name: 'x', type: 'user', scopes: [] },
+        { sub: 'u:1', email: 'x', name: 'x', type: 'user', scopes: [] },
         { secret: 's'.repeat(32), expiresIn: -10 },
       );
       expect(svc.verifySession(tok)).toBeNull();

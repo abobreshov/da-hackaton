@@ -48,6 +48,16 @@ export interface InsertInvitationInput {
 }
 
 /**
+ * Partial-update shape for EPIC-05 AC-05-13 (owner PATCH). Fields left
+ * `undefined` are not changed; explicit `null` on `description` clears it.
+ */
+export interface UpdateRoomInput {
+  name?: string;
+  description?: string | null;
+  visibility?: RoomVisibility;
+}
+
+/**
  * Shape returned from `findMembersWithUsernames` — a join across
  * `room_memberships` + `users` used to populate the member pane on
  * `room.join` ack (EPIC-03 AC-03-09) and the BFF fanout fallback.
@@ -84,6 +94,13 @@ export interface RoomsRepositoryPort {
    * AC-15-13).
    */
   findMembersWithUsernames(roomId: number): Promise<MemberWithUsername[]>;
+
+  /**
+   * Partial-update for EPIC-05 AC-05-13. Returns the updated row or null
+   * if the row is missing / soft-deleted. The service layer has already
+   * enforced the owner-only rule before calling.
+   */
+  updateRoom(id: number, patch: UpdateRoomInput): Promise<RoomRow | null>;
 }
 
 export const ROOMS_REPOSITORY = 'ROOMS_REPOSITORY';

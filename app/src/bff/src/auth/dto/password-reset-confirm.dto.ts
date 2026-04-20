@@ -1,4 +1,5 @@
-import { IsString, MinLength, MaxLength } from 'class-validator';
+import { IsString, MinLength, MaxLength, Matches } from 'class-validator';
+import { PASSWORD_MAX, PASSWORD_MIN } from '@app/contracts';
 
 export class PasswordResetConfirmDto {
   @IsString()
@@ -7,7 +8,10 @@ export class PasswordResetConfirmDto {
   token!: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
+  @MinLength(PASSWORD_MIN)
+  @MaxLength(PASSWORD_MAX)
+  @Matches(/[a-z]/, { message: 'password must contain a lowercase letter' })
+  @Matches(/[A-Z]/, { message: 'password must contain an uppercase letter' })
+  @Matches(/\d/, { message: 'password must contain a digit' })
   newPassword!: string;
 }

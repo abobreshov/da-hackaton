@@ -143,6 +143,29 @@ class FakeRoomsRepository implements RoomsRepositoryPort {
         };
       });
   }
+
+  async updateRoom(id: number, patch: {
+    name?: string;
+    description?: string | null;
+    visibility?: 'public' | 'private';
+  }): Promise<RoomRow | null> {
+    const row = this.rooms.find((r) => r.id === id && r.deletedAt == null);
+    if (!row) return null;
+    if (patch.name !== undefined) {
+      const clash = this.rooms.find(
+        (r) => r.id !== id && r.name === patch.name && r.deletedAt == null,
+      );
+      if (clash) {
+        const err: any = new Error('duplicate key value violates unique constraint');
+        err.code = '23505';
+        throw err;
+      }
+      row.name = patch.name;
+    }
+    if (patch.description !== undefined) row.description = patch.description;
+    if (patch.visibility !== undefined) row.visibility = patch.visibility;
+    return { ...row };
+  }
 }
 
 const OWNER = 1;
@@ -541,6 +564,139 @@ describe('RoomsService', () => {
       await expect(
         service.ensureMember({ roomId: 9999, userId: OWNER }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('update (EPIC-05 AC-05-13 — owner PATCH)', () => {
+    it('updates name/description/visibility when actor is the owner', async () => {
+      const r = await service.create({
+        ownerId: OWNER,
+        name: 'orig-name',
+        visibility: 'public',
+        description: 'old',
+      });
+      const updated = await service.update({
+        roomId: r.id,
+        actorId: OWNER,
+        patch: { name: 'new-name', description: 'fresh', visibility: 'private' },
+      });
+      expect(updated).toMatchObject({
+        id: r.id,
+        name: 'new-name',
+        description: 'fresh',
+        visibility: 'private',
+      });
+    });
+
+    it('visibility flip public -> private is allowed for owner', async () => {
+      const r = await service.create({
+        ownerId: OWNER,
+        name: 'flip',
+        visibility: 'public',
+      });
+      const updated = await service.update({
+        roomId: r.id,
+        actorId: OWNER,
+        patch: { visibility: 'private' },
+      });
+      expect(updated.visibility).toBe('private');
+    });
+
+    it('rejects non-owner actor with ForbiddenException', async () => {
+      const r = await service.create({
+        ownerId: OWNER,
+        name: 'private-club',
+        visibility: 'public',
+      });
+      // MEMBER joins; they're still not the owner.
+      await service.join({ userId: MEMBER, roomId: r.id });
+      await expect(
+        service.update({
+          roomId: r.id,
+          actorId: MEMBER,
+          patch: { name: 'hijacked' },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects admin (non-owner) — update is owner-only', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'admin-test', visibility: 'public' });
+      // Promote MEMBER to admin via repo (service lacks promote here; fake it).
+      await repo.insertMembership({ roomId: r.id, userId: MEMBER, role: 'admin' });
+      await expect(
+        service.update({
+          roomId: r.id,
+          actorId: MEMBER,
+          patch: { name: 'nope' },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws ConflictException on duplicate name (409)', async () => {
+      await service.create({ ownerId: OWNER, name: 'taken', visibility: 'public' });
+      const mine = await service.create({ ownerId: OWNER, name: 'mine', visibility: 'public' });
+      await expect(
+        service.update({
+          roomId: mine.id,
+          actorId: OWNER,
+          patch: { name: 'taken' },
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws NotFoundException for missing room', async () => {
+      await expect(
+        service.update({
+          roomId: 9999,
+          actorId: OWNER,
+          patch: { name: 'x' },
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws NotFoundException for soft-deleted room', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'gone', visibility: 'public' });
+      repo.rooms.find((rr) => rr.id === r.id)!.deletedAt = new Date();
+      await expect(
+        service.update({
+          roomId: r.id,
+          actorId: OWNER,
+          patch: { name: 'x' },
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects invalid visibility', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'bad-vis', visibility: 'public' });
+      await expect(
+        service.update({
+          roomId: r.id,
+          actorId: OWNER,
+          // @ts-expect-error deliberately invalid
+          patch: { visibility: 'hybrid' },
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects empty name', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'name-test', visibility: 'public' });
+      await expect(
+        service.update({
+          roomId: r.id,
+          actorId: OWNER,
+          patch: { name: '   ' },
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('is a no-op when patch is empty (returns current row)', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'noop', visibility: 'public' });
+      const updated = await service.update({
+        roomId: r.id,
+        actorId: OWNER,
+        patch: {},
+      });
+      expect(updated).toMatchObject({ id: r.id, name: 'noop' });
     });
   });
 });

@@ -1,5 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { CookieService } from './cookie.service';
+import { CookieService, makeSub } from './cookie.service';
 import { AuthService } from './auth.service';
 
 @Injectable()
@@ -23,7 +23,11 @@ export class SessionGuard implements CanActivate {
       }
     }
 
-    // Slow path: use refresh token
+    // Slow path: use refresh token.
+    //
+    // The refresh cookie's `a:` / `u:` prefix is independent of the session
+    // JWT's `sub` prefix — it comes from auth-service's refresh-token store,
+    // not our claims shape. Routing on it stays as-is.
     const refreshToken = this.cookieService.readRefreshCookie(req);
     if (!refreshToken) throw new UnauthorizedException('Not authenticated');
 
@@ -32,34 +36,30 @@ export class SessionGuard implements CanActivate {
       if (refreshToken.startsWith('a:')) {
         result = await this.authService.refreshAdmin(refreshToken);
         const { admin, refreshToken: newRefresh } = result;
-        this.cookieService.setSessionCookie(reply, {
-          adminId: admin.id,
+        const session = {
+          sub: makeSub('admin', admin.id),
           email: admin.email,
           name: admin.name,
-          type: 'admin',
-          scopes: [],
-        });
-        this.cookieService.setRefreshCookie(reply, newRefresh);
-        req.session = {
-          adminId: admin.id,
-          email: admin.email,
-          name: admin.name,
-          type: 'admin',
+          type: 'admin' as const,
           scopes: [],
         };
+        this.cookieService.setSessionCookie(reply, session);
+        this.cookieService.setRefreshCookie(reply, newRefresh);
+        req.session = session;
       } else {
         result = await this.authService.refreshUser(refreshToken);
         const { user, refreshToken: newRefresh } = result;
         const scopes = user.scopes ?? [];
-        this.cookieService.setSessionCookie(reply, {
-          userId: user.id,
+        const session = {
+          sub: makeSub('user', user.id),
           email: user.email,
           name: user.name,
-          type: 'user',
+          type: 'user' as const,
           scopes,
-        });
+        };
+        this.cookieService.setSessionCookie(reply, session);
         this.cookieService.setRefreshCookie(reply, newRefresh);
-        req.session = { userId: user.id, email: user.email, name: user.name, type: 'user', scopes };
+        req.session = session;
       }
       return true;
     } catch {

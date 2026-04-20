@@ -5,6 +5,9 @@ import { RegisterPage } from '../pages/register.page';
 import { RoomsPage } from '../pages/rooms.page';
 import { RoomDetailPage } from '../pages/room-detail.page';
 import { ContactsPage } from '../pages/contacts.page';
+import { RoomChatPage } from '../pages/room-chat.page';
+import { DmChatPage } from '../pages/dm-chat.page';
+import { AdminPage } from '../pages/admin.page';
 
 type Pages = {
   loginPage: LoginPage;
@@ -13,6 +16,9 @@ type Pages = {
   roomsPage: RoomsPage;
   roomDetailPage: RoomDetailPage;
   contactsPage: ContactsPage;
+  roomChatPage: RoomChatPage;
+  dmChatPage: DmChatPage;
+  adminPage: AdminPage;
 };
 
 export const test = base.extend<Pages>({
@@ -33,6 +39,15 @@ export const test = base.extend<Pages>({
   },
   contactsPage: async ({ page }, use) => {
     await use(new ContactsPage(page));
+  },
+  roomChatPage: async ({ page }, use) => {
+    await use(new RoomChatPage(page));
+  },
+  dmChatPage: async ({ page }, use) => {
+    await use(new DmChatPage(page));
+  },
+  adminPage: async ({ page }, use) => {
+    await use(new AdminPage(page));
   },
 });
 

@@ -3,6 +3,10 @@ process.env.JWT_ADMIN_SECRET = process.env.JWT_ADMIN_SECRET ?? 'x'.repeat(48);
 process.env.JWT_CUSTOMER_SECRET = process.env.JWT_CUSTOMER_SECRET ?? 'y'.repeat(48);
 process.env.SYSTEM_KEY = process.env.SYSTEM_KEY ?? 'z'.repeat(48);
 process.env.JWT_ACCESS_TOKEN_EXPIRATION = process.env.JWT_ACCESS_TOKEN_EXPIRATION ?? '15m';
+// Default for the suite: admin accounts must have 2FA. Individual tests that
+// exercise the dev escape hatch flip this before importing the service via
+// jest.resetModules() below.
+process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN = process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN ?? 'false';
 
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AdminAuthService } from './admin-auth.service';
@@ -40,8 +44,8 @@ function baseAdmin(overrides: Partial<Record<string, unknown>> = {}) {
     email: 'admin@example.com',
     name: 'admin',
     passwordHash: 'hashed',
-    twoFactorEnabled: false,
-    twoFactorSecret: null,
+    twoFactorEnabled: true,
+    twoFactorSecret: 'SEC',
     accessStatus: 'ACTIVE',
     ...overrides,
   };
@@ -72,6 +76,7 @@ describe('AdminAuthService', () => {
     } as any;
     totp = {
       verify: jest.fn().mockReturnValue(true),
+      verifyWithReplayGuard: jest.fn().mockResolvedValue(true),
       generateSecret: jest.fn(),
       generateQrCode: jest.fn(),
     } as any;
@@ -101,47 +106,59 @@ describe('AdminAuthService', () => {
       );
     });
 
-    it('returns { requires2fa: true } when 2FA enabled and no code supplied', async () => {
+    // ---- Fix 3 — admin TOTP enforcement ----
+
+    it('refuses login when admin has twoFactorEnabled=false (OWASP A07)', async () => {
       deps.selectBuilder.__setTerminal('limit', [
-        baseAdmin({ twoFactorEnabled: true, twoFactorSecret: 'SEC' }),
+        baseAdmin({ twoFactorEnabled: false, twoFactorSecret: null }),
       ]);
+      const promise = svc.login({ email: 'admin@example.com', password: 'pw' });
+      await expect(promise).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(promise).rejects.toThrow(/two-factor authentication/i);
+      expect(refresh.create).not.toHaveBeenCalled();
+      expect(jwt.signAdmin).not.toHaveBeenCalled();
+    });
+
+    it('returns { requires2fa: true } when 2FA enabled and no code supplied', async () => {
+      deps.selectBuilder.__setTerminal('limit', [baseAdmin()]);
       await expect(
         svc.login({ email: 'admin@example.com', password: 'pw' }),
       ).resolves.toEqual({ requires2fa: true });
     });
 
     it('throws UnauthorizedException on invalid totpCode', async () => {
-      deps.selectBuilder.__setTerminal('limit', [
-        baseAdmin({ twoFactorEnabled: true, twoFactorSecret: 'SEC' }),
-      ]);
-      totp.verify.mockReturnValue(false);
+      deps.selectBuilder.__setTerminal('limit', [baseAdmin()]);
+      totp.verifyWithReplayGuard.mockResolvedValue(false);
       await expect(
         svc.login({ email: 'admin@example.com', password: 'pw', totpCode: '000000' }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
-    it('issues access+refresh tokens on success', async () => {
-      const admin = baseAdmin();
-      deps.selectBuilder.__setTerminal('limit', [admin]);
-      const result = await svc.login({ email: admin.email, password: 'pw' });
-      expect(jwt.signAdmin).toHaveBeenCalledWith({ adminId: admin.id, email: admin.email });
-      expect(refresh.create).toHaveBeenCalledWith('a', admin.id);
-      expect(result).toMatchObject({
-        admin: { id: admin.id, email: admin.email, name: admin.name },
-        accessToken: 'admin.jwt',
-        refreshToken: 'a:1:abcd',
-      });
+    it('uses verifyWithReplayGuard (scope=a, fail-closed) for admin TOTP checks', async () => {
+      deps.selectBuilder.__setTerminal('limit', [baseAdmin()]);
+      await svc.login({ email: 'admin@example.com', password: 'pw', totpCode: '123456' });
+      expect(totp.verifyWithReplayGuard).toHaveBeenCalledWith(
+        1,
+        '123456',
+        'SEC',
+        expect.objectContaining({ scope: 'a' }),
+      );
     });
 
     it('issues tokens after valid totpCode', async () => {
-      const admin = baseAdmin({ twoFactorEnabled: true, twoFactorSecret: 'SEC' });
+      const admin = baseAdmin();
       deps.selectBuilder.__setTerminal('limit', [admin]);
       const result = await svc.login({
         email: admin.email,
         password: 'pw',
         totpCode: '123456',
       });
-      expect(totp.verify).toHaveBeenCalledWith('123456', 'SEC');
+      expect(totp.verifyWithReplayGuard).toHaveBeenCalledWith(
+        admin.id,
+        '123456',
+        'SEC',
+        expect.objectContaining({ scope: 'a' }),
+      );
       expect(result).toMatchObject({ accessToken: 'admin.jwt' });
     });
   });
@@ -193,5 +210,51 @@ describe('AdminAuthService', () => {
       await svc.logout('a:7:abcdef');
       expect(refresh.revoke).toHaveBeenCalledWith('a', 7, 'a:7:abcdef');
     });
+  });
+});
+
+// Separate describe block: flips the env escape-hatch before importing the
+// service so the zod-parsed `env` sees the override. Uses jest.isolateModules
+// to re-run config parsing in a fresh module registry.
+describe('AdminAuthService — ALLOW_PASSWORD_ONLY_ADMIN_LOGIN escape hatch', () => {
+  it('permits password-only admin login when the flag is true', async () => {
+    const prev = process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN;
+    process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN = 'true';
+    try {
+      let svc: AdminAuthService;
+      let deps: ReturnType<typeof makeDb>;
+      await jest.isolateModulesAsync(async () => {
+        const { AdminAuthService: Fresh } = await import('./admin-auth.service');
+        deps = makeDb();
+        const pw = { hash: jest.fn(), compare: jest.fn().mockResolvedValue(true) } as any;
+        const jwtSvc = {
+          signAdmin: jest.fn().mockReturnValue('admin.jwt'),
+          signUser: jest.fn(),
+          verifyAdmin: jest.fn(),
+          verifyUser: jest.fn(),
+        } as any;
+        const refresh = {
+          create: jest.fn().mockResolvedValue('a:1:abcd'),
+          validateAndRotate: jest.fn(),
+          revoke: jest.fn(),
+          revokeAll: jest.fn(),
+        } as any;
+        const totp = {
+          verify: jest.fn(),
+          verifyWithReplayGuard: jest.fn(),
+          generateSecret: jest.fn(),
+          generateQrCode: jest.fn(),
+        } as any;
+        svc = new Fresh(deps.db, pw, jwtSvc, refresh, totp);
+        deps.selectBuilder.__setTerminal('limit', [
+          baseAdmin({ twoFactorEnabled: false, twoFactorSecret: null }),
+        ]);
+        const result = await svc.login({ email: 'admin@example.com', password: 'pw' });
+        expect(result).toMatchObject({ accessToken: 'admin.jwt' });
+        expect(totp.verifyWithReplayGuard).not.toHaveBeenCalled();
+      });
+    } finally {
+      process.env.ALLOW_PASSWORD_ONLY_ADMIN_LOGIN = prev;
+    }
   });
 });

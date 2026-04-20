@@ -12,7 +12,7 @@ import { FormError } from '@/components/ui/form-error';
 import { Icon } from '@/components/ui/icon';
 import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { ApiError, isErrorCode } from '@/lib/api-client';
-import { ErrorCode } from '@app/contracts';
+import { ErrorCode, emailSchema, passwordSchema } from '@app/contracts';
 
 const searchSchema = z.object({
   token: z.string().optional(),
@@ -23,9 +23,11 @@ export const Route = createFileRoute('/reset-password')({
   component: ResetPasswordPage,
 });
 
-const requestSchema = z.object({ email: z.string().email() });
+const requestSchema = z.object({ email: emailSchema });
 const confirmSchema = z.object({
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  // Reset-confirm is the right place to enforce the strong-password rule —
+  // the user is choosing a brand-new password, not proving an old identity.
+  newPassword: passwordSchema,
 });
 type RequestData = z.infer<typeof requestSchema>;
 type ConfirmData = z.infer<typeof confirmSchema>;

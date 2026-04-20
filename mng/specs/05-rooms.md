@@ -21,6 +21,7 @@ Create, list, join, leave rooms. Public catalog with search. Private room invita
 | AC-05-10 | Deleting room deletes all messages + attachments permanently |
 | AC-05-11 | User can invite another user to private room |
 | AC-05-12 | Indexes: room_memberships(user_id) for "my rooms"; room_invitations(invitee_id) partial WHERE pending for invite pane |
+| AC-05-13 | Owner can PATCH room name (UNIQUE enforced + 409 on collision), description, visibility. `private`→`public` does not retroactively surface prior messages; `public`→`private` does not evict current members. |
 
 ## Data model
 
@@ -68,6 +69,7 @@ CREATE INDEX room_invitations_invitee_pending_idx
 - `GET /api/v1/rooms/my` → rooms user member of
 - `GET /api/v1/rooms/:id` → room detail (403 if not member/public)
 - `DELETE /api/v1/rooms/:id` (owner)
+- `PATCH /api/v1/rooms/:id` `{name?, description?, visibility?}` → 200 `{room}` (owner-only)
 - `POST /api/v1/rooms/:id/join`
 - `POST /api/v1/rooms/:id/leave`
 - `POST /api/v1/rooms/:id/invitations` `{invitedUserId}`
@@ -80,6 +82,9 @@ CREATE INDEX room_invitations_invitee_pending_idx
 
 ## Dependencies
 EPIC-01.
+
+## Cross-service contracts
+- `TcpCmd.rooms.update: 'rooms.update'`
 
 ## Risks
 Name uniqueness race → unique constraint + retry on conflict.

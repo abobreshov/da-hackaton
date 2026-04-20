@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Session } from './auth';
 import {
+  fromWire,
   hasScope,
   hasAnyScope,
   hasAllScopes,
@@ -50,6 +51,59 @@ describe('auth scope helpers', () => {
 
   it('hasAllScopes — vacuously true for empty required list', () => {
     expect(hasAllScopes(session([]), [])).toBe(true);
+  });
+});
+
+describe('fromWire — OIDC wire → FE Session projection', () => {
+  it('projects a user wire payload onto Session (id from sub)', () => {
+    const out = fromWire({
+      sub: 'u:7',
+      type: 'user',
+      email: 'u@x',
+      name: 'U',
+      scopes: ['chat'],
+    });
+    expect(out).toEqual({
+      id: 7,
+      type: 'user',
+      email: 'u@x',
+      name: 'U',
+      scopes: ['chat'],
+    });
+  });
+
+  it('projects an admin wire payload with `a:` prefix', () => {
+    const out = fromWire({
+      sub: 'a:42',
+      type: 'admin',
+      email: 'admin@x',
+      name: 'A',
+      scopes: [],
+    });
+    expect(out).toEqual({
+      id: 42,
+      type: 'admin',
+      email: 'admin@x',
+      name: 'A',
+      scopes: [],
+    });
+  });
+
+  it('defaults missing/null scopes to []', () => {
+    const out = fromWire({
+      sub: 'u:3',
+      type: 'user',
+      email: 'u@x',
+      name: 'U',
+      scopes: null,
+    });
+    expect(out.scopes).toEqual([]);
+  });
+
+  it('throws on malformed sub', () => {
+    expect(() => fromWire({ sub: 'garbage' } as never)).toThrow();
+    expect(() => fromWire({ sub: 'u:abc' } as never)).toThrow();
+    expect(() => fromWire({ sub: 'u:' } as never)).toThrow();
   });
 });
 
@@ -135,12 +189,14 @@ describe('auth API wrappers', () => {
     expect(init.method).toBe('DELETE');
   });
 
-  it('fetchSession — GETs /auth/session and returns body', async () => {
+  it('fetchSession — GETs /auth/session and projects the OIDC wire shape', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonOk({ email: 'a@b.co', name: 'A', type: 'user', scopes: [] }),
+      jsonOk({ sub: 'u:9', email: 'a@b.co', name: 'A', type: 'user', scopes: [] }),
     );
     const res = await fetchSession();
     expect(res.email).toBe('a@b.co');
+    expect(res.id).toBe(9);
+    expect(res.type).toBe('user');
     const [url, init] = fetchMock.mock.calls[0];
     urlEndsWith(url, '/api/v1/auth/session');
     // fetchSession does not pass init.method explicitly — apiFetch defaults to GET.

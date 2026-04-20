@@ -13,20 +13,21 @@ import { FormError } from '@/components/ui/form-error';
 import { Icon } from '@/components/ui/icon';
 import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { ApiError, isErrorCode } from '@/lib/api-client';
-import { ErrorCode } from '@app/contracts';
+import {
+  ErrorCode,
+  emailSchema,
+  passwordSchema,
+  usernameSchema,
+} from '@app/contracts';
 
 export const Route = createFileRoute('/register')({
   component: RegisterPage,
 });
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  username: z
-    .string()
-    .min(3, 'Username must be at least 3 characters')
-    .max(32, 'Username must be at most 32 characters')
-    .regex(/^[A-Za-z0-9_.-]+$/, 'Only letters, digits, underscore, dot or hyphen'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  email: emailSchema,
+  username: usernameSchema,
+  password: passwordSchema,
 });
 type RegisterData = z.infer<typeof registerSchema>;
 
@@ -48,7 +49,7 @@ export function RegisterPage(): React.ReactElement {
     try {
       const res = await registerUser(data.email, data.username, data.password);
       setSession({
-        userId: res.user.id,
+        id: res.user.id,
         email: res.user.email,
         name: res.user.name,
         type: 'user',

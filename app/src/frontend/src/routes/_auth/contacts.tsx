@@ -14,6 +14,8 @@ import { PresenceDot } from '@/components/presence-dot';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { GlassCard } from '@/components/ui/surface';
+import { UserPopover } from '@/components/user-popover';
 
 export const Route = createFileRoute('/_auth/contacts')({
   component: ContactsRoute,
@@ -127,9 +129,11 @@ export function ContactsRoute() {
       </header>
 
       {/* Add friend form */}
-      <section
+      <GlassCard
+        as="section"
+        radius="lg"
+        padding="md"
         aria-labelledby="add-friend-heading"
-        className="rounded-[2rem] bg-surface-container-lowest/80 p-6 shadow-ambient backdrop-blur-xl"
       >
         <h2
           id="add-friend-heading"
@@ -169,7 +173,7 @@ export function ContactsRoute() {
             {submitError}
           </p>
         )}
-      </section>
+      </GlassCard>
 
       {state.status === 'loading' && (
         <div
@@ -187,8 +191,11 @@ export function ContactsRoute() {
       )}
 
       {state.status === 'error' && (
-        <section
-          className="rounded-[2rem] bg-error-container/70 p-6 shadow-ambient"
+        <GlassCard
+          as="section"
+          tone="error"
+          radius="lg"
+          padding="md"
           role="alert"
         >
           <p className="font-display text-label-lg font-semibold uppercase tracking-[0.18em] text-on-error-container/80">
@@ -202,15 +209,17 @@ export function ContactsRoute() {
               Retry
             </Button>
           </div>
-        </section>
+        </GlassCard>
       )}
 
       {state.status === 'ok' && (
         <>
           {/* Friends pane */}
-          <section
+          <GlassCard
+            as="section"
+            radius="lg"
+            padding="md"
             aria-labelledby="friends-heading"
-            className="rounded-[2rem] bg-surface-container-lowest/80 p-6 shadow-ambient backdrop-blur-xl"
           >
             <h2
               id="friends-heading"
@@ -229,12 +238,21 @@ export function ContactsRoute() {
                     key={f.userId}
                     className="flex items-center justify-between gap-3 rounded-full bg-surface-container-low px-4 py-2"
                   >
-                    <div className="flex items-center gap-3">
-                      <PresenceDot state={presenceFor(f.userId)} />
-                      <span className="font-body text-body-md text-on-surface">
-                        {f.username}
+                    <UserPopover
+                      userId={f.userId}
+                      username={f.username}
+                      isFriend={true}
+                      isBlocked={false}
+                      onClose={() => void load()}
+                      triggerClassName="px-1 py-1"
+                    >
+                      <span className="flex items-center gap-3">
+                        <PresenceDot state={presenceFor(f.userId)} />
+                        <span className="font-body text-body-md text-on-surface">
+                          {f.username}
+                        </span>
                       </span>
-                    </div>
+                    </UserPopover>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -247,12 +265,14 @@ export function ContactsRoute() {
                 ))}
               </ul>
             )}
-          </section>
+          </GlassCard>
 
           {/* Incoming requests */}
-          <section
+          <GlassCard
+            as="section"
+            radius="lg"
+            padding="md"
             aria-labelledby="incoming-heading"
-            className="rounded-[2rem] bg-surface-container-lowest/80 p-6 shadow-ambient backdrop-blur-xl"
           >
             <h2
               id="incoming-heading"
@@ -295,12 +315,14 @@ export function ContactsRoute() {
                 ))}
               </ul>
             )}
-          </section>
+          </GlassCard>
 
           {/* Outgoing requests */}
-          <section
+          <GlassCard
+            as="section"
+            radius="lg"
+            padding="md"
             aria-labelledby="outgoing-heading"
-            className="rounded-[2rem] bg-surface-container-lowest/80 p-6 shadow-ambient backdrop-blur-xl"
           >
             <h2
               id="outgoing-heading"
@@ -329,7 +351,7 @@ export function ContactsRoute() {
                 ))}
               </ul>
             )}
-          </section>
+          </GlassCard>
         </>
       )}
     </div>

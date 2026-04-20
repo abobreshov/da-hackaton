@@ -80,7 +80,7 @@ describe('<Verify2FAPage />', () => {
     });
 
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/dashboard' }));
-    expect(useSession.getState().session?.userId).toBe(42);
+    expect(useSession.getState().session?.id).toBe(42);
   });
 
   it('shows "Invalid code" on TOTP_INVALID error', async () => {

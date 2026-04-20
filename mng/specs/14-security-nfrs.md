@@ -27,7 +27,7 @@ Non-functional security baseline. Rate-limit abuse vectors (login, password-rese
 | AC-14-01 | TLS required in prod deploy (non-TLS traffic 301→https) |
 | AC-14-02 | Cookie-auth state-changing endpoints require CSRF double-submit token |
 | AC-14-03 | WS handshake rejects non-allowed origin (configurable `ALLOWED_WS_ORIGINS` env) |
-| AC-14-04 | Global rate-limit 30 msg/5s per user. Exceed → 429/WS error event |
+| AC-14-04 | `messages.create` rate-limit 30/5s sliding window per user (Redis `ratelimit:msg:{userId}`). Exceed → WS `error` event `{code:'RATE_LIMITED', retryAfterMs}`. `messages.edit`+`messages.delete` share a separate 60/min per user budget (spam guard, not abuse-vector sized). |
 | AC-14-05 | Password-reset email: ≤1/min per email, ≤5/hr per IP. Exceed → 429; no info leak |
 | AC-14-06 | Login: 5 failed attempts / 15min per email → temporary lockout (15min) |
 | AC-14-07 | Bodies sanitized server-side: UTF-8 validated, control chars rejected except \n, \t |

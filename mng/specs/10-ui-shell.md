@@ -23,7 +23,11 @@ Classic web chat shell. Top menu, right sidebar (rooms + contacts), main chat ce
 | AC-10-09 | Unread indicator near room/contact names |
 | AC-10-10 | Admin actions via top menu + modal dialogs (Manage Room, Ban/Unban, Manage admins, View bans, Delete room) |
 | AC-10-11 | Layout targets desktop viewports ≥1024px. Responsive shrink below is best-effort; mobile breakpoints POST-MVP |
-| AC-10-12 | Admin panel MVP surface: only the in-room Manage Room modal (§4.5). Reports queue + audit-log viewer = REST-only; dedicated UI post-MVP. |
+| AC-10-12 | Admin panel MVP surface under `_admin/` layout: `/admin/reports`, `/admin/audit-log`, `/admin/users` (ban/unban), `/admin/rooms` (soft-delete override). Gated by `session.type === 'admin'` via `beforeLoad`. Distinct top-nav; no room/contacts sidebar. |
+| AC-10-13 | Reply quote in MessageList: if parent `deleted_at IS NOT NULL` OR messages.getById 404 → render muted "Replying to deleted message" placeholder in lieu of body. Hydrate missing parents via messages.getById on render, cache in client store. |
+| AC-10-14 | User shell routes under `_auth/` unreachable when `session.type === 'admin'`; admin redirected to `/admin/reports` on login. Conversely, regular users hitting `/admin/*` → redirect to `/dashboard`. |
+| AC-10-15 | UserPopover (trigger: click author name/avatar/mention/friend-row) exposes: Open DM, Add friend, Block (POST /users/:id/ban), Report. After block, popover closes + dm.frozen + friend.removed WS events reconcile UI. |
+| AC-10-16 | Manage Room modal (owner/admin only, accessible from room header): 5 tabs Members / Admins / Banned users / Invitations / Settings per Appendix A.5 wireframe. |
 
 ## Routes (TanStack)
 ```
@@ -62,4 +66,4 @@ Parallel with EPIC-05/06/07.
 Themes, mobile-first responsive. Desktop classic layout only.
 - Mobile-specific layouts / touch gestures / PWA (post-MVP stretch)
 - Dark mode / theming
-- Admin UI for audit_log + abuse_reports queue (MVP uses REST endpoints + Dozzle / devtools; dedicated panel POST-MVP stretch)
+- Admin panel MOVED to scope per updated AC-10-12.

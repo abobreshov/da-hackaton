@@ -80,14 +80,15 @@ describe('/_auth route — beforeLoad gate', () => {
   });
 
   it('populates context.session when a session is returned', async () => {
-    const sessionPayload = {
+    const wirePayload = {
+      sub: 'u:5',
       email: 'u@x',
       name: 'U',
       type: 'user',
       scopes: ['rooms:read'],
     };
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify(sessionPayload), {
+      new Response(JSON.stringify(wirePayload), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -97,7 +98,14 @@ describe('/_auth route — beforeLoad gate', () => {
     await expect(
       getOpts().beforeLoad({ context: { setSession } }),
     ).resolves.toBeUndefined();
-    expect(setSession).toHaveBeenCalledWith(sessionPayload);
+    // fetchSession projects the wire shape via fromWire() → flat `id`.
+    expect(setSession).toHaveBeenCalledWith({
+      id: 5,
+      email: 'u@x',
+      name: 'U',
+      type: 'user',
+      scopes: ['rooms:read'],
+    });
   });
 });
 
@@ -122,6 +130,7 @@ describe('<AuthLayout />', () => {
     });
     useSession.setState({
       session: {
+        id: 1,
         email: 'u@x',
         name: 'User One',
         type: 'user',

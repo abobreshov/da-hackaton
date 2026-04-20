@@ -13,18 +13,30 @@ import { FormError } from '@/components/ui/form-error';
 import { Icon } from '@/components/ui/icon';
 import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { ApiError, isErrorCode } from '@/lib/api-client';
-import { ErrorCode } from '@app/contracts';
+import {
+  ErrorCode,
+  emailSchema,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  totpSchema as sharedTotpSchema,
+} from '@app/contracts';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
+// Login is intentionally lenient — pre-policy users must still be able to
+// sign in, so we do NOT require the strong-password char-class rules here.
+// Length caps still apply as a payload-size guard.
 const credentialsSchema = z.object({
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(8, 'At least 8 characters'),
+  email: emailSchema,
+  password: z
+    .string()
+    .min(PASSWORD_MIN, 'At least 8 characters')
+    .max(PASSWORD_MAX, 'Too long'),
 });
 const totpSchema = z.object({
-  totpCode: z.string().min(6).max(6).regex(/^\d+$/, 'Digits only'),
+  totpCode: sharedTotpSchema,
 });
 type CredentialsData = z.infer<typeof credentialsSchema>;
 type TotpData = z.infer<typeof totpSchema>;
@@ -49,7 +61,7 @@ function LoginPage() {
     const res = await loginUser(email, password, totpCode);
     if ('requires2fa' in res) return 'totp';
     setSession({
-      userId: res.user.id,
+      id: res.user.id,
       email: res.user.email,
       name: res.user.name,
       type: 'user',

@@ -1,12 +1,61 @@
 import { apiFetch } from './api-client';
 
+/**
+ * Frontend-facing session shape.
+ *
+ * The server wire shape is OIDC-aligned (`sub: 'u:<id>' | 'a:<id>'`, `type`,
+ * `email`, `name`, `scopes`). We keep a flattened numeric `id` on the FE so
+ * route code doesn't have to care about the prefix — see {@link fromWire}
+ * below for the projection. When real OIDC lands, `sub` stays on the wire
+ * and only `fromWire()` needs to move.
+ */
 export interface Session {
-  adminId?: number;
-  userId?: number;
+  /** Numeric id — derived from the wire `sub`. Kept to avoid cascading FE edits. */
+  id: number;
+  type: 'user' | 'admin';
   email: string;
   name: string;
-  type: 'admin' | 'user';
   scopes: string[];
+}
+
+/**
+ * Raw `/auth/session` (and `/auth/login` / `/auth/register`) payload.
+ *
+ * Intentionally structural + permissive: BFF currently returns its internal
+ * session blob directly via `{ ...req.session, csrfToken }`, so anything
+ * beyond the claims we care about (e.g. `iat`, `exp`, `csrfToken`) flows
+ * through harmlessly.
+ */
+export interface WireSession {
+  sub: string;
+  type: 'user' | 'admin';
+  email: string;
+  name: string;
+  scopes?: string[] | null;
+}
+
+/**
+ * Project the OIDC wire shape onto the FE-internal `Session`. Throws on a
+ * malformed sub so callers can refuse the login rather than routing around
+ * a zeroed id.
+ */
+export function fromWire(raw: WireSession): Session {
+  if (!raw || typeof raw.sub !== 'string') {
+    throw new Error('invalid session wire payload');
+  }
+  const idx = raw.sub.indexOf(':');
+  if (idx <= 0) throw new Error(`invalid session sub: ${raw.sub}`);
+  const numeric = Number(raw.sub.slice(idx + 1));
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    throw new Error(`invalid session sub (non-numeric id): ${raw.sub}`);
+  }
+  return {
+    id: numeric,
+    type: raw.type,
+    email: raw.email,
+    name: raw.name,
+    scopes: raw.scopes ?? [],
+  };
 }
 
 export const hasScope = (session: Session | null | undefined, scope: string): boolean =>
@@ -18,7 +67,10 @@ export const hasAnyScope = (session: Session | null | undefined, scopes: string[
 export const hasAllScopes = (session: Session | null | undefined, scopes: string[]): boolean =>
   !!scopes.every((s) => session?.scopes?.includes(s));
 
-export const fetchSession = (): Promise<Session> => apiFetch('/api/v1/auth/session');
+export const fetchSession = async (): Promise<Session> => {
+  const raw = await apiFetch<WireSession>('/api/v1/auth/session');
+  return fromWire(raw);
+};
 
 export const loginAdmin = (
   email: string,

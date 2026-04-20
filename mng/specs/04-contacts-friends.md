@@ -23,6 +23,7 @@ Friend graph + per-user bans. Enable DM eligibility (§2.3.6). EPIC-04 owns atom
 | AC-04-12 | Account deletion: cascade (rooms, messages, attachments, friendships, bans) runs as async BullMQ job (consumer per EPIC-11); user sees immediate 204, cleanup completes eventually |
 | AC-04-13 | Friendships indexed for O(log n) lookup by either side; user_bans indexed by banned_id for "who banned me" queries |
 | AC-04-14 | Cascade enqueue owned by backend. Auth-service invokes TCP `users.cascade.enqueue`; backend writes to BullMQ queue `user.cascade.delete`. Auth-service does not hold BullMQ client. |
+| AC-04-15 | Block action surfaced from UserPopover only (see EPIC-10 AC-10-15). No bulk block UI for MVP. Entry points: friend row in /contacts, DM header, message-author avatar/name click, mention chip click, room member pane row. |
 
 ## Data model
 

@@ -12,6 +12,7 @@ import {
   MembershipRow,
   RoomRow,
   RoomsRepositoryPort,
+  UpdateRoomInput,
 } from './rooms.types';
 
 /**
@@ -125,6 +126,22 @@ export class DrizzleRoomsRepository implements RoomsRepositoryPort {
       })
       .returning();
     return row as unknown as InvitationRow;
+  }
+
+  async updateRoom(id: number, patch: UpdateRoomInput): Promise<RoomRow | null> {
+    const set: Record<string, unknown> = {};
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.description !== undefined) set.description = patch.description;
+    if (patch.visibility !== undefined) set.visibility = patch.visibility;
+    if (Object.keys(set).length === 0) {
+      return this.findRoomById(id);
+    }
+    const [row] = await this.db
+      .update(rooms)
+      .set(set)
+      .where(and(eq(rooms.id, id), isNull(rooms.deletedAt)))
+      .returning();
+    return (row as unknown as RoomRow) ?? null;
   }
 
   async findMembersWithUsernames(roomId: number): Promise<MemberWithUsername[]> {

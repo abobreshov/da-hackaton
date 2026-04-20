@@ -8,6 +8,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  useNavigate: () => vi.fn(),
 }));
 
 import { Route } from './contacts';
@@ -170,6 +171,36 @@ describe('<ContactsRoute /> (/contacts)', () => {
     await waitFor(() => {
       expect(screen.getByText('dana')).toBeInTheDocument();
     });
+  });
+
+  it('opens UserPopover when a friend name is clicked and exposes Block action', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        friends: [{ userId: 1, username: 'alice' }],
+        incoming: [],
+        outgoing: [],
+      }),
+    );
+    const Contacts = getComponent();
+    render(<Contacts />);
+    await waitFor(() => {
+      expect(screen.getByText('alice')).toBeInTheDocument();
+    });
+
+    // There is a popover trigger next to the friend row.
+    const triggers = screen.getAllByTestId('user-popover-trigger');
+    expect(triggers.length).toBeGreaterThanOrEqual(1);
+
+    await act(async () => {
+      fireEvent.click(triggers[0]);
+    });
+
+    // Popover is open and shows expected actions for a friend (isFriend=true, isBlocked=false).
+    expect(screen.getByTestId('user-popover')).toBeInTheDocument();
+    expect(screen.getByTestId('user-popover-action-open-dm')).toBeInTheDocument();
+    expect(screen.getByTestId('user-popover-action-remove-friend')).toBeInTheDocument();
+    expect(screen.getByTestId('user-popover-action-block')).toBeInTheDocument();
+    expect(screen.getByTestId('user-popover-action-report')).toBeInTheDocument();
   });
 
   it('renders a WireError message when the fetch fails', async () => {

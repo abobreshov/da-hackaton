@@ -23,6 +23,18 @@ export interface InviteInput {
   roomId: number;
 }
 
+export interface UpdateRoomPatch {
+  name?: string;
+  description?: string;
+  visibility?: 'public' | 'private';
+}
+
+export interface UpdateRoomInput {
+  roomId: number;
+  actorId: number;
+  patch: UpdateRoomPatch;
+}
+
 @Injectable()
 export class RoomsService {
   constructor(@Inject(BACKEND_SERVICE) private readonly client: ClientProxy) {}
@@ -51,5 +63,9 @@ export class RoomsService {
 
   invite(input: InviteInput) {
     return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.invite }, withSys({ ...input })));
+  }
+
+  update(input: UpdateRoomInput) {
+    return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.update }, withSys({ ...input })));
   }
 }

@@ -10,6 +10,7 @@ import { BansModule } from './modules/bans/bans.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { AbuseReportsModule } from './modules/abuse-reports/abuse-reports.module';
+import { MessagesModule } from './modules/messages/messages.module';
 import { HealthController } from './modules/health/health.controller';
 import { SystemKeyRpcGuard } from './common/rpc-transport';
 import { WorkersModule } from './workers/workers.module';
@@ -30,6 +31,7 @@ import { PresenceModule } from './modules/presence/presence.module';
     AuditModule,
     ModerationModule,
     AbuseReportsModule,
+    MessagesModule,
     WorkersModule,
   ],
   controllers: [HealthController],

@@ -53,6 +53,37 @@ describe('CacheService', () => {
     });
   });
 
+  describe('setNx', () => {
+    it('returns true and stores the value when the key is new', async () => {
+      await expect(svc.setNx('nx', 'first', 60)).resolves.toBe(true);
+      await expect(svc.get('nx')).resolves.toBe('first');
+    });
+
+    it('returns false and leaves the existing value untouched on collision', async () => {
+      await svc.setNx('nx', 'first', 60);
+      await expect(svc.setNx('nx', 'second', 60)).resolves.toBe(false);
+      await expect(svc.get('nx')).resolves.toBe('first');
+    });
+
+    it('applies the TTL', async () => {
+      await svc.setNx('nx', 'v', 45);
+      const ttl = await (svc.client as unknown as { ttl: (k: string) => Promise<number> }).ttl('nx');
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl).toBeLessThanOrEqual(45);
+    });
+  });
+
+  describe('exists', () => {
+    it('returns false for a missing key', async () => {
+      await expect(svc.exists('missing')).resolves.toBe(false);
+    });
+
+    it('returns true for a present key', async () => {
+      await svc.set('k', 'v', 60);
+      await expect(svc.exists('k')).resolves.toBe(true);
+    });
+  });
+
   describe('set/srem/smembers', () => {
     it('sadd adds members, smembers lists them, srem removes them', async () => {
       await svc.sadd('s', 'x', 'y', 'z');

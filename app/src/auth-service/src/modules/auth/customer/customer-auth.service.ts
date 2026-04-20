@@ -28,7 +28,7 @@ import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
 import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { PasswordChangeDto } from './dto/password-change.dto';
 
-/** Shape thrown to HTTP / mapped by toRpc for TCP. */
+/** Shape thrown to HTTP / mapped by RpcExceptionFilter for TCP. */
 function wire(status: HttpStatus, code: ErrorCode, message: string): HttpException {
   const body: WireError = { code, message };
   return new HttpException(body, status);
@@ -63,7 +63,13 @@ export class CustomerAuthService {
       if (!dto.totpCode) {
         return { requires2fa: true as const };
       }
-      if (!this.totpService.verify(dto.totpCode, user.twoFactorSecret!)) {
+      const ok = await this.totpService.verifyWithReplayGuard(
+        user.id,
+        dto.totpCode,
+        user.twoFactorSecret!,
+        { scope: 'u' },
+      );
+      if (!ok) {
         throw new UnauthorizedException('Invalid TOTP code');
       }
     }

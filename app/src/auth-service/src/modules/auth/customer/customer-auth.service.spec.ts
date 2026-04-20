@@ -130,6 +130,7 @@ function makeTotpService(): jest.Mocked<TotpService> {
     generateSecret: jest.fn().mockReturnValue('SECRET'),
     generateQrCode: jest.fn().mockResolvedValue('data:image/png;base64,x'),
     verify: jest.fn().mockReturnValue(true),
+    verifyWithReplayGuard: jest.fn().mockResolvedValue(true),
   } as any;
 }
 
@@ -241,7 +242,7 @@ describe('CustomerAuthService', () => {
       deps.selectBuilder.__setTerminal('limit', [
         baseUser({ twoFactorEnabled: true, twoFactorSecret: 'SEC' }),
       ]);
-      totp.verify.mockReturnValue(false);
+      totp.verifyWithReplayGuard.mockResolvedValue(false);
       await expect(
         svc.login({ email: 'u@example.com', password: 'pw', totpCode: '000000' }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
@@ -281,13 +282,18 @@ describe('CustomerAuthService', () => {
     it('issues tokens after valid totpCode when 2FA enabled', async () => {
       const user = baseUser({ twoFactorEnabled: true, twoFactorSecret: 'SEC' });
       deps.selectBuilder.__setTerminal('limit', [user]);
-      totp.verify.mockReturnValue(true);
+      totp.verifyWithReplayGuard.mockResolvedValue(true);
       const result = await svc.login({
         email: user.email,
         password: 'pw',
         totpCode: '123456',
       });
-      expect(totp.verify).toHaveBeenCalledWith('123456', 'SEC');
+      expect(totp.verifyWithReplayGuard).toHaveBeenCalledWith(
+        user.id,
+        '123456',
+        'SEC',
+        expect.objectContaining({ scope: 'u' }),
+      );
       expect(result).toMatchObject({ accessToken: 'user.jwt' });
     });
   });

@@ -1,16 +1,19 @@
 import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { PASSWORD_MAX } from '@app/contracts';
 
 export class PasswordChangeDto {
+  // currentPassword is the legacy credential the user is about to retire;
+  // cap length but don't enforce the strong-password rule on it.
   @IsString()
   @MinLength(1)
-  @MaxLength(128)
+  @MaxLength(PASSWORD_MAX)
   currentPassword!: string;
 
   @IsString()
   @MinLength(8)
-  @MaxLength(128)
+  @MaxLength(PASSWORD_MAX)
   @Matches(/[a-z]/, { message: 'password must contain a lowercase letter' })
   @Matches(/[A-Z]/, { message: 'password must contain an uppercase letter' })
-  @Matches(/[0-9]/, { message: 'password must contain a digit' })
+  @Matches(/\d/, { message: 'password must contain a digit' })
   newPassword!: string;
 }

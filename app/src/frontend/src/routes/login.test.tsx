@@ -84,7 +84,7 @@ describe('<LoginPage />', () => {
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/dashboard' }));
     const stored = useSession.getState().session;
     expect(stored?.email).toBe('u@example.com');
-    expect(stored?.userId).toBe(17);
+    expect(stored?.id).toBe(17);
     expect(stored?.scopes).toEqual(['rooms:read']);
   });
 
@@ -144,7 +144,7 @@ describe('<LoginPage />', () => {
     });
 
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/dashboard' }));
-    expect(useSession.getState().session?.userId).toBe(42);
+    expect(useSession.getState().session?.id).toBe(42);
   });
 
   it('TOTP step — shows "Invalid code" when server still returns requires2fa', async () => {

@@ -26,9 +26,11 @@ function shouldFailClosed(opts: ThrottleOptions): boolean {
 }
 
 function defaultKey(req: any): string {
-  const session = req?.session;
-  if (session?.userId) return `u:${session.userId}`;
-  if (session?.adminId) return `a:${session.adminId}`;
+  // `session.sub` is already the OIDC-style `u:{id}` / `a:{id}` identity
+  // string, which matches the rate-limit key format we've always used —
+  // so use it directly rather than re-parsing into numeric id + prefix.
+  const sub = req?.session?.sub;
+  if (typeof sub === 'string' && sub.length > 0) return sub;
   return `ip:${req?.ip ?? req?.socket?.remoteAddress ?? 'unknown'}`;
 }
 

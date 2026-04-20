@@ -89,7 +89,7 @@ describe('AuthController — new endpoints', () => {
 
       expect(authSvc.register).toHaveBeenCalledWith('a@b.com', 'alice', 'pw12345678');
       expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
-        userId: 42,
+        sub: 'u:42',
         email: 'a@b.com',
         name: 'alice',
         type: 'user',
@@ -163,7 +163,7 @@ describe('AuthController — new endpoints', () => {
   describe('POST /auth/password-change (session-guarded)', () => {
     it('proxies {userId,currentPassword,newPassword} and returns void (204)', async () => {
       authSvc.passwordChange.mockResolvedValue(undefined);
-      const req: any = { session: { userId: 7, type: 'user' } };
+      const req: any = { session: { sub: 'u:7', type: 'user' } };
       const res = await controller.passwordChange(
         { currentPassword: 'old12345', newPassword: 'new12345' } as any,
         req,
@@ -175,7 +175,7 @@ describe('AuthController — new endpoints', () => {
     it('propagates wrong-current-password as RpcException', async () => {
       const rpc = new RpcException({ status: 401, message: 'current password invalid' });
       authSvc.passwordChange.mockRejectedValue(rpc);
-      const req: any = { session: { userId: 7, type: 'user' } };
+      const req: any = { session: { sub: 'u:7', type: 'user' } };
       await expect(
         controller.passwordChange(
           { currentPassword: 'wrong123', newPassword: 'new12345' } as any,
@@ -189,7 +189,7 @@ describe('AuthController — new endpoints', () => {
     it('proxies to auth-service delete, clears cookies, returns void (204)', async () => {
       authSvc.deleteAccount.mockResolvedValue(undefined);
       const reply = makeReply();
-      const req: any = { session: { userId: 42, type: 'user' } };
+      const req: any = { session: { sub: 'u:42', type: 'user' } };
       const res = await controller.deleteAccount(req, reply as any);
       expect(authSvc.deleteAccount).toHaveBeenCalledWith(42);
       expect(cookieSvc.clearCookies).toHaveBeenCalledWith(reply);
@@ -200,7 +200,7 @@ describe('AuthController — new endpoints', () => {
       const rpc = new RpcException({ status: 500, message: 'db down' });
       authSvc.deleteAccount.mockRejectedValue(rpc);
       const reply = makeReply();
-      const req: any = { session: { userId: 42, type: 'user' } };
+      const req: any = { session: { sub: 'u:42', type: 'user' } };
       await expect(controller.deleteAccount(req, reply as any)).rejects.toBe(rpc);
       expect(cookieSvc.clearCookies).not.toHaveBeenCalled();
     });
@@ -221,7 +221,7 @@ describe('AuthController — new endpoints', () => {
 
       expect(authSvc.loginUser).toHaveBeenCalledWith('a@b.com', 'pw12345678', undefined);
       expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
-        userId: 7,
+        sub: 'u:7',
         email: 'a@b.com',
         name: 'alice',
         type: 'user',
@@ -275,7 +275,7 @@ describe('AuthController — new endpoints', () => {
       expect(authSvc.loginUser).toHaveBeenCalledWith('a@b', 'pw', '123456');
     });
 
-    it('admin login success → issues cookies with adminId and empty scopes', async () => {
+    it('admin login success → issues cookies with sub=a:<id> and empty scopes', async () => {
       authSvc.loginAdmin.mockResolvedValue({
         admin: { id: 11, email: 'ad@x', name: 'admin' },
         refreshToken: 'a:tok',
@@ -288,7 +288,7 @@ describe('AuthController — new endpoints', () => {
       );
       expect(authSvc.loginAdmin).toHaveBeenCalledWith('ad@x', 'pw', undefined);
       expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
-        adminId: 11,
+        sub: 'a:11',
         email: 'ad@x',
         name: 'admin',
         type: 'admin',
@@ -329,12 +329,12 @@ describe('AuthController — new endpoints', () => {
     it('returns session payload + CSRF token via reply.generateCsrf()', () => {
       const reply = makeReply();
       const req: any = {
-        session: { userId: 7, email: 'a@b.com', name: 'alice', type: 'user', scopes: [] },
+        session: { sub: 'u:7', email: 'a@b.com', name: 'alice', type: 'user', scopes: [] },
       };
       const body = controller.session(req, reply as any);
       expect(reply.generateCsrf).toHaveBeenCalled();
       expect(body).toEqual({
-        userId: 7,
+        sub: 'u:7',
         email: 'a@b.com',
         name: 'alice',
         type: 'user',
@@ -351,7 +351,7 @@ describe('AuthController — new endpoints', () => {
         // generateCsrf intentionally omitted.
       };
       const req: any = {
-        session: { userId: 3, email: 'u@x', name: 'u', type: 'user', scopes: [] },
+        session: { sub: 'u:3', email: 'u@x', name: 'u', type: 'user', scopes: [] },
         server: { csrfProtection: { generate } },
       };
       const body = controller.session(req, reply);
@@ -362,7 +362,7 @@ describe('AuthController — new endpoints', () => {
     it('emits undefined csrfToken when neither generator is wired up', () => {
       const reply: any = { setCookie: jest.fn(), clearCookie: jest.fn() };
       const req: any = {
-        session: { userId: 3, email: 'u@x', name: 'u', type: 'user', scopes: [] },
+        session: { sub: 'u:3', email: 'u@x', name: 'u', type: 'user', scopes: [] },
       };
       const body = controller.session(req, reply);
       expect(body.csrfToken).toBeUndefined();

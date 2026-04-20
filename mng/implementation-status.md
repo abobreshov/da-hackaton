@@ -3,7 +3,7 @@
 Live progress tracker for MVP build-out. Updated as milestones land.
 See `mng/specs/` for specifications + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-20 (M2 shipped).
+**Last updated:** 2026-04-20 (M3 plan)
 
 ## Milestone map
 
@@ -55,7 +55,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 ## Deferred / debt (post-M2)
 
 1. **Design-system refactor** — `tailwind.config.ts` default shadcn; login/auth shell partially themed to Kinetic Playground. Full UI primitives retheme + route audit pending. Applies to rooms-detail + contacts + admin modal when built.
-2. **M1 contracts drift backfill** — 76 inline wire-string literals across 9 files allow-listed in grep-gate:
+2. **M1 contracts drift backfill** — inline wire-string literals allow-listed in grep-gate:
    - `bff/src/auth/auth.service.ts` — 12 `auth.*`
    - `bff/src/modules/users/users.service.ts` — `users.list`, `users.findById`
    - `backend/src/common/guards/jwt.guard.ts` — `auth.customer.validateToken`
@@ -65,26 +65,41 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
    - `backend/src/modules/users/users.tcp.ts` — `users.list`, `users.findById`
    - `backend/src/workers/queue.producer.ts` — 4 `QueueName` values
    - `auth-service/src/modules/auth/admin/admin-auth.tcp.ts` — 3 `auth.admin.*`
-3. **WS connect rate-limit (AC-14-12)** — decorator + guard exist; not mounted on WS gateway handshake.
-4. **Spam rate-limits (AC-14-13)** — friend-request 20/hr, room-create 10/hr, report-create 10/hr — ACs defined, not applied.
-5. **seed:demo real rooms** — stub only. Needs `#general`, `#random`, `#demo` w/ sample messages once EPIC-07 lands.
-6. **E2E M2 specs red** — live-stack dependent; bring up stack + re-run for green.
-7. **Dashboard copy-drift tests** — 3 pre-existing failures in `dashboard.test.tsx` asserting old `scopes:read/write` / `no scopes assigned` / `user` type copy removed in Kinetic Playground redesign.
-8. **Admin FE modal** — `/admin/reports` + `/admin/audit-log` viewers beyond raw REST endpoints.
-9. **Backend schema index.ts coverage** — Drizzle barrel accessors uncovered (40-66%); covered by integration tests only.
-10. **EPIC-02 session DB row** — `user_sessions` table migration exists; backend service still writes only to Redis. Durable session record + active-sessions UI (§2.2.4) pending.
+3. **E2E M2 specs red** — live-stack dependent; bring up stack + re-run for green.
+4. **Dashboard copy-drift tests** — 3 pre-existing failures in `dashboard.test.tsx` asserting old `scopes:read/write` / `no scopes assigned` / `user` type copy removed in Kinetic Playground redesign.
+5. **Backend schema index.ts coverage** — Drizzle barrel accessors uncovered (40-66%); covered by integration tests only.
+6. **EPIC-02 session DB row** — `user_sessions` table migration exists; backend service still writes only to Redis. Durable session record + active-sessions UI (§2.2.4) pending.
 
-## M3 candidates (ordered by critical path)
+## M3 candidates (split)
 
-1. **EPIC-07 messaging** — schema live; add MessagesService + TCP + BFF proxy + FE composer + WS fan-out on `room:{id}` channel.
-2. **EPIC-04 user-ban UX** — block/report UI in `/contacts`; DM eligibility check on message-send.
-3. **EPIC-06 admin modal** — `/admin/reports` + moderation actions on room detail.
-4. **seed:demo** — populate `#general`/`#random`/`#demo` once messages table writeable.
-5. **Chat history pagination** — infinite-scroll spec per AC-07-11.
-6. **Design-system retheme** — apply tokens to rooms-detail + contacts + chat viewport at M3 build time.
+**M3a — Messaging pipe (backend + BFF + WS handlers + OOP refactors + seed)**
+
+1. OOP refactor: global RpcExceptionFilter on backend + auth-service microservice bootstrap; delete 6 toRpc copies across modules (rooms, moderation, abuse-reports, audit, friends, bans). Controllers become pure dispatch.
+2. OOP refactor: slim ChatGateway — extract `WsAuthenticator` (cookie → session), inject `RpcProxyService` in place of raw `this.backend.send(...)` calls (currently bypasses the new proxy).
+3. Backend `MessagesModule` + `MessagesService` + `MessagesRepository` (port/adapter to match rooms) + `MessagesTcpController`. AC-07-16 lazy dm_channels upsert, AC-07-19 atomic INSERT...WHERE NOT EXISTS frozen guard, AC-07-20 composite `(created_at, id)` keyset cursor. Migration for index extension if needed.
+4. Backend `messages.getById` TCP cmd (reply hover + admin report target hydration).
+5. Backend `rooms.update` TCP cmd + service method (owner PATCH).
+6. BFF `MessagesModule` proxy via `RpcProxyService` + `GET /rooms/:id/messages` + `GET /dms/:userId/messages` + `GET /messages/:id` + `PATCH /rooms/:id` (owner).
+7. BFF `ChatGateway` extended with `@SubscribeMessage('message.send'|'message.edit'|'message.delete'|'sync.since')`. Fan-out via `io.to('room:'+id).emit(...)` using Socket.IO + redis-adapter (drop custom BFF subscriber for msg fan-out; keep for presence).
+8. AC-14-04 refined rate-limit: 30 msg/5s create, 60/min edit+delete budget. Mount on send/edit/delete WS handlers.
+9. `seed:demo` real impl: `#general`, `#random`, `#demo` rooms + 10-20 sample messages each (mix regular/reply/edited).
+10. E2E specs: backend messaging integration test via testcontainers; BFF WS send-receive spec via socket.io-client.
+
+**M3b — Frontend chat viewport + Track B admin FE + Manage Room + ban UX**
+
+11. Frontend chat viewport on `/rooms/$roomId`: `MessageList` (keyset infinite scroll), `MessageComposer` (send + reply quote), `MessageBubble` w/ Kinetic Playground asymmetric rounding + gradient "me" bubbles, edit indicator, tombstone render.
+12. `useMessages(roomId|dmId)` hook — normalized Map cache keyed by messageId; WS subscribe to message.new/edited/deleted; applies mutations regardless of viewport.
+13. `UserPopover` component (AC-10-15) — hookable to avatar/name/mention clicks. Exposes Open DM, Add friend, Block, Report.
+14. `/_auth/admin/*` layout + routes: `reports`, `audit-log`, `users`, `rooms` (AC-10-12 superseded). Guard via `session.type === 'admin'` in beforeLoad.
+15. Manage Room modal (AC-10-16): 5 tabs Members / Admins / Banned users / Invitations / Settings. Invitations tab wires backend `rooms.invite` — close §2.4.9 PDF gap.
+16. DM path: `/_auth/dm/$userId` route via lazy dm_channel resolve. Composer disabled + "frozen" banner when dm_channels.frozen_at set (AC-04-07).
+17. Spam rate-limits AC-14-13: friend-request 20/hr, room-create 10/hr, report-create 10/hr — decorator mount on respective endpoints.
+18. WS connect rate-limit AC-14-12: 10 connects/60s per userId — mount on handshake.
+19. E2E: send-receive 2-browser ≤3s, edit indicator, author-delete, admin-delete, report → admin resolve → audit visible, block-from-popover → DM frozen.
 
 ## ADR index
 
 - **ADR-001** — Presence source of truth: EPIC-02 owns state + DB writes; EPIC-03 provides `PresencePublisher` primitive; EPIC-09 observer only.
 - **ADR-002** — Async account-delete cascade: auth-service invokes backend TCP `users.cascade.enqueue`; backend owns BullMQ enqueue to `user.cascade.delete`; consumer in EPIC-11.
 - **ADR-003** — WS handshake auth: cookie-only for MVP (same-origin BFF). No session-ticket endpoint. Cross-origin / native clients POST-MVP.
+- **ADR-004** — Message fan-out: Socket.IO room + @socket.io/redis-adapter native broadcast (`io.to('room:'+id).emit`). Drop custom BFF subscriber for message channel. Presence keeps explicit interest-graph subscriber (different semantics).

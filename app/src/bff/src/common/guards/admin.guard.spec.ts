@@ -12,12 +12,12 @@ describe('AdminGuard', () => {
   const guard = new AdminGuard();
 
   it('allows requests with an admin session', () => {
-    const ctx = httpCtx({ session: { adminId: 1, type: 'admin' } });
+    const ctx = httpCtx({ session: { sub: 'a:1', type: 'admin' } });
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
   it('rejects user sessions with 403', () => {
-    const ctx = httpCtx({ session: { userId: 5, type: 'user' } });
+    const ctx = httpCtx({ session: { sub: 'u:5', type: 'user' } });
     expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
   });
 
@@ -26,10 +26,10 @@ describe('AdminGuard', () => {
     expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
   });
 
-  it('does not trust an adminId key without a matching type: admin', () => {
-    // Defence in depth: a session blob that happens to have adminId but
-    // type !== 'admin' must not be treated as admin.
-    const ctx = httpCtx({ session: { adminId: 99, type: 'user' } });
+  it('does not trust an `a:` sub prefix without a matching type: admin', () => {
+    // Defence in depth: a session blob with an `a:` sub but type !== 'admin'
+    // must not be treated as admin. The cookie signer controls `type`.
+    const ctx = httpCtx({ session: { sub: 'a:99', type: 'user' } });
     expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
   });
 

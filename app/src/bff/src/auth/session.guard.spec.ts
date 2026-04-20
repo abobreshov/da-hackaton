@@ -56,7 +56,7 @@ describe('SessionGuard', () => {
 
   describe('fast-path — valid session cookie', () => {
     it('verifies cookie, attaches req.session, returns true', async () => {
-      const payload = { userId: 7, email: 'a@b.com', name: 'alice', type: 'user', scopes: ['chat'] };
+      const payload = { sub: 'u:7', email: 'a@b.com', name: 'alice', type: 'user', scopes: ['chat'] };
       cookieSvc.readSessionCookie.mockReturnValue('inner-jwt');
       cookieSvc.verifySession.mockReturnValue(payload);
 
@@ -109,7 +109,7 @@ describe('SessionGuard', () => {
       expect(authSvc.refreshUser).toHaveBeenCalledWith('u:old-refresh');
       expect(authSvc.refreshAdmin).not.toHaveBeenCalled();
       expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
-        userId: 7,
+        sub: 'u:7',
         email: 'a@b.com',
         name: 'alice',
         type: 'user',
@@ -117,7 +117,7 @@ describe('SessionGuard', () => {
       });
       expect(cookieSvc.setRefreshCookie).toHaveBeenCalledWith(reply, 'u:new-refresh');
       expect(req.session).toEqual({
-        userId: 7,
+        sub: 'u:7',
         email: 'a@b.com',
         name: 'alice',
         type: 'user',
@@ -171,7 +171,7 @@ describe('SessionGuard', () => {
       expect(authSvc.refreshAdmin).toHaveBeenCalledWith('a:admin-refresh');
       expect(authSvc.refreshUser).not.toHaveBeenCalled();
       expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
-        adminId: 1,
+        sub: 'a:1',
         email: 'ad@x',
         name: 'ad',
         type: 'admin',
@@ -179,6 +179,7 @@ describe('SessionGuard', () => {
       });
       expect(cookieSvc.setRefreshCookie).toHaveBeenCalledWith(reply, 'a:new');
       expect(req.session.type).toBe('admin');
+      expect(req.session.sub).toBe('a:1');
     });
 
     it('returns 401 + clears cookies when refreshAdmin throws', async () => {

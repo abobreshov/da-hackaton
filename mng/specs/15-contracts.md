@@ -34,6 +34,7 @@ Lock wire-level contracts across services (REST paths, TCP cmds, WS events, Redi
 | AC-15-12 | BFF + auth-service + backend + frontend import from `@app/contracts` (no string literals for wire names) |
 | AC-15-13 | TCP cmd surface completeness (M2): presence.stateOf (batch state hydrate), presence.disconnect (WS close cleanup), rooms.membersOf (BFF fanout + member pane), rooms.ensureMember (BFF auth check). |
 | AC-15-14 | WS server event additions (M2): room.members.initial payload on join ack (see EPIC-03 AC-03-09), friend.request.rejected. |
+| AC-15-15 | M3 TCP cmd additions: messages.getById (reply-chip hydrate + report target hydrate), rooms.update (owner PATCH room metadata). |
 
 ## API impact
 - Extend `auth-service/src/common/rpc-exception.util.ts` `toRpc` signature to pass `{ status, code, message, details?, retryAfterMs? }`

@@ -62,6 +62,39 @@ describe('<GlassCard />', () => {
     const root = container.firstElementChild as HTMLElement;
     expect(root.className).not.toMatch(/shadow-ambient/);
   });
+
+  it('tone="default" renders the on-surface tint + outline ghost-ring', () => {
+    const { container } = render(<GlassCard>hi</GlassCard>);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain('bg-surface-container-lowest/80');
+    expect(root.className).toContain('text-on-surface');
+    expect(root.className).toContain('ring-outline-variant/30');
+    // error tone tint/ring must NOT leak when tone is default.
+    expect(root.className).not.toContain('bg-error-container/70');
+    expect(root.className).not.toContain('text-on-error-container');
+  });
+
+  it('tone="error" swaps to the error-container tint + error ghost-ring', () => {
+    const { container } = render(<GlassCard tone="error">boom</GlassCard>);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain('bg-error-container/70');
+    expect(root.className).toContain('text-on-error-container');
+    expect(root.className).toContain('ring-error/20');
+    // default tone classes must be absent so the tint swap is clean.
+    expect(root.className).not.toContain('bg-surface-container-lowest/80');
+    expect(root.className).not.toContain('ring-outline-variant/30');
+  });
+
+  it('backdrop-blur stays on regardless of tone (it belongs to the base recipe)', () => {
+    const { container, rerender } = render(<GlassCard>hi</GlassCard>);
+    expect((container.firstElementChild as HTMLElement).className).toContain(
+      'backdrop-blur-xl',
+    );
+    rerender(<GlassCard tone="error">hi</GlassCard>);
+    expect((container.firstElementChild as HTMLElement).className).toContain(
+      'backdrop-blur-xl',
+    );
+  });
 });
 
 describe('<HeroCard />', () => {

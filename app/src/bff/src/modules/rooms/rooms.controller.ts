@@ -5,6 +5,7 @@ import {
   HttpCode,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -12,20 +13,24 @@ import {
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateRoomDto } from './dto/update-room.dto';
 import { SessionGuard } from '../../auth/session.guard';
+import { ThrottleGuard } from '../../common/guards/throttle.guard';
+import { Throttle } from '../../common/decorators/throttle.decorator';
+import { parseSub } from '../../auth/cookie.service';
 
 interface SessionRequest {
-  session?: { userId?: number; type?: string };
+  session?: { sub?: string; type?: string };
 }
 
 function getUserId(req: SessionRequest): number {
-  const raw = req.session?.userId;
-  if (typeof raw !== 'number') {
-    // SessionGuard guarantees req.session is present for user flows; this is
-    // defence-in-depth in case an admin session hits a user-scoped endpoint.
-    throw new Error('no userId in session');
-  }
-  return raw;
+  const sub = req.session?.sub;
+  if (!sub) throw new Error('no userId in session');
+  const { type, numericId } = parseSub(sub);
+  // SessionGuard guarantees req.session is present for user flows; this is
+  // defence-in-depth in case an admin session hits a user-scoped endpoint.
+  if (type !== 'user') throw new Error('no userId in session');
+  return numericId;
 }
 
 @Controller('rooms')
@@ -47,6 +52,16 @@ export class RoomsController {
 
   @Post()
   @HttpCode(201)
+  // AC-14-13 — spam suppression: 10 room-creates per hour per user.
+  // Fail-open (advisory, not security-critical).
+  @UseGuards(ThrottleGuard)
+  @Throttle({
+    scope: 'room-create',
+    limit: 10,
+    windowMs: 3_600_000,
+    failClosed: false,
+    keyFn: (req: any) => req?.session?.sub ?? 'ip:unknown',
+  })
   create(@Body() dto: CreateRoomDto, @Req() req: SessionRequest) {
     return this.service.create({
       ownerId: getUserId(req),
@@ -79,6 +94,23 @@ export class RoomsController {
       inviterId: getUserId(req),
       inviteeId: dto.invitedUserId,
       roomId: id,
+    });
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateRoomDto,
+    @Req() req: SessionRequest,
+  ) {
+    return this.service.update({
+      roomId: id,
+      actorId: getUserId(req),
+      patch: {
+        name: dto.name,
+        description: dto.description,
+        visibility: dto.visibility,
+      },
     });
   }
 }

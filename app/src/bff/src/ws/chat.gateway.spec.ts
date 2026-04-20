@@ -1,10 +1,13 @@
 /**
- * Chat gateway specs — EPIC-03 AC-03-01/03-10/03-11.
+ * Chat gateway specs — EPIC-03 WS lifecycle + message handlers.
  *
- * The gateway owns WS connection lifecycle:
- *   - handshake: Origin allow-list, cookie-only session extraction, userId attach.
- *   - disconnect: TCP call backend presence.disconnect.
- *   - message handlers: room.join (ensureMember + membersOf), presence.ping (touch).
+ * Scope:
+ *   - handshake: Origin allow-list, WsAuthenticator delegation, userId attach.
+ *   - disconnect: TCP presence.disconnect, subscriber cleanup.
+ *   - room.join / room.leave / presence.ping (existing, now via RpcProxyService).
+ *   - message.send / message.edit / message.delete — forward to backend,
+ *     fan-out through Socket.IO rooms (no custom redis subscribe for msgs).
+ *   - sync.since — forward to backend, return ack, no broadcast.
  */
 jest.mock('../config/environment', () => ({
   env: {
@@ -23,9 +26,11 @@ jest.mock('../config/environment', () => ({
   },
 }));
 
-import { of, throwError } from 'rxjs';
 import { ChatGateway } from './chat.gateway';
 import { WsOriginGuard } from './origin.guard';
+import { RpcProxyService } from '../common/proxy/rpc-proxy.service';
+import { WsAuthenticator } from './ws-authenticator.service';
+import { WsConnectRateLimit } from './ws-connect-rate-limit.service';
 
 function makeClient(overrides: Partial<any> = {}) {
   return {
@@ -38,27 +43,17 @@ function makeClient(overrides: Partial<any> = {}) {
     emit: jest.fn(),
     join: jest.fn(),
     leave: jest.fn(),
+    rooms: new Set<string>(),
     ...overrides,
   };
 }
 
-function makeCookieService() {
-  return {
-    readSessionCookie: jest.fn(),
-    verifySession: jest.fn(),
-  } as any;
-}
-
 function makeBackend() {
-  return {
-    send: jest.fn(),
-  } as any;
+  return { send: jest.fn() } as any;
 }
 
 function makeAuth() {
-  return {
-    send: jest.fn(),
-  } as any;
+  return { send: jest.fn() } as any;
 }
 
 function makeSubscriber() {
@@ -70,25 +65,70 @@ function makeSubscriber() {
   } as any;
 }
 
+function makeAuthenticator() {
+  return {
+    authenticate: jest.fn(),
+  } as unknown as jest.Mocked<WsAuthenticator>;
+}
+
+function makeProxy() {
+  return { forward: jest.fn() } as unknown as jest.Mocked<RpcProxyService>;
+}
+
+function makeConnectLimiter() {
+  return {
+    check: jest.fn().mockResolvedValue({ ok: true }),
+  } as unknown as jest.Mocked<WsConnectRateLimit>;
+}
+
+function makeServer() {
+  const emit = jest.fn();
+  const to = jest.fn(() => ({ emit }));
+  const sockets = {
+    in: jest.fn(() => ({
+      fetchSockets: jest.fn().mockResolvedValue([]),
+      disconnectSockets: jest.fn(),
+    })),
+    // socket.io v4 also surfaces `.socketsLeave(room)` — not used by gateway.
+  };
+  return { to, sockets, __emit: emit, __to: to } as any;
+}
+
 describe('ChatGateway', () => {
-  let cookieSvc: ReturnType<typeof makeCookieService>;
   let backend: ReturnType<typeof makeBackend>;
   let auth: ReturnType<typeof makeAuth>;
   let subscriber: ReturnType<typeof makeSubscriber>;
   let originGuard: WsOriginGuard;
+  let authenticator: jest.Mocked<WsAuthenticator>;
+  let proxy: jest.Mocked<RpcProxyService>;
+  let connectLimiter: jest.Mocked<WsConnectRateLimit>;
   let gateway: ChatGateway;
+  let server: ReturnType<typeof makeServer>;
 
   beforeEach(() => {
-    cookieSvc = makeCookieService();
     backend = makeBackend();
     auth = makeAuth();
     subscriber = makeSubscriber();
     originGuard = new WsOriginGuard();
-    gateway = new ChatGateway(cookieSvc, auth, backend, subscriber, originGuard);
+    authenticator = makeAuthenticator();
+    proxy = makeProxy();
+    connectLimiter = makeConnectLimiter();
+    gateway = new ChatGateway(
+      authenticator,
+      auth,
+      backend,
+      subscriber,
+      originGuard,
+      proxy,
+      connectLimiter,
+    );
+    server = makeServer();
+    (gateway as any).server = server;
   });
 
+  // --------------------------------------------------------------- connect
   describe('handleConnection', () => {
-    it('rejects disallowed origins and disconnects (4403 semantics via OriginGuard)', async () => {
+    it('rejects disallowed origins and disconnects (4403 via OriginGuard)', async () => {
       const client = makeClient({
         handshake: { headers: { origin: 'http://evil.example', cookie: '' } },
       });
@@ -96,7 +136,7 @@ describe('ChatGateway', () => {
       await gateway.handleConnection(client as any);
 
       expect(client.disconnect).toHaveBeenCalledWith(true);
-      expect(cookieSvc.readSessionCookie).not.toHaveBeenCalled();
+      expect(authenticator.authenticate).not.toHaveBeenCalled();
     });
 
     it('disconnects missing origin', async () => {
@@ -107,49 +147,26 @@ describe('ChatGateway', () => {
       await gateway.handleConnection(client as any);
 
       expect(client.disconnect).toHaveBeenCalledWith(true);
-      expect(cookieSvc.readSessionCookie).not.toHaveBeenCalled();
+      expect(authenticator.authenticate).not.toHaveBeenCalled();
     });
 
-    it('OK origin + valid session cookie → attaches client.data {userId, sessionId}', async () => {
+    it('delegates to WsAuthenticator; attaches {userId, sessionId} on success', async () => {
       const client = makeClient();
-      cookieSvc.readSessionCookie.mockReturnValue('inner.jwt');
-      cookieSvc.verifySession.mockReturnValue({
-        userId: 42,
-        email: 'u@x',
-        name: 'u',
-        type: 'user',
-        scopes: [],
-        iat: 1,
-        exp: 2,
-      });
+      authenticator.authenticate.mockReturnValue({ userId: 42, sessionId: client.id });
 
       await gateway.handleConnection(client as any);
 
+      expect(authenticator.authenticate).toHaveBeenCalledWith(client);
       expect(client.disconnect).not.toHaveBeenCalled();
       expect(client.data).toMatchObject({ userId: 42, sessionId: client.id });
       expect(subscriber.registerSocket).toHaveBeenCalledWith(client);
+      // Still subscribes the user-channel (kept per spec — user:{id} stays).
+      expect(subscriber.subscribeFor).toHaveBeenCalledWith(client.id, 'user:42');
     });
 
-    it('invalid cookie → disconnect with close code 4401', async () => {
+    it('null from authenticator → disconnect 4401', async () => {
       const client = makeClient();
-      cookieSvc.readSessionCookie.mockReturnValue('stale.jwt');
-      cookieSvc.verifySession.mockReturnValue(null);
-
-      await gateway.handleConnection(client as any);
-
-      expect(client.disconnect).toHaveBeenCalledWith(true);
-      // Our close-code signal surfaces via the 'error' emit so the client
-      // can distinguish 4401 (auth) from 4403 (origin).
-      expect(client.emit).toHaveBeenCalledWith(
-        'error',
-        expect.objectContaining({ code: 4401 }),
-      );
-    });
-
-    it('missing cookie header → disconnect 4401', async () => {
-      const client = makeClient({
-        handshake: { headers: { origin: 'http://localhost:3007' } },
-      });
+      authenticator.authenticate.mockReturnValue(null);
 
       await gateway.handleConnection(client as any);
 
@@ -160,84 +177,107 @@ describe('ChatGateway', () => {
       );
     });
 
-    it('admin session cookie (adminId) → disconnects 4401 (WS is user-only for EPIC-03)', async () => {
+    // AC-14-12 — rate-limit burst of WS connects per user (10 per 60 s).
+    it('WsConnectRateLimit reject → disconnects with 4429 + emits WireError RATE_LIMITED', async () => {
       const client = makeClient();
-      cookieSvc.readSessionCookie.mockReturnValue('inner.jwt');
-      cookieSvc.verifySession.mockReturnValue({
-        adminId: 1,
-        email: 'a@x',
-        name: 'a',
-        type: 'admin',
-        scopes: [],
-      });
+      authenticator.authenticate.mockReturnValue({ userId: 42, sessionId: client.id });
+      connectLimiter.check.mockResolvedValueOnce({ ok: false, retryAfterMs: 12_345 });
 
       await gateway.handleConnection(client as any);
 
-      expect(client.disconnect).toHaveBeenCalledWith(true);
+      expect(connectLimiter.check).toHaveBeenCalledWith(42);
       expect(client.emit).toHaveBeenCalledWith(
         'error',
-        expect.objectContaining({ code: 4401 }),
+        expect.objectContaining({
+          code: 'RATE_LIMITED',
+          retryAfterMs: 12_345,
+        }),
       );
+      expect(client.disconnect).toHaveBeenCalledWith(true);
+      // Must NOT register the socket when rejected — protects downstream
+      // subscriber bookkeeping from a half-connected peer.
+      expect(subscriber.registerSocket).not.toHaveBeenCalled();
+      expect(subscriber.subscribeFor).not.toHaveBeenCalled();
+    });
+
+    it('WsConnectRateLimit ok → proceeds to register the socket', async () => {
+      const client = makeClient();
+      authenticator.authenticate.mockReturnValue({ userId: 42, sessionId: client.id });
+      connectLimiter.check.mockResolvedValueOnce({ ok: true });
+
+      await gateway.handleConnection(client as any);
+
+      expect(connectLimiter.check).toHaveBeenCalledWith(42);
+      expect(subscriber.registerSocket).toHaveBeenCalledWith(client);
     });
   });
 
+  // ------------------------------------------------------------ disconnect
   describe('handleDisconnect', () => {
-    it('TCP-calls backend presence.disconnect with {userId, sessionId}', async () => {
+    it('forwards presence.disconnect via RpcProxyService with {userId, sessionId}', async () => {
       const client = makeClient();
       client.data = { userId: 7, sessionId: client.id };
-      backend.send.mockReturnValueOnce(of({ ok: true }));
+      proxy.forward.mockResolvedValueOnce({ ok: true } as any);
 
       await gateway.handleDisconnect(client as any);
 
-      expect(backend.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
         { cmd: 'presence.disconnect' },
-        expect.objectContaining({ _sys: 'test-sys-key', userId: 7, sessionId: client.id }),
+        { userId: 7, sessionId: client.id },
       );
       expect(subscriber.unregisterSocket).toHaveBeenCalledWith(client.id);
     });
 
-    it('no-op when client was never authenticated (no userId attached)', async () => {
+    it('no-op when client was never authenticated', async () => {
       const client = makeClient();
+
       await gateway.handleDisconnect(client as any);
-      expect(backend.send).not.toHaveBeenCalled();
-      // Still cleans up subscriber interest (defensive)
+
+      expect(proxy.forward).not.toHaveBeenCalled();
       expect(subscriber.unregisterSocket).toHaveBeenCalledWith(client.id);
     });
 
     it('swallows upstream RPC error (disconnect must not throw)', async () => {
       const client = makeClient();
       client.data = { userId: 7, sessionId: client.id };
-      backend.send.mockReturnValueOnce(throwError(() => new Error('rpc down')));
+      proxy.forward.mockRejectedValueOnce(new Error('rpc down'));
       await expect(gateway.handleDisconnect(client as any)).resolves.toBeUndefined();
     });
   });
 
+  // -------------------------------------------------------------- room.join
   describe('room.join', () => {
-    it('calls rooms.ensureMember + rooms.membersOf, joins socket.io room, emits ack', async () => {
+    it('ensureMember + membersOf → joins socket.io room (no custom msg subscribe)', async () => {
       const client = makeClient();
       client.data = { userId: 7, sessionId: client.id };
-      backend.send.mockImplementation((pattern: any) => {
-        if (pattern.cmd === 'rooms.ensureMember') return of({ ok: true });
-        if (pattern.cmd === 'rooms.membersOf')
-          return of([
+      proxy.forward.mockImplementation(async (_client, pattern: any) => {
+        if (pattern.cmd === 'rooms.ensureMember') return { ok: true } as any;
+        if (pattern.cmd === 'rooms.membersOf') {
+          return [
             { userId: 7, role: 'member' },
             { userId: 8, role: 'owner' },
-          ]);
-        return throwError(() => new Error(`unexpected ${pattern.cmd}`));
+          ] as any;
+        }
+        throw new Error(`unexpected ${pattern.cmd}`);
       });
 
       const ack = await gateway.onRoomJoin(client as any, { roomId: 5 });
 
-      expect(backend.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
         { cmd: 'rooms.ensureMember' },
-        expect.objectContaining({ _sys: 'test-sys-key', userId: 7, roomId: 5 }),
+        { userId: 7, roomId: 5 },
       );
-      expect(backend.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
         { cmd: 'rooms.membersOf' },
-        expect.objectContaining({ _sys: 'test-sys-key', roomId: 5 }),
+        { roomId: 5 },
       );
       expect(client.join).toHaveBeenCalledWith('room:5');
-      expect(subscriber.subscribeFor).toHaveBeenCalledWith(client.id, 'room:5');
+      // Socket.IO redis-adapter handles cross-replica room:{id} fanout;
+      // the BFF must NOT manually SUBSCRIBE `room:{id}` for messages.
+      expect(subscriber.subscribeFor).not.toHaveBeenCalledWith(client.id, 'room:5');
       expect(ack).toEqual({
         ok: true,
         roomId: 5,
@@ -249,36 +289,37 @@ describe('ChatGateway', () => {
     });
 
     it('rejects unauthenticated sockets', async () => {
-      const client = makeClient(); // no data.userId
+      const client = makeClient();
       const ack = await gateway.onRoomJoin(client as any, { roomId: 5 });
       expect(ack).toMatchObject({ ok: false });
-      expect(backend.send).not.toHaveBeenCalled();
+      expect(proxy.forward).not.toHaveBeenCalled();
     });
 
     it('propagates upstream error in ack when ensureMember fails', async () => {
       const client = makeClient();
       client.data = { userId: 7, sessionId: client.id };
-      backend.send.mockReturnValueOnce(throwError(() => ({ status: 403, message: 'banned' })));
+      proxy.forward.mockRejectedValueOnce({ status: 403, message: 'banned' } as any);
 
       const ack = await gateway.onRoomJoin(client as any, { roomId: 5 });
 
       expect(ack).toMatchObject({ ok: false });
       expect(client.join).not.toHaveBeenCalled();
-      expect(subscriber.subscribeFor).not.toHaveBeenCalled();
     });
   });
 
+  // ----------------------------------------------------------- presence.ping
   describe('presence.ping', () => {
-    it('calls backend presence.touch with userId', async () => {
+    it('forwards presence.touch via RpcProxyService', async () => {
       const client = makeClient();
       client.data = { userId: 7, sessionId: client.id };
-      backend.send.mockReturnValueOnce(of({ ok: true }));
+      proxy.forward.mockResolvedValueOnce({ ok: true } as any);
 
       const ack = await gateway.onPresencePing(client as any);
 
-      expect(backend.send).toHaveBeenCalledWith(
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
         { cmd: 'presence.touch' },
-        expect.objectContaining({ _sys: 'test-sys-key', userId: 7, sessionId: client.id }),
+        { userId: 7, sessionId: client.id },
       );
       expect(ack).toEqual({ ok: true });
     });
@@ -287,7 +328,256 @@ describe('ChatGateway', () => {
       const client = makeClient();
       const ack = await gateway.onPresencePing(client as any);
       expect(ack).toMatchObject({ ok: false });
-      expect(backend.send).not.toHaveBeenCalled();
+      expect(proxy.forward).not.toHaveBeenCalled();
+    });
+  });
+
+  // ----------------------------------------------------------- message.send
+  describe('message.send', () => {
+    it('room mode — forwards messages.create, emits messageNew to room:<id>, returns ack', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      const created = { id: 101, roomId: 5, authorId: 7, body: 'hi' };
+      proxy.forward.mockResolvedValueOnce(created as any);
+
+      const ack = await gateway.onMessageSend(client as any, {
+        roomId: 5,
+        body: 'hi',
+      });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.create' },
+        { authorId: 7, roomId: 5, body: 'hi' },
+      );
+      expect(server.__to).toHaveBeenCalledWith('room:5');
+      expect(server.__emit).toHaveBeenCalledWith('message.new', { message: created });
+      expect(ack).toEqual({ ok: true, message: created });
+    });
+
+    it('dm mode — emits messageNew to dm:<id> (uses created.dmId for fan-out target)', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      const created = { id: 202, dmId: 99, authorId: 7, body: 'hey' };
+      proxy.forward.mockResolvedValueOnce(created as any);
+
+      const ack = await gateway.onMessageSend(client as any, {
+        dmUserId: 12,
+        body: 'hey',
+      });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.create' },
+        { authorId: 7, dmUserId: 12, body: 'hey' },
+      );
+      // Ensure we joined the DM socket.io room first (first-message-ever path)
+      expect(client.join).toHaveBeenCalledWith('dm:99');
+      expect(server.__to).toHaveBeenCalledWith('dm:99');
+      expect(server.__emit).toHaveBeenCalledWith('message.new', { message: created });
+      expect(ack).toEqual({ ok: true, message: created });
+    });
+
+    it('forwards replyToId when present', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockResolvedValueOnce({ id: 1, roomId: 5 } as any);
+
+      await gateway.onMessageSend(client as any, {
+        roomId: 5,
+        body: 'hi',
+        replyToId: 42,
+      });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.create' },
+        { authorId: 7, roomId: 5, body: 'hi', replyToId: 42 },
+      );
+    });
+
+    it('upstream error → ack {ok:false, error} and no fan-out', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockRejectedValueOnce({ status: 403, message: 'banned' } as any);
+
+      const ack = await gateway.onMessageSend(client as any, {
+        roomId: 5,
+        body: 'hi',
+      });
+
+      expect(ack).toMatchObject({ ok: false });
+      expect((ack as any).error).toBeDefined();
+      expect(server.__to).not.toHaveBeenCalled();
+      expect(server.__emit).not.toHaveBeenCalled();
+    });
+
+    it('unauthenticated → ack {ok:false}', async () => {
+      const client = makeClient();
+      const ack = await gateway.onMessageSend(client as any, {
+        roomId: 5,
+        body: 'hi',
+      });
+      expect(ack).toMatchObject({ ok: false });
+      expect(proxy.forward).not.toHaveBeenCalled();
+    });
+  });
+
+  // ----------------------------------------------------------- message.edit
+  describe('message.edit', () => {
+    it('forwards messages.edit, emits messageEdited to room:<id>, acks', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      const edited = { id: 101, roomId: 5, body: 'fixed' };
+      proxy.forward.mockResolvedValueOnce(edited as any);
+
+      const ack = await gateway.onMessageEdit(client as any, { id: 101, body: 'fixed' });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.edit' },
+        { editorId: 7, id: 101, body: 'fixed' },
+      );
+      expect(server.__to).toHaveBeenCalledWith('room:5');
+      expect(server.__emit).toHaveBeenCalledWith('message.edited', { message: edited });
+      expect(ack).toEqual({ ok: true, message: edited });
+    });
+
+    it('dm-mode edited → emits to dm:<id>', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      const edited = { id: 202, dmId: 99, body: 'fix' };
+      proxy.forward.mockResolvedValueOnce(edited as any);
+
+      await gateway.onMessageEdit(client as any, { id: 202, body: 'fix' });
+
+      expect(server.__to).toHaveBeenCalledWith('dm:99');
+      expect(server.__emit).toHaveBeenCalledWith('message.edited', { message: edited });
+    });
+
+    it('upstream error → ack {ok:false}', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockRejectedValueOnce({ status: 403, message: 'forbidden' } as any);
+
+      const ack = await gateway.onMessageEdit(client as any, { id: 1, body: 'x' });
+
+      expect(ack).toMatchObject({ ok: false });
+      expect(server.__emit).not.toHaveBeenCalled();
+    });
+  });
+
+  // --------------------------------------------------------- message.delete
+  describe('message.delete', () => {
+    it('forwards messages.delete, emits messageDeleted to room:<id>, acks', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockResolvedValueOnce({ id: 101, roomId: 5 } as any);
+
+      const ack = await gateway.onMessageDelete(client as any, { id: 101 });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.delete' },
+        { actorId: 7, id: 101 },
+      );
+      expect(server.__to).toHaveBeenCalledWith('room:5');
+      expect(server.__emit).toHaveBeenCalledWith('message.deleted', { id: 101, roomId: 5 });
+      expect(ack).toEqual({ ok: true });
+    });
+
+    it('dm-mode delete → emits to dm:<id>', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockResolvedValueOnce({ id: 202, dmId: 99 } as any);
+
+      await gateway.onMessageDelete(client as any, { id: 202 });
+
+      expect(server.__to).toHaveBeenCalledWith('dm:99');
+      expect(server.__emit).toHaveBeenCalledWith('message.deleted', { id: 202, dmId: 99 });
+    });
+
+    it('upstream error → ack {ok:false}', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockRejectedValueOnce({ status: 404, message: 'gone' } as any);
+
+      const ack = await gateway.onMessageDelete(client as any, { id: 1 });
+      expect(ack).toMatchObject({ ok: false });
+      expect(server.__emit).not.toHaveBeenCalled();
+    });
+  });
+
+  // ------------------------------------------------------------- sync.since
+  describe('sync.since', () => {
+    it('room mode — forwards messages.since, returns ack {messages}, no broadcast', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      const msgs = [{ id: 1 }, { id: 2 }];
+      proxy.forward.mockResolvedValueOnce(msgs as any);
+
+      const ack = await gateway.onSyncSince(client as any, {
+        roomId: 5,
+        lastSeenId: 0,
+      });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.since' },
+        { userId: 7, roomId: 5, lastSeenId: 0 },
+      );
+      expect(server.__to).not.toHaveBeenCalled();
+      expect(ack).toEqual({ ok: true, messages: msgs });
+    });
+
+    it('dm mode — forwards dmUserId in payload', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockResolvedValueOnce([] as any);
+
+      await gateway.onSyncSince(client as any, { dmUserId: 12, lastSeenId: 10 });
+
+      expect(proxy.forward).toHaveBeenCalledWith(
+        backend,
+        { cmd: 'messages.since' },
+        { userId: 7, dmUserId: 12, lastSeenId: 10 },
+      );
+    });
+
+    it('upstream error → ack {ok:false}', async () => {
+      const client = makeClient();
+      client.data = { userId: 7, sessionId: client.id };
+      proxy.forward.mockRejectedValueOnce(new Error('boom'));
+
+      const ack = await gateway.onSyncSince(client as any, { roomId: 5, lastSeenId: 0 });
+      expect(ack).toMatchObject({ ok: false });
+    });
+
+    it('unauthenticated → ack {ok:false}', async () => {
+      const client = makeClient();
+      const ack = await gateway.onSyncSince(client as any, { roomId: 5, lastSeenId: 0 });
+      expect(ack).toMatchObject({ ok: false });
+      expect(proxy.forward).not.toHaveBeenCalled();
+    });
+  });
+
+  // ------------------------------------------------------- onDmFrozen(id)
+  describe('onDmFrozen(dmId)', () => {
+    it('emits error {code:"DM_FROZEN"} to dm:<id> and evicts sockets', async () => {
+      const evict = jest.fn();
+      const emit = jest.fn();
+      (server as any).to = jest.fn(() => ({ emit }));
+      (server as any).in = jest.fn(() => ({ socketsLeave: evict }));
+
+      await gateway.onDmFrozen(99);
+
+      expect((server as any).to).toHaveBeenCalledWith('dm:99');
+      expect(emit).toHaveBeenCalledWith(
+        'error',
+        expect.objectContaining({ code: 'DM_FROZEN' }),
+      );
+      expect((server as any).in).toHaveBeenCalledWith('dm:99');
+      expect(evict).toHaveBeenCalledWith('dm:99');
     });
   });
 });

@@ -6,6 +6,7 @@ import { RpcProxyModule } from './common/proxy/rpc-proxy.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
+import { MessagesModule } from './modules/messages/messages.module';
 import { FriendsModule } from './modules/friends/friends.module';
 import { BansModule } from './modules/bans/bans.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
@@ -52,6 +53,7 @@ class RedisModule implements OnApplicationShutdown {
     AuthModule,
     UsersModule,
     RoomsModule,
+    MessagesModule,
     FriendsModule,
     BansModule,
     ModerationModule,

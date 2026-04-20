@@ -1,11 +1,13 @@
 /**
- * TCP-layer tests: `RoomsTcpController` dispatches payloads to the service and
- * wraps HttpException-kind failures via `toRpc` into RpcException envelopes
- * consumable by the BFF's RpcErrorInterceptor.
+ * TCP-layer tests: `RoomsTcpController` dispatches payloads to the service.
+ *
+ * HttpException -> RpcException translation is done by the global
+ * `RpcExceptionFilter` (see `common/rpc/rpc-exception.filter.spec.ts`), not
+ * the controller, so these tests assert raw HttpException propagation from
+ * the service through the thin controller layer.
  */
 
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
 import { RoomsTcpController } from './rooms.tcp';
 import { RoomsService } from './rooms.service';
 
@@ -19,6 +21,7 @@ function makeService(): jest.Mocked<RoomsService> {
     invite: jest.fn(),
     membersOf: jest.fn(),
     ensureMember: jest.fn(),
+    update: jest.fn(),
   } as unknown as jest.Mocked<RoomsService>;
 }
 
@@ -51,31 +54,18 @@ describe('RoomsTcpController', () => {
     await expect(controller.leave({ userId: 1, roomId: 2 })).resolves.toEqual({ ok: true });
   });
 
-  it('rooms.join wraps ForbiddenException as RpcException(403)', async () => {
+  it('rooms.join propagates ForbiddenException (filter maps to Rpc(403))', async () => {
     service.join.mockRejectedValue(new ForbiddenException('no entry'));
-    await expect(controller.join({ userId: 1, roomId: 9 })).rejects.toMatchObject({
-      constructor: RpcException,
-    });
-    // Call again to inspect the RpcException envelope.
-    service.join.mockRejectedValue(new ForbiddenException('no entry'));
-    try {
-      await controller.join({ userId: 1, roomId: 9 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 403, message: 'no entry' });
-    }
+    await expect(controller.join({ userId: 1, roomId: 9 })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
-  it('rooms.invite wraps ConflictException as RpcException(409)', async () => {
+  it('rooms.invite propagates ConflictException (filter maps to Rpc(409))', async () => {
     service.invite.mockRejectedValue(new ConflictException('dup'));
-    try {
-      await controller.invite({ inviterId: 1, inviteeId: 2, roomId: 3 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 409, message: 'dup' });
-    }
+    await expect(
+      controller.invite({ inviterId: 1, inviteeId: 2, roomId: 3 }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('rooms.catalog forwards service result', async () => {
@@ -98,44 +88,70 @@ describe('RoomsTcpController', () => {
     expect(service.membersOf).toHaveBeenCalledWith(42);
   });
 
-  it('rooms.membersOf wraps NotFoundException as RpcException(404)', async () => {
+  it('rooms.membersOf propagates NotFoundException (filter maps to Rpc(404))', async () => {
     service.membersOf.mockRejectedValue(new NotFoundException('room gone'));
-    try {
-      await controller.membersOf({ roomId: 42 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 404, message: 'room gone' });
-    }
+    await expect(controller.membersOf({ roomId: 42 })).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('rooms.ensureMember forwards payload and returns { ok: true }', async () => {
     service.ensureMember.mockResolvedValue({ ok: true });
-    await expect(
-      controller.ensureMember({ roomId: 3, userId: 7 }),
-    ).resolves.toEqual({ ok: true });
+    await expect(controller.ensureMember({ roomId: 3, userId: 7 })).resolves.toEqual({ ok: true });
     expect(service.ensureMember).toHaveBeenCalledWith({ roomId: 3, userId: 7 });
   });
 
-  it('rooms.ensureMember wraps ForbiddenException as RpcException(403)', async () => {
+  it('rooms.ensureMember propagates ForbiddenException (filter maps to Rpc(403))', async () => {
     service.ensureMember.mockRejectedValue(new ForbiddenException('not a member'));
-    try {
-      await controller.ensureMember({ roomId: 3, userId: 7 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 403, message: 'not a member' });
-    }
+    await expect(controller.ensureMember({ roomId: 3, userId: 7 })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
-  it('rooms.ensureMember wraps NotFoundException as RpcException(404)', async () => {
+  it('rooms.ensureMember propagates NotFoundException (filter maps to Rpc(404))', async () => {
     service.ensureMember.mockRejectedValue(new NotFoundException('room missing'));
-    try {
-      await controller.ensureMember({ roomId: 3, userId: 7 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 404, message: 'room missing' });
-    }
+    await expect(controller.ensureMember({ roomId: 3, userId: 7 })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // rooms.update (EPIC-05 AC-05-13)
+  // ---------------------------------------------------------------------------
+
+  it('rooms.update forwards payload into service.update', async () => {
+    service.update.mockResolvedValue({ id: 1, name: 'new' } as any);
+    const patch = { name: 'new', visibility: 'private' as const };
+    const out = await controller.update({ roomId: 1, actorId: 7, patch });
+    expect(service.update).toHaveBeenCalledWith({
+      roomId: 1,
+      actorId: 7,
+      patch,
+    });
+    expect(out).toEqual({ id: 1, name: 'new' });
+  });
+
+  it('rooms.update propagates ConflictException for duplicate name (filter → Rpc(409))', async () => {
+    const { ConflictException: C } = require('@nestjs/common');
+    service.update.mockRejectedValue(new C('dup'));
+    await expect(
+      controller.update({ roomId: 1, actorId: 7, patch: { name: 'x' } }),
+    ).rejects.toBeInstanceOf(C);
+  });
+
+  it('rooms.update propagates ForbiddenException for non-owner (filter → Rpc(403))', async () => {
+    const { ForbiddenException: F } = require('@nestjs/common');
+    service.update.mockRejectedValue(new F('not owner'));
+    await expect(
+      controller.update({ roomId: 1, actorId: 7, patch: { name: 'x' } }),
+    ).rejects.toBeInstanceOf(F);
+  });
+
+  it('rooms.update tolerates missing `patch` (treats as empty)', async () => {
+    service.update.mockResolvedValue({ id: 1 } as any);
+    await controller.update({ roomId: 1, actorId: 7 } as any);
+    expect(service.update).toHaveBeenCalledWith({
+      roomId: 1,
+      actorId: 7,
+      patch: {},
+    });
   });
 });

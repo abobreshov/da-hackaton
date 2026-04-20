@@ -57,7 +57,7 @@ describe('ThrottleGuard — multi-bucket', () => {
     const guard = new ThrottleGuard(new Reflector(), makeRedis(1));
     const ctx = makeCtx(Ctrl.prototype.method, {
       ip: '1.2.3.4',
-      session: { userId: 7 },
+      session: { sub: 'u:7' },
     });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
@@ -198,26 +198,26 @@ describe('ThrottleGuard — key resolution (defaultKey)', () => {
     return { redis: { multi: () => pipeline, zrange: jest.fn() } as any, pipeline };
   }
 
-  it('uses session.userId when present → key is u:<id>', async () => {
+  it('uses session.sub (user) when present → key is u:<id>', async () => {
     const { redis, pipeline } = makeAllowRedis();
     class Ctrl {
       @Throttle({ scope: 'login', limit: 5, windowMs: 60_000 })
       method() {}
     }
     const guard = new ThrottleGuard(new Reflector(), redis);
-    const ctx = makeCtx(Ctrl.prototype.method, { session: { userId: 42 }, ip: '1.2.3.4' });
+    const ctx = makeCtx(Ctrl.prototype.method, { session: { sub: 'u:42' }, ip: '1.2.3.4' });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(pipeline.zadd.mock.calls[0][0]).toBe('ratelimit:login:u:42');
   });
 
-  it('falls back to session.adminId when userId is absent', async () => {
+  it('uses session.sub (admin) → key is a:<id>', async () => {
     const { redis, pipeline } = makeAllowRedis();
     class Ctrl {
       @Throttle({ scope: 'login', limit: 5, windowMs: 60_000 })
       method() {}
     }
     const guard = new ThrottleGuard(new Reflector(), redis);
-    const ctx = makeCtx(Ctrl.prototype.method, { session: { adminId: 7 }, ip: '5.6.7.8' });
+    const ctx = makeCtx(Ctrl.prototype.method, { session: { sub: 'a:7' }, ip: '5.6.7.8' });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(pipeline.zadd.mock.calls[0][0]).toBe('ratelimit:login:a:7');
   });
@@ -272,7 +272,7 @@ describe('ThrottleGuard — key resolution (defaultKey)', () => {
     const guard = new ThrottleGuard(new Reflector(), redis);
     const ctx = makeCtx(Ctrl.prototype.method, {
       ip: '1.2.3.4',
-      session: { userId: 999 }, // ignored in favour of keyFn
+      session: { sub: 'u:999' }, // ignored in favour of keyFn
     });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(pipeline.zadd.mock.calls[0][0]).toBe('ratelimit:reset-ip:ip:1.2.3.4');

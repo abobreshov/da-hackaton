@@ -3,8 +3,15 @@ process.env.JWT_ADMIN_SECRET = process.env.JWT_ADMIN_SECRET ?? 'x'.repeat(48);
 process.env.JWT_CUSTOMER_SECRET = process.env.JWT_CUSTOMER_SECRET ?? 'y'.repeat(48);
 process.env.SYSTEM_KEY = process.env.SYSTEM_KEY ?? 'z'.repeat(48);
 
+/**
+ * TCP-layer CustomerAuthTcpController: @MessagePattern handlers dispatch
+ * straight to the service. HttpException -> RpcException translation is
+ * handled by the global `RpcExceptionFilter` (covered in its own spec under
+ * `common/rpc/rpc-exception.filter.spec.ts`); here we just assert dispatch +
+ * raw exception propagation.
+ */
+
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
 import { CustomerAuthTcpController } from './customer-auth.tcp';
 import { CustomerAuthService } from './customer-auth.service';
 
@@ -39,15 +46,13 @@ describe('CustomerAuthTcpController', () => {
       });
     });
 
-    it('maps HttpException -> RpcException with { status, message }', async () => {
+    it('propagates HttpException (filter maps to Rpc(401))', async () => {
       svc.login.mockRejectedValue(
         new HttpException({ code: 'UNAUTHENTICATED', message: 'bad' }, HttpStatus.UNAUTHORIZED),
       );
-      const promise = ctrl.login({ email: 'u@x.com', password: 'pw' } as any);
-      await expect(promise).rejects.toBeInstanceOf(RpcException);
-      await promise.catch((e: RpcException) => {
-        expect(e.getError()).toMatchObject({ status: 401, message: 'bad' });
-      });
+      await expect(ctrl.login({ email: 'u@x.com', password: 'pw' } as any)).rejects.toBeInstanceOf(
+        HttpException,
+      );
     });
   });
 
@@ -87,9 +92,9 @@ describe('CustomerAuthTcpController', () => {
   describe('passwordResetRequest', () => {
     it('returns { ok: true } on success', async () => {
       svc.passwordResetRequest.mockResolvedValue(undefined);
-      await expect(
-        ctrl.passwordResetRequest({ email: 'u@x.com' } as any),
-      ).resolves.toEqual({ ok: true });
+      await expect(ctrl.passwordResetRequest({ email: 'u@x.com' } as any)).resolves.toEqual({
+        ok: true,
+      });
     });
   });
 
@@ -118,13 +123,9 @@ describe('CustomerAuthTcpController', () => {
       expect(svc.deleteAccount).toHaveBeenCalledWith({ userId: 9 });
     });
 
-    it('maps unknown Error -> RpcException(500)', async () => {
+    it('propagates unknown Error (filter maps to Rpc(500))', async () => {
       svc.deleteAccount.mockRejectedValue(new Error('boom'));
-      const promise = ctrl.deleteAccount({ userId: 9 });
-      await expect(promise).rejects.toBeInstanceOf(RpcException);
-      await promise.catch((e: RpcException) => {
-        expect(e.getError()).toMatchObject({ status: 500, message: 'boom' });
-      });
+      await expect(ctrl.deleteAccount({ userId: 9 })).rejects.toBeInstanceOf(Error);
     });
   });
 });

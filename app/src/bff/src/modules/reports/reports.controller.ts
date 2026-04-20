@@ -15,25 +15,28 @@ import { ResolveReportDto } from './dto/resolve-report.dto';
 import { DismissReportDto } from './dto/dismiss-report.dto';
 import { SessionGuard } from '../../auth/session.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { ThrottleGuard } from '../../common/guards/throttle.guard';
+import { Throttle } from '../../common/decorators/throttle.decorator';
+import { parseSub } from '../../auth/cookie.service';
 
 interface SessionRequest {
-  session?: { userId?: number; adminId?: number; type?: string };
+  session?: { sub?: string; type?: string };
 }
 
 function getUserId(req: SessionRequest): number {
-  const raw = req.session?.userId;
-  if (typeof raw !== 'number') {
-    throw new Error('no userId in session');
-  }
-  return raw;
+  const sub = req.session?.sub;
+  if (!sub) throw new Error('no userId in session');
+  const { type, numericId } = parseSub(sub);
+  if (type !== 'user') throw new Error('no userId in session');
+  return numericId;
 }
 
 function getAdminId(req: SessionRequest): number {
-  const raw = req.session?.adminId;
-  if (typeof raw !== 'number') {
-    throw new Error('no adminId in session');
-  }
-  return raw;
+  const sub = req.session?.sub;
+  if (!sub) throw new Error('no adminId in session');
+  const { type, numericId } = parseSub(sub);
+  if (type !== 'admin') throw new Error('no adminId in session');
+  return numericId;
 }
 
 /**
@@ -48,6 +51,16 @@ export class ReportsController {
 
   @Post()
   @HttpCode(201)
+  // AC-14-13 — spam suppression: 10 reports per hour per user.
+  // Fail-open: Redis being down must not stop people reporting abuse.
+  @UseGuards(ThrottleGuard)
+  @Throttle({
+    scope: 'report-create',
+    limit: 10,
+    windowMs: 3_600_000,
+    failClosed: false,
+    keyFn: (req: any) => req?.session?.sub ?? 'ip:unknown',
+  })
   create(@Body() dto: CreateReportDto, @Req() req: SessionRequest) {
     return this.service.create({
       reporterId: getUserId(req),

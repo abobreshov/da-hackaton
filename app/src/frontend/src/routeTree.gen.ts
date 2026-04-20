@@ -12,6 +12,11 @@ import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard';
 import { Route as AuthContactsRouteImport } from './routes/_auth/contacts';
 import { Route as AuthRoomsIndexRouteImport } from './routes/_auth/rooms/index';
 import { Route as AuthRoomsRoomIdRouteImport } from './routes/_auth/rooms/$roomId';
+import { Route as AuthDmUserIdRouteImport } from './routes/_auth/dm/$userId';
+// --- Admin layout + children (EPIC-10) ---
+import { Route as AdminRouteImport } from './routes/_admin';
+import { Route as AdminReportsRouteImport } from './routes/_admin/reports';
+import { Route as AdminAuditLogRouteImport } from './routes/_admin/audit-log';
 
 const PublicRoute = PublicRouteImport.update({
   id: '/_public',
@@ -71,6 +76,12 @@ const AuthRoomsRoomIdRoute = AuthRoomsRoomIdRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any);
 
+const AuthDmUserIdRoute = AuthDmUserIdRouteImport.update({
+  id: '/dm/$userId',
+  path: '/dm/$userId',
+  getParentRoute: () => AuthRoute,
+} as any);
+
 const PublicRouteChildren = {
   LoginRoute,
   RegisterRoute,
@@ -84,12 +95,38 @@ const AuthRouteChildren = {
   AuthContactsRoute,
   AuthRoomsIndexRoute,
   AuthRoomsRoomIdRoute,
+  AuthDmUserIdRoute,
 };
 const AuthRouteWithChildren = (AuthRoute as any)._addFileChildren(AuthRouteChildren);
+
+// --- Admin layout + children (EPIC-10) ---
+const AdminRoute = AdminRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => rootRouteImport,
+} as any);
+
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminRoute,
+} as any);
+
+const AdminAuditLogRoute = AdminAuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => AdminRoute,
+} as any);
+
+const AdminRouteChildren = {
+  AdminReportsRoute,
+  AdminAuditLogRoute,
+};
+const AdminRouteWithChildren = (AdminRoute as any)._addFileChildren(AdminRouteChildren);
 
 const rootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   PublicRoute: PublicRouteWithChildren,
+  AdminRoute: AdminRouteWithChildren,
 };
 
 export const routeTree = (rootRouteImport as any)
@@ -167,6 +204,35 @@ declare module '@tanstack/react-router' {
       fullPath: '/rooms/$roomId';
       preLoaderRoute: typeof AuthRoomsRoomIdRouteImport;
       parentRoute: typeof AuthRouteImport;
+    };
+    '/_auth/dm/$userId': {
+      id: '/_auth/dm/$userId';
+      path: '/dm/$userId';
+      fullPath: '/dm/$userId';
+      preLoaderRoute: typeof AuthDmUserIdRouteImport;
+      parentRoute: typeof AuthRouteImport;
+    };
+    // --- Admin layout + children (EPIC-10) ---
+    '/_admin': {
+      id: '/_admin';
+      path: '';
+      fullPath: '';
+      preLoaderRoute: typeof AdminRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/_admin/reports': {
+      id: '/_admin/reports';
+      path: '/reports';
+      fullPath: '/reports';
+      preLoaderRoute: typeof AdminReportsRouteImport;
+      parentRoute: typeof AdminRouteImport;
+    };
+    '/_admin/audit-log': {
+      id: '/_admin/audit-log';
+      path: '/audit-log';
+      fullPath: '/audit-log';
+      preLoaderRoute: typeof AdminAuditLogRouteImport;
+      parentRoute: typeof AdminRouteImport;
     };
   }
 }

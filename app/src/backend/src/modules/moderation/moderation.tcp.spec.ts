@@ -1,10 +1,8 @@
 /**
  * TCP-layer tests: `ModerationTcpController` dispatches payloads to the
- * service and wraps HttpException-kind failures via `toRpc` into
- * RpcException envelopes consumable by the BFF's RpcErrorInterceptor.
- *
- * Fills the M2 blocker where `ModerationModule` exposed only HTTP — the
- * BFF had no TCP entry for promote/demote/ban/unban/listBans/deleteRoom.
+ * service. HttpException -> RpcException translation is handled globally by
+ * `RpcExceptionFilter` (covered in its own spec); here we assert wiring,
+ * actorId remapping, and raw HttpException propagation.
  */
 
 // Must come before the ModerationService import below — the service pulls
@@ -18,7 +16,6 @@ jest.mock('../../database/connection', () => ({
 }));
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
 import { ModerationTcpController } from './moderation.tcp';
 import { ModerationService } from './moderation.service';
 
@@ -63,9 +60,6 @@ describe('ModerationTcpController', () => {
     for (const m of methods) {
       const raw = Reflect.getMetadata('microservices:pattern', proto[m]);
       if (!raw) continue;
-      // Nest stores the pattern as a JSON-serialised string (array of pattern
-      // objects when using @MessagePattern). Support both raw object form and
-      // the stringified envelope Nest 11 produces.
       const patterns: unknown[] = Array.isArray(raw)
         ? raw
         : typeof raw === 'string'
@@ -96,15 +90,11 @@ describe('ModerationTcpController', () => {
     });
   });
 
-  it('rooms.members.promote wraps ForbiddenException as RpcException(403)', async () => {
+  it('rooms.members.promote propagates ForbiddenException (filter maps to Rpc(403))', async () => {
     service.promote.mockRejectedValue(new ForbiddenException('owner required'));
-    try {
-      await controller.promote({ roomId: 1, actorId: 2, userId: 3 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 403, message: 'owner required' });
-    }
+    await expect(
+      controller.promote({ roomId: 1, actorId: 2, userId: 3 }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   // ---------------------------------------------------------------------------
@@ -135,15 +125,11 @@ describe('ModerationTcpController', () => {
     });
   });
 
-  it('rooms.members.ban wraps NotFoundException as RpcException(404)', async () => {
+  it('rooms.members.ban propagates NotFoundException (filter maps to Rpc(404))', async () => {
     service.banMember.mockRejectedValue(new NotFoundException('not a member'));
-    try {
-      await controller.banMember({ roomId: 5, actorId: 6, userId: 7 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 404, message: 'not a member' });
-    }
+    await expect(
+      controller.banMember({ roomId: 5, actorId: 6, userId: 7 }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('rooms.bans.unban maps actorId -> adminId on service.unbanMember', async () => {
@@ -178,15 +164,11 @@ describe('ModerationTcpController', () => {
     expect(service.deleteRoom).toHaveBeenCalledWith({ roomId: 99, actorId: 1 });
   });
 
-  it('rooms.delete wraps ForbiddenException as RpcException(403)', async () => {
+  it('rooms.delete propagates ForbiddenException (filter maps to Rpc(403))', async () => {
     service.deleteRoom.mockRejectedValue(new ForbiddenException('owner required'));
-    try {
-      await controller.deleteRoom({ roomId: 99, actorId: 1 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 403, message: 'owner required' });
-    }
+    await expect(controller.deleteRoom({ roomId: 99, actorId: 1 })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   // ---------------------------------------------------------------------------

@@ -14,6 +14,25 @@ export class CacheService implements OnModuleDestroy {
     await this.client.setex(key, ttlSeconds, value);
   }
 
+  /**
+   * Atomic SET NX EX — used for single-use anti-replay guards (TOTP codes,
+   * password-reset tokens, idempotency keys). Returns `true` if the key was
+   * newly written (caller owns the guard), `false` if it already existed
+   * (replay / duplicate). Errors propagate to the caller for fail-closed
+   * handling.
+   */
+  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    // `set key value EX ttl NX` — node-redis style. ioredis accepts the same
+    // variadic argument shape: `client.set(key, value, 'EX', ttl, 'NX')`.
+    // Returns 'OK' when stored, `null` when NX collided.
+    const result = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  }
+
+  async exists(key: string): Promise<boolean> {
+    return (await this.client.exists(key)) > 0;
+  }
+
   async del(...keys: string[]): Promise<void> {
     if (keys.length) await this.client.del(...keys);
   }

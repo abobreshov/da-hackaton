@@ -1,7 +1,8 @@
 /**
- * TCP-layer FriendsTcpController — @MessagePattern handlers that dispatch to
- * the service and wrap HttpException-kind failures via `toRpc` into
- * RpcException envelopes consumable by the BFF's RpcErrorInterceptor.
+ * TCP-layer FriendsTcpController — @MessagePattern handlers dispatch straight
+ * to the service. HttpException -> RpcException translation is handled by the
+ * global `RpcExceptionFilter` (covered in its own spec); here we just assert
+ * wiring, payload forwarding, and raw HttpException propagation.
  */
 
 jest.mock('../../config/environment', () => ({
@@ -13,7 +14,6 @@ jest.mock('../../database/connection', () => ({
 }));
 
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
 import { FriendsTcpController } from './friends.tcp';
 import type { FriendsService } from './friends.service';
 
@@ -85,15 +85,11 @@ describe('FriendsTcpController', () => {
     expect(out).toEqual({ id: 11 });
   });
 
-  it('friends.request wraps NotFoundException as RpcException(404)', async () => {
+  it('friends.request propagates NotFoundException (filter maps to Rpc(404))', async () => {
     service.request.mockRejectedValue(new NotFoundException("user 'ghost' not found"));
-    try {
-      await controller.request({ requesterId: 1, targetUsername: 'ghost' });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 404, message: "user 'ghost' not found" });
-    }
+    await expect(
+      controller.request({ requesterId: 1, targetUsername: 'ghost' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   // ---------------------------------------------------------------------------
@@ -106,15 +102,11 @@ describe('FriendsTcpController', () => {
     expect(service.accept).toHaveBeenCalledWith({ userId: 3, requestId: 7 });
   });
 
-  it('friends.reject wraps ConflictException as RpcException(409)', async () => {
+  it('friends.reject propagates ConflictException (filter maps to Rpc(409))', async () => {
     service.reject.mockRejectedValue(new ConflictException('friend request is not pending'));
-    try {
-      await controller.reject({ userId: 3, requestId: 7 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 409 });
-    }
+    await expect(controller.reject({ userId: 3, requestId: 7 })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -145,7 +137,14 @@ describe('FriendsTcpController', () => {
 
   it('friends.listPending forwards payload to service.listPending', async () => {
     const rows = [
-      { id: 2, requesterId: 5, otherUserId: 5, incoming: true, requestText: null, createdAt: new Date() },
+      {
+        id: 2,
+        requesterId: 5,
+        otherUserId: 5,
+        incoming: true,
+        requestText: null,
+        createdAt: new Date(),
+      },
     ];
     service.listPending.mockResolvedValue(rows as any);
     const out = await controller.listPending({ userId: 3 });

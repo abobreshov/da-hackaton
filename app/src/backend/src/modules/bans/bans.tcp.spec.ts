@@ -1,7 +1,8 @@
 /**
- * TCP-layer BansTcpController — @MessagePattern handlers that dispatch to
- * the service and wrap HttpException-kind failures via `toRpc` into
- * RpcException envelopes consumable by the BFF's RpcErrorInterceptor.
+ * TCP-layer BansTcpController — @MessagePattern handlers dispatch straight to
+ * the service. HttpException -> RpcException translation is handled by the
+ * global `RpcExceptionFilter` (covered in its own spec); here we assert wiring
+ * + payload forwarding + raw HttpException propagation.
  */
 
 jest.mock('../../config/environment', () => ({
@@ -13,7 +14,6 @@ jest.mock('../../database/connection', () => ({
 }));
 
 import { BadRequestException } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
 import { BansTcpController } from './bans.tcp';
 import type { BansService } from './bans.service';
 
@@ -36,11 +36,7 @@ describe('BansTcpController', () => {
   });
 
   it('exposes a @MessagePattern per bans action with expected cmd strings', () => {
-    const expected = new Set<string>([
-      'users.ban',
-      'users.unban',
-      'users.listBans',
-    ]);
+    const expected = new Set<string>(['users.ban', 'users.unban', 'users.listBans']);
 
     const proto = Object.getPrototypeOf(controller);
     const methods = Object.getOwnPropertyNames(proto).filter((m) => m !== 'constructor');
@@ -76,15 +72,11 @@ describe('BansTcpController', () => {
     expect(out).toEqual({ ok: true });
   });
 
-  it('users.ban wraps BadRequestException (self-ban) as RpcException(400)', async () => {
+  it('users.ban propagates BadRequestException (filter maps to Rpc(400))', async () => {
     service.banUser.mockRejectedValue(new BadRequestException('cannot ban yourself'));
-    try {
-      await controller.ban({ bannerId: 1, bannedId: 1 });
-      fail('expected RpcException');
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(RpcException);
-      expect(e.getError()).toMatchObject({ status: 400 });
-    }
+    await expect(controller.ban({ bannerId: 1, bannedId: 1 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   // ---------------------------------------------------------------------------

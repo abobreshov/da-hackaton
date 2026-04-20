@@ -30,6 +30,7 @@ export const TcpCmd = {
     delete: 'messages.delete',
     list: 'messages.list',
     since: 'messages.since',
+    getById: 'messages.getById',
   },
   rooms: {
     create: 'rooms.create',
@@ -41,6 +42,7 @@ export const TcpCmd = {
     membersOf: 'rooms.membersOf',
     ensureMember: 'rooms.ensureMember',
     delete: 'rooms.delete',
+    update: 'rooms.update',
     members: {
       promote: 'rooms.members.promote',
       demote: 'rooms.members.demote',

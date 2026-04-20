@@ -5,6 +5,7 @@ import {
   HttpCode,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -13,6 +14,7 @@ import {
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateRoomDto } from './dto/update-room.dto';
 import { JwtGuard } from '../../common/guards/jwt.guard';
 
 interface AuthedRequest {
@@ -77,6 +79,24 @@ export class RoomsController {
       inviterId: getUserId(req),
       inviteeId: dto.invitedUserId,
       roomId: id,
+    });
+  }
+
+  /** Owner-only PATCH — EPIC-05 AC-05-13. */
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateRoomDto,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.service.update({
+      roomId: id,
+      actorId: getUserId(req),
+      patch: {
+        name: dto.name,
+        description: dto.description,
+        visibility: dto.visibility,
+      },
     });
   }
 }

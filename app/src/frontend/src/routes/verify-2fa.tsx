@@ -13,14 +13,14 @@ import { FormError } from '@/components/ui/form-error';
 import { Icon } from '@/components/ui/icon';
 import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { ApiError, isErrorCode } from '@/lib/api-client';
-import { ErrorCode } from '@app/contracts';
+import { ErrorCode, totpSchema as sharedTotpSchema } from '@app/contracts';
 
 export const Route = createFileRoute('/verify-2fa')({
   component: Verify2FAPage,
 });
 
 const totpSchema = z.object({
-  totpCode: z.string().min(6).max(6).regex(/^\d+$/, 'Digits only'),
+  totpCode: sharedTotpSchema,
 });
 type TotpData = z.infer<typeof totpSchema>;
 
@@ -124,7 +124,7 @@ export function Verify2FAPage({ pendingCredentials }: Verify2FAPageProps = {}): 
       }
       clearPendingCredentials();
       setSession({
-        userId: res.user.id,
+        id: res.user.id,
         email: res.user.email,
         name: res.user.name,
         type: 'user',
