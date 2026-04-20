@@ -84,6 +84,14 @@ cd app
 
 Output directory is gitignored. Certs are 1-year, IPs 127.0.0.1 + ::1 + DNS `<svc>.internal`/`<svc>`/`localhost`. `dev-local.sh` runs the generator automatically if `ca.crt` is missing.
 
+**Fail-fast on missing certs.** When `TLS_ENABLED=true`, each service validates the existence of `TLS_CA_PATH`, `TLS_CERT_PATH`, and `TLS_KEY_PATH` at bootstrap. Missing files produce a single explicit error naming every path that's wrong:
+
+```
+TLS_ENABLED=true but cert files are missing: TLS_CERT_PATH=/certs/bff.crt. Run `./scripts/gen-certs.sh` in app/ or set TLS_ENABLED=false to skip mTLS.
+```
+
+This catches the common mistake of deleting `secrets/` without re-running `gen-certs.sh` — Docker would otherwise mount an empty directory and the service would crash with a cryptic `ENOENT`.
+
 ### Environment files
 
 Each service reads its config from a gitignored `.env` at the service root. Create them before booting the stack:
