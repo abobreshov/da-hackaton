@@ -1,67 +1,51 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { env } from '../config/environment';
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
+import { AUTH_SERVICE } from '../common/microservice.module';
 
 @Injectable()
 export class AuthService {
-  async loginAdmin(email: string, password: string, totpCode?: string) {
-    const res = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/auth/admin/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, totpCode }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new UnauthorizedException((err as any)?.message ?? 'Login failed');
-    }
-    return res.json();
+  constructor(@Inject(AUTH_SERVICE) private readonly client: ClientProxy) {}
+
+  loginAdmin(email: string, password: string, totpCode?: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.admin.login' }, { email, password, totpCode }),
+    );
   }
 
-  async loginUser(email: string, password: string, totpCode?: string) {
-    const res = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/auth/customer/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, totpCode }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new UnauthorizedException((err as any)?.message ?? 'Login failed');
-    }
-    return res.json();
+  loginUser(email: string, password: string, totpCode?: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.customer.login' }, { email, password, totpCode }),
+    );
   }
 
-  async refreshAdmin(refreshToken: string) {
-    const res = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/auth/admin/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) throw new UnauthorizedException('Session expired');
-    return res.json();
+  refreshAdmin(refreshToken: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.admin.refresh' }, { refreshToken }),
+    );
   }
 
-  async refreshUser(refreshToken: string) {
-    const res = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/auth/customer/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) throw new UnauthorizedException('Session expired');
-    return res.json();
+  refreshUser(refreshToken: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.customer.refresh' }, { refreshToken }),
+    );
   }
 
-  async logoutAdmin(refreshToken: string) {
-    await fetch(`${env.AUTH_SERVICE_URL}/api/v1/auth/admin/logout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    }).catch(() => {});
+  logoutAdmin(refreshToken: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.admin.logout' }, { refreshToken }),
+    );
   }
 
-  async logoutUser(refreshToken: string) {
-    await fetch(`${env.AUTH_SERVICE_URL}/api/v1/auth/customer/logout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    }).catch(() => {});
+  logoutUser(refreshToken: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.customer.logout' }, { refreshToken }),
+    );
+  }
+
+  validateUserToken(token: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.customer.validateToken' }, { token }),
+    );
   }
 }

@@ -9,13 +9,14 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "seed": "npx ts-node --project tsconfig.json -r tsconfig-paths/register scripts/seed.ts"
+    "seed": "ts-node --project tsconfig.json -r tsconfig-paths/register scripts/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-fastify": "^11.0.0",
     "@nestjs/jwt": "^11.0.0",
+    "@nestjs/microservices": "^11.0.0",
     "@fastify/cookie": "^11.0.0",
     "drizzle-orm": "^0.44.0",
     "pg": "^8.16.0",

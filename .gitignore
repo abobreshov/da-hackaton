@@ -41,3 +41,9 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# OpenViking
+ov.conf
+data/
+.openviking/
+

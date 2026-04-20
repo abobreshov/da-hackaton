@@ -1,6 +1,7 @@
 FROM node:22-alpine
+RUN corepack enable && corepack prepare yarn@4.9.1 --activate
 WORKDIR /app
 COPY package.json ./
-RUN npm install
+RUN yarn install --no-immutable
 COPY . .
-CMD ["npx", "vite", "--host", "0.0.0.0", "--port", "3007"]
+CMD ["yarn", "vite", "--host", "0.0.0.0", "--port", "3007"]

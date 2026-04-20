@@ -30,7 +30,9 @@ export class CustomerAuthService {
     if (user.accessStatus !== 'ACTIVE') throw new ForbiddenException('Account inactive');
 
     if (user.twoFactorEnabled) {
-      if (!dto.totpCode) throw new UnauthorizedException('TOTP code required');
+      if (!dto.totpCode) {
+        return { requires2fa: true as const };
+      }
       if (!this.totpService.verify(dto.totpCode, user.twoFactorSecret!)) {
         throw new UnauthorizedException('Invalid TOTP code');
       }

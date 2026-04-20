@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
+import { authenticator } from 'otplib';
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/appdb';
 const pool = new Pool({ connectionString: DATABASE_URL });
@@ -7,10 +8,12 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 async function seed(): Promise<void> {
   const client = await pool.connect();
   try {
-    const [adminHash, userHash] = await Promise.all([
+    const [adminHash, userHash, user2faHash] = await Promise.all([
       bcrypt.hash('Admin123!', 12),
       bcrypt.hash('User1234!', 12),
+      bcrypt.hash('Secure2FA!', 12),
     ]);
+    const totpSecret = authenticator.generateSecret();
 
     await client.query(`
       DO $$ BEGIN
@@ -62,15 +65,28 @@ async function seed(): Promise<void> {
     );
     const userScopes = ['read:profile', 'write:profile', 'read:dashboard'];
     await client.query(
-      `INSERT INTO users (email, name, password_hash, role, scopes)
-       VALUES ($1, $2, $3, 'USER', $4)
-       ON CONFLICT (email) DO UPDATE SET password_hash = $3, name = $2, scopes = $4;`,
+      `INSERT INTO users (email, name, password_hash, role, scopes, two_factor_enabled, two_factor_secret)
+       VALUES ($1, $2, $3, 'USER', $4, FALSE, NULL)
+       ON CONFLICT (email) DO UPDATE
+         SET password_hash = $3, name = $2, scopes = $4,
+             two_factor_enabled = FALSE, two_factor_secret = NULL;`,
       ['user@example.com', 'Dev User', userHash, userScopes],
+    );
+    await client.query(
+      `INSERT INTO users (email, name, password_hash, role, scopes, two_factor_enabled, two_factor_secret)
+       VALUES ($1, $2, $3, 'USER', $4, TRUE, $5)
+       ON CONFLICT (email) DO UPDATE
+         SET password_hash = $3, name = $2, scopes = $4,
+             two_factor_enabled = TRUE, two_factor_secret = $5;`,
+      ['user2fa@example.com', 'Dev User 2FA', user2faHash, userScopes, totpSecret],
     );
 
     console.log('Seeded:');
-    console.log('  admin@example.com  / Admin123!  (admin)');
-    console.log(`  user@example.com   / User1234!  (user)  scopes=${JSON.stringify(userScopes)}`);
+    console.log('  admin@example.com     / Admin123!   (admin)');
+    console.log(`  user@example.com      / User1234!   (user)          scopes=${JSON.stringify(userScopes)}`);
+    console.log(`  user2fa@example.com   / Secure2FA!  (user, 2FA ON)  scopes=${JSON.stringify(userScopes)}`);
+    console.log(`  TOTP secret for user2fa@example.com: ${totpSecret}`);
+    console.log(`  otpauth URI: ${authenticator.keyuri('user2fa@example.com', 'App', totpSecret)}`);
   } finally {
     client.release();
     await pool.end();

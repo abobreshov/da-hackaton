@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
+import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { AppModule } from './app.module';
 import { env } from './config/environment';
 
@@ -20,8 +21,14 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: { host: '0.0.0.0', port: env.TCP_PORT },
+  });
+
+  await app.startAllMicroservices();
   await app.listen(env.PORT, '0.0.0.0');
-  console.log(`Auth service running on port ${env.PORT}`);
+  console.log(`Auth service running on HTTP ${env.PORT} + TCP ${env.TCP_PORT}`);
 }
 
 bootstrap();

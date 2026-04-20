@@ -27,7 +27,11 @@ export const loginAdmin = (email: string, password: string, totpCode?: string): 
     body: JSON.stringify({ email, password, totpCode, type: 'admin' }),
   });
 
-export const loginUser = (email: string, password: string, totpCode?: string): Promise<{ user: { id: number; email: string; name: string; role: string } }> =>
+export type LoginResponse =
+  | { requires2fa: true }
+  | { user: { id: number; email: string; name: string; role: string; scopes?: string[] } };
+
+export const loginUser = (email: string, password: string, totpCode?: string): Promise<LoginResponse> =>
   apiFetch('/api/v1/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password, totpCode, type: 'user' }),

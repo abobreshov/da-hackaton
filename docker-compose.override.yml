@@ -1,0 +1,14 @@
+services:
+  postgres:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  auth-service:
+    volumes:
+      - ./tsconfig.base.json:/tsconfig.base.json:ro
+  backend:
+    volumes:
+      - ./tsconfig.base.json:/tsconfig.base.json:ro
+  bff:
+    volumes:
+      - ./tsconfig.base.json:/tsconfig.base.json:ro

@@ -30,7 +30,9 @@ export class AdminAuthService {
     if (admin.accessStatus !== 'ACTIVE') throw new ForbiddenException('Account inactive');
 
     if (admin.twoFactorEnabled) {
-      if (!dto.totpCode) throw new UnauthorizedException('TOTP code required');
+      if (!dto.totpCode) {
+        return { requires2fa: true as const };
+      }
       if (!this.totpService.verify(dto.totpCode, admin.twoFactorSecret!)) {
         throw new UnauthorizedException('Invalid TOTP code');
       }

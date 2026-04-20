@@ -37,7 +37,7 @@ done
 if [ "$NO_SEED" = false ]; then
   info "Seeding database..."
   docker compose -f "$ROOT/docker-compose.dev.yml" exec auth-service \
-    sh -c "cd /app && npm run seed" 2>/dev/null || \
+    sh -c "cd /app && yarn seed" 2>/dev/null || \
   docker compose -f "$ROOT/docker-compose.dev.yml" exec auth-service \
     sh -c "node /app/scripts/seed.mjs" 2>/dev/null || \
   info "Seed skipped (service may still be starting)"

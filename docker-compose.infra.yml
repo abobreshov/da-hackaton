@@ -1,14 +1,13 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: hackathone-postgres
     environment:
       POSTGRES_DB: appdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
@@ -19,8 +18,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: hackathone-redis
     ports:
-      - '6379:6379'
+      - '6380:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 3s

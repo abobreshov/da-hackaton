@@ -26,21 +26,21 @@ export class JwtService {
     return this.jwt.sign(payload, {
       secret: env.JWT_ADMIN_SECRET,
       expiresIn: env.JWT_ACCESS_TOKEN_EXPIRATION,
-    });
+    } as any);
   }
 
   verifyAdmin(token: string): AdminJwtPayload {
-    return this.jwt.verify(token, { secret: env.JWT_ADMIN_SECRET });
+    return this.jwt.verify<AdminJwtPayload>(token, { secret: env.JWT_ADMIN_SECRET });
   }
 
   signUser(payload: Omit<UserJwtPayload, 'iat' | 'exp'>): string {
     return this.jwt.sign(payload, {
       secret: env.JWT_CUSTOMER_SECRET,
       expiresIn: env.JWT_ACCESS_TOKEN_EXPIRATION,
-    });
+    } as any);
   }
 
   verifyUser(token: string): UserJwtPayload {
-    return this.jwt.verify(token, { secret: env.JWT_CUSTOMER_SECRET });
+    return this.jwt.verify<UserJwtPayload>(token, { secret: env.JWT_CUSTOMER_SECRET });
   }
 }

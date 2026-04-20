@@ -1,22 +1,26 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { env } from '../../config/environment';
+import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
+import { AUTH_SERVICE } from '../auth-client.module';
 
 @Injectable()
 export class JwtGuard implements CanActivate {
+  constructor(@Inject(AUTH_SERVICE) private readonly auth: ClientProxy) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const auth = request.headers['authorization'];
     if (!auth?.startsWith('Bearer ')) throw new UnauthorizedException();
 
     const token = auth.slice(7);
-    const res = await fetch(`${env.AUTH_SERVICE_URL}/api/v1/auth/customer/validate-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    });
-
-    if (!res.ok) throw new UnauthorizedException();
-    const user = await res.json();
-    request.user = user;
-    return true;
+    try {
+      const user = await firstValueFrom(
+        this.auth.send<any>({ cmd: 'auth.customer.validateToken' }, { token }),
+      );
+      request.user = user;
+      return true;
+    } catch {
+      throw new UnauthorizedException();
+    }
   }
 }

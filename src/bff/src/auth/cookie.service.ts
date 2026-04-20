@@ -63,7 +63,7 @@ export class CookieService {
 
   verifySession(token: string): SessionPayload | null {
     try {
-      return this.jwt.verify(token, { secret: env.SESSION_COOKIE_SECRET });
+      return this.jwt.verify<SessionPayload>(token, { secret: env.SESSION_COOKIE_SECRET });
     } catch {
       return null;
     }

@@ -6,7 +6,8 @@
     "src/backend",
     "src/bff",
     "src/frontend",
-    "src/packages/*"
+    "src/packages/*",
+    "e2e-tests"
   ],
   "packageManager": "yarn@4.9.1"
 }
