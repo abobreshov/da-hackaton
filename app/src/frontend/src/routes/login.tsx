@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,14 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError, isErrorCode } from '@/lib/api-client';
 import { ErrorCode } from '@app/contracts';
+import { AmbientOrbs } from '@/components/layout/ambient-orbs';
+import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+  email: z.string().email('Enter a valid email'),
+  password: z.string().min(8, 'At least 8 characters'),
 });
 const totpSchema = z.object({
   totpCode: z.string().min(6).max(6).regex(/^\d+$/, 'Digits only'),
@@ -96,104 +98,256 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Sign In</h1>
+    <div className="relative min-h-screen overflow-hidden bg-surface">
+      <AmbientOrbs />
 
-        {step === 'credentials' && (
-          <form onSubmit={credsForm.handleSubmit(onCredentials)} className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                className="mt-1"
-                {...credsForm.register('email')}
-              />
-              {credsForm.formState.errors.email && (
-                <p className="text-red-500 text-xs mt-1">
-                  {credsForm.formState.errors.email.message}
-                </p>
-              )}
-            </div>
+      <main className="relative z-10 flex min-h-screen items-center justify-center px-6 py-16">
+        <section
+          aria-labelledby="login-heading"
+          className="w-full max-w-md animate-fade-up rounded-[2.5rem] bg-surface-container-lowest/80 p-10 shadow-ambient-xl backdrop-blur-xl"
+        >
+          {/* Hero — logo disc + wordmark + "Ready to jump back in?" */}
+          <header className="flex flex-col items-center">
+            <ChatChatLogo size={80} />
 
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                className="mt-1"
-                {...credsForm.register('password')}
-              />
-              {credsForm.formState.errors.password && (
-                <p className="text-red-500 text-xs mt-1">
-                  {credsForm.formState.errors.password.message}
-                </p>
-              )}
-            </div>
+            <ChatChatWordmark className="mt-6" />
 
-            {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 p-3">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
-
-            <Button type="submit" className="w-full" disabled={credsForm.formState.isSubmitting}>
-              {credsForm.formState.isSubmitting ? 'Signing in...' : 'Continue'}
-            </Button>
-          </form>
-        )}
-
-        {step === 'totp' && (
-          <form onSubmit={totpForm.handleSubmit(onTotp)} className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Enter the 6-digit code from your authenticator app for{' '}
-              <span className="font-medium text-gray-900">{creds?.email}</span>.
-            </p>
-
-            <div>
-              <Label htmlFor="totpCode">Verification code</Label>
-              <Input
-                id="totpCode"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="123456"
-                className="mt-1"
-                {...totpForm.register('totpCode')}
-              />
-              {totpForm.formState.errors.totpCode && (
-                <p className="text-red-500 text-xs mt-1">
-                  {totpForm.formState.errors.totpCode.message}
-                </p>
-              )}
-            </div>
-
-            {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 p-3">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
-
-            <Button type="submit" className="w-full" disabled={totpForm.formState.isSubmitting}>
-              {totpForm.formState.isSubmitting ? 'Verifying...' : 'Verify'}
-            </Button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setStep('credentials');
-                setError(null);
-              }}
-              className="w-full text-sm text-gray-500 hover:text-gray-700"
+            <h1
+              id="login-heading"
+              className="mt-3 text-center font-display text-headline-md font-extrabold text-on-surface"
             >
-              Use a different account
-            </button>
-          </form>
-        )}
-      </div>
+              {step === 'credentials' ? (
+                <>
+                  Ready to jump
+                  <br />
+                  back in?
+                </>
+              ) : (
+                <>
+                  Confirm it's
+                  <br />
+                  really you
+                </>
+              )}
+            </h1>
+          </header>
+
+          {/* Credentials step */}
+          {step === 'credentials' && (
+            <form
+              onSubmit={credsForm.handleSubmit(onCredentials)}
+              className="mt-10 flex flex-col gap-6"
+              noValidate
+            >
+              <FieldRow>
+                <Label htmlFor="email">Email address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  leading={<AtIcon />}
+                  aria-invalid={Boolean(credsForm.formState.errors.email) || undefined}
+                  variant={credsForm.formState.errors.email ? 'error' : 'default'}
+                  {...credsForm.register('email')}
+                />
+                <FieldError message={credsForm.formState.errors.email?.message} />
+              </FieldRow>
+
+              <FieldRow>
+                <div className="flex items-baseline justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link
+                    to="/reset-password"
+                    className="font-display text-label-lg font-semibold text-primary hover:text-primary-dim hover:underline underline-offset-4"
+                  >
+                    Forgot it?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  leading={<LockIcon />}
+                  aria-invalid={Boolean(credsForm.formState.errors.password) || undefined}
+                  variant={credsForm.formState.errors.password ? 'error' : 'default'}
+                  {...credsForm.register('password')}
+                />
+                <FieldError message={credsForm.formState.errors.password?.message} />
+              </FieldRow>
+
+              {error ? <FormError message={error} /> : null}
+
+              <Button
+                type="submit"
+                size="lg"
+                className="mt-2 w-full"
+                disabled={credsForm.formState.isSubmitting}
+              >
+                <span>{credsForm.formState.isSubmitting ? 'Signing you in…' : "Let's Go"}</span>
+                <ArrowIcon />
+              </Button>
+            </form>
+          )}
+
+          {/* TOTP step */}
+          {step === 'totp' && (
+            <form
+              onSubmit={totpForm.handleSubmit(onTotp)}
+              className="mt-10 flex flex-col gap-6"
+              noValidate
+            >
+              <p className="text-center font-body text-body-md text-on-surface-variant">
+                Enter the 6-digit code from your authenticator app for{' '}
+                <span className="font-semibold text-on-surface">{creds?.email}</span>.
+              </p>
+
+              <FieldRow>
+                <Label htmlFor="totpCode">Verification code</Label>
+                <Input
+                  id="totpCode"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="123456"
+                  leading={<ShieldIcon />}
+                  aria-invalid={Boolean(totpForm.formState.errors.totpCode) || undefined}
+                  variant={totpForm.formState.errors.totpCode ? 'error' : 'default'}
+                  {...totpForm.register('totpCode')}
+                />
+                <FieldError message={totpForm.formState.errors.totpCode?.message} />
+              </FieldRow>
+
+              {error ? <FormError message={error} /> : null}
+
+              <Button
+                type="submit"
+                size="lg"
+                className="mt-2 w-full"
+                disabled={totpForm.formState.isSubmitting}
+              >
+                <span>{totpForm.formState.isSubmitting ? 'Verifying…' : 'Verify'}</span>
+                <ArrowIcon />
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('credentials');
+                  setError(null);
+                }}
+                className="mt-1 font-display text-label-lg text-on-surface-variant transition-colors hover:text-primary"
+              >
+                Use a different account
+              </button>
+            </form>
+          )}
+
+          {/* OR divider + signup link — only shown on credentials step */}
+          {step === 'credentials' && (
+            <>
+              <div className="mt-10 flex items-center gap-4" aria-hidden="true">
+                <span className="h-px flex-1 bg-outline-variant/40" />
+                <span className="font-display text-label-sm font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                  or
+                </span>
+                <span className="h-px flex-1 bg-outline-variant/40" />
+              </div>
+
+              <p className="mt-6 text-center font-body text-body-md text-on-surface-variant">
+                New to the playground?{' '}
+                <Link
+                  to="/register"
+                  className="font-display font-semibold text-primary hover:text-primary-dim hover:underline underline-offset-4"
+                >
+                  Sign up
+                </Link>
+              </p>
+            </>
+          )}
+        </section>
+      </main>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------- */
+/* Layout primitives local to the auth screens                    */
+/* -------------------------------------------------------------- */
+
+function FieldRow({ children }: { children: React.ReactNode }): React.ReactElement {
+  return <div className="flex flex-col gap-2">{children}</div>;
+}
+
+function FieldError({ message }: { message?: string }): React.ReactElement | null {
+  if (!message) return null;
+  return (
+    <p role="alert" className="ml-1 text-body-sm text-error">
+      {message}
+    </p>
+  );
+}
+
+function FormError({ message }: { message: string }): React.ReactElement {
+  return (
+    <div
+      role="alert"
+      className="rounded-xl bg-error-container/80 px-5 py-3 text-body-md text-on-error-container shadow-ambient-sm"
+    >
+      {message}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- */
+/* Inline icons — kept local so the login screen stays self-contained */
+/* No external icon lib; simple 20 px outline glyphs.             */
+/* -------------------------------------------------------------- */
+
+function AtIcon(): React.ReactElement {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
+    </svg>
+  );
+}
+
+function LockIcon(): React.ReactElement {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="11" width="16" height="10" rx="2.5" />
+      <path d="M8 11V8a4 4 0 1 1 8 0v3" />
+    </svg>
+  );
+}
+
+function ShieldIcon(): React.ReactElement {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3 4 6v6c0 4.5 3.3 8.5 8 10 4.7-1.5 8-5.5 8-10V6Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+function ArrowIcon(): React.ReactElement {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="transition-transform duration-200 group-hover:translate-x-1"
+    >
+      <path d="M5 12h14" />
+      <path d="m13 5 7 7-7 7" />
+    </svg>
   );
 }

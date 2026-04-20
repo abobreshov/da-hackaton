@@ -12,6 +12,7 @@ export const ErrorCode = {
   BANNED_FROM_ROOM:     'BANNED_FROM_ROOM',
   TOTP_REQUIRED:        'TOTP_REQUIRED',
   TOTP_INVALID:         'TOTP_INVALID',
+  INTERNAL:             'INTERNAL',
 } as const;
 export type ErrorCode = typeof ErrorCode[keyof typeof ErrorCode];
 
