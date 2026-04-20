@@ -155,7 +155,7 @@ describe('RoomsController (BFF)', () => {
   });
 
   describe('POST /rooms/:id/invitations', () => {
-    it('delegates to service.invite with inviter from session, invitee from body, room from param', async () => {
+    it('delegates with inviteeId when body carries {invitedUserId}', async () => {
       svc.invite.mockResolvedValue({ id: 99, status: 'pending' });
 
       const res = await controller.invite(
@@ -167,9 +167,28 @@ describe('RoomsController (BFF)', () => {
       expect(svc.invite).toHaveBeenCalledWith({
         inviterId: 3,
         inviteeId: 4,
+        username: undefined,
         roomId: 5,
       });
       expect(res).toEqual({ id: 99, status: 'pending' });
+    });
+
+    it('delegates with username when body carries {username}', async () => {
+      svc.invite.mockResolvedValue({ id: 100, status: 'pending' });
+
+      const res = await controller.invite(
+        5,
+        { username: 'alice' } as any,
+        sessionReq(3),
+      );
+
+      expect(svc.invite).toHaveBeenCalledWith({
+        inviterId: 3,
+        inviteeId: undefined,
+        username: 'alice',
+        roomId: 5,
+      });
+      expect(res).toEqual({ id: 100, status: 'pending' });
     });
 
     it('propagates CONFLICT RpcException (duplicate invite)', async () => {

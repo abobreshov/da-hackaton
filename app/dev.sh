@@ -47,7 +47,7 @@ if [ "$NO_SEED" = false ]; then
   info "Seeding demo rooms..."
   docker compose -f "$ROOT/docker-compose.dev.yml" exec backend \
     sh -c "cd /app && yarn seed:demo" 2>/dev/null || \
-  info "Demo-room seed skipped (backend may still be starting, or script not yet implemented)"
+  info "Demo-room seed skipped (backend may still be starting)"
 fi
 
 echo ""

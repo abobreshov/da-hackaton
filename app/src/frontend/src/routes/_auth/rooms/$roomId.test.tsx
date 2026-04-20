@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 
 type Ack = (res: unknown) => void;
 
@@ -25,6 +25,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useParams: () => ({ roomId: '42' }),
+  useNavigate: () => vi.fn(),
 }));
 
 // Stub the messages hook so the route doesn't actually hit HTTP + WS for
@@ -45,6 +46,7 @@ vi.mock('@/hooks/useMessages', () => ({
 
 import { Route } from './$roomId';
 import { presenceMapStore } from '@/hooks/usePresenceMap';
+import { useSession } from '@/hooks/useSession';
 
 const getComponent = () =>
   (Route as unknown as { options: { component: () => JSX.Element } }).options.component;
@@ -67,9 +69,11 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     onMock.mockClear();
     offMock.mockClear();
     presenceMapStore.getState().reset();
+    useSession.setState({ session: null });
   });
   afterEach(() => {
     presenceMapStore.getState().reset();
+    useSession.setState({ session: null });
   });
 
   it('emits room.join with the parsed roomId on mount', () => {
@@ -128,13 +132,22 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     expect(screen.getByTestId('message-composer-send')).toBeInTheDocument();
   });
 
-  it('renders a "Manage room" button in the header', async () => {
+  it('renders a "Manage room" button in the header for owners / admins', async () => {
+    useSession.setState({
+      session: {
+        id: 1,
+        type: 'user',
+        email: 'alice@x',
+        name: 'alice',
+        scopes: [],
+      },
+    });
     const RoomRoute = getComponent();
     render(<RoomRoute />);
     act(() => {
       takeJoinAck()({
         room: { id: 42, name: 'general', description: null },
-        members: [],
+        members: [{ userId: 1, username: 'alice', role: 'owner' }],
       });
     });
     await waitFor(() => {
@@ -204,5 +217,97 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     const leave = emitMock.mock.calls.find((c) => c[0] === 'room.leave');
     expect(leave).toBeDefined();
     expect(leave![1]).toEqual({ roomId: 42 });
+  });
+
+  it('hides the "Manage room" button for plain members', async () => {
+    // Plain member → role gating suppresses the button entirely.
+    useSession.setState({
+      session: {
+        id: 2,
+        type: 'user',
+        email: 'bob@x',
+        name: 'bob',
+        scopes: [],
+      },
+    });
+    const RoomRoute = getComponent();
+    render(<RoomRoute />);
+    act(() => {
+      takeJoinAck()({
+        room: { id: 42, name: 'general', description: null },
+        members: [
+          { userId: 1, username: 'alice', role: 'owner' },
+          { userId: 2, username: 'bob', role: 'member' },
+        ],
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText('alice')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('room-manage-button')).not.toBeInTheDocument();
+  });
+
+  it('shows the "Manage room" button for owners and opens the modal on click', async () => {
+    useSession.setState({
+      session: {
+        id: 1,
+        type: 'user',
+        email: 'alice@x',
+        name: 'alice',
+        scopes: [],
+      },
+    });
+    const RoomRoute = getComponent();
+    render(<RoomRoute />);
+    act(() => {
+      takeJoinAck()({
+        room: { id: 42, name: 'general', description: null },
+        members: [
+          { userId: 1, username: 'alice', role: 'owner' },
+          { userId: 2, username: 'bob', role: 'member' },
+        ],
+      });
+    });
+
+    const button = await screen.findByTestId('room-manage-button');
+    expect(screen.queryByTestId('manage-room-modal')).not.toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(button);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('manage-room-modal')).toBeInTheDocument();
+    });
+  });
+
+  it('renders a UserPopover trigger per member row in the sidebar', async () => {
+    useSession.setState({
+      session: {
+        id: 1,
+        type: 'user',
+        email: 'alice@x',
+        name: 'alice',
+        scopes: [],
+      },
+    });
+    const RoomRoute = getComponent();
+    render(<RoomRoute />);
+    act(() => {
+      takeJoinAck()({
+        room: { id: 42, name: 'general', description: null },
+        members: [
+          { userId: 1, username: 'alice', role: 'owner' },
+          { userId: 2, username: 'bob', role: 'member' },
+        ],
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('alice')).toBeInTheDocument();
+    });
+    const triggers = screen.getAllByTestId('user-popover-trigger');
+    // One trigger per member in the sidebar.
+    expect(triggers.length).toBe(2);
   });
 });

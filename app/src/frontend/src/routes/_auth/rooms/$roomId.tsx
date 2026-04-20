@@ -10,6 +10,12 @@ import { MessageList } from '@/components/chat/message-list';
 import { MessageComposer } from '@/components/chat/message-composer';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/surface';
+import {
+  ManageRoomModal,
+  type ManageRoomMember,
+  type ManageRoomRole,
+} from '@/components/rooms/manage-room-modal';
+import { UserPopover } from '@/components/user-popover';
 
 export const Route = createFileRoute('/_auth/rooms/$roomId')({
   component: RoomRoute,
@@ -18,12 +24,23 @@ export const Route = createFileRoute('/_auth/rooms/$roomId')({
 interface RoomMember {
   userId: number;
   username: string;
+  /**
+   * Role comes from the `rooms.membersOf` TCP response via the `room.join`
+   * ack (see `bff/ws/chat.gateway.ts` + `backend/rooms.repository.ts`).
+   * Missing / unknown roles fall back to `'member'` client-side; the modal
+   * itself gates dangerous actions on role strings.
+   */
+  role?: ManageRoomRole | string;
 }
 
 interface RoomSummary {
   id: number;
   name: string;
   description: string | null;
+  /** Owner numeric id — required by ManageRoomModal for role gating. */
+  ownerId?: number;
+  /** Visibility mirrors the rooms.visibility column. */
+  visibility?: 'public' | 'private';
 }
 
 interface WireError {
@@ -42,6 +59,10 @@ type LoadState =
   | { status: 'ok'; room: RoomSummary; members: RoomMember[] }
   | { status: 'error'; error: WireError };
 
+function normaliseRole(role: RoomMember['role']): ManageRoomRole {
+  return role === 'owner' || role === 'admin' ? role : 'member';
+}
+
 /**
  * Room detail page.
  *
@@ -50,14 +71,20 @@ type LoadState =
  * WS channel pushes `message.new|edited|deleted` for live updates, and the
  * composer routes sends back through the same socket.
  *
- * "Manage room" button is a stub — the modal lands in a follow-up agent.
- * It stays wired here so the header layout + data-testid are stable for
- * the e2e and later integration work.
+ * Wiring landed:
+ *   - "Manage room" button opens `<ManageRoomModal>` for owners + admins;
+ *     plain members don't see the button. Role is derived from the current
+ *     user's membership row in the `room.join` ack.
+ *   - Each member row in the sidebar wraps the username in `<UserPopover>`
+ *     (open DM / add-remove friend / block-unblock / report). Friend +
+ *     block status default to `false` — the server surfaces "already
+ *     friends" / "already blocked" via ApiError on action.
  */
 export function RoomRoute() {
   const { roomId: roomIdRaw } = useParams({ from: '/_auth/rooms/$roomId' });
   const roomId = Number(roomIdRaw);
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const [manageOpen, setManageOpen] = useState(false);
   const presence = usePresenceMap();
   const session = useSession((s) => s.session);
   const currentUserId = session?.type === 'user' ? (session.id ?? null) : null;
@@ -152,6 +179,42 @@ export function RoomRoute() {
 
   const { room, members } = state;
 
+  // Resolve the current user's role from the member list. If the current
+  // user isn't in the members (shouldn't happen post-`ensureMember` but be
+  // defensive) fall back to `member`.
+  const selfMember = currentUserId
+    ? members.find((m) => m.userId === currentUserId)
+    : undefined;
+  const currentRole: ManageRoomRole = normaliseRole(selfMember?.role);
+  const canManage = currentRole === 'owner' || currentRole === 'admin';
+
+  // Modal expects the extended shape with `{ownerId, visibility, presence}`.
+  const ownerIdFromRoom =
+    room.ownerId ??
+    members.find((m) => normaliseRole(m.role) === 'owner')?.userId ??
+    0;
+  const modalRoom = {
+    id: room.id,
+    name: room.name,
+    description: room.description,
+    ownerId: ownerIdFromRoom,
+    visibility: room.visibility ?? 'public',
+  };
+  const modalMembers: ManageRoomMember[] = members.map((m) => ({
+    userId: m.userId,
+    username: m.username,
+    role: normaliseRole(m.role),
+    presence: presenceFor(m.userId),
+  }));
+  const modalCurrentUser =
+    currentUserId && selfMember
+      ? {
+          id: currentUserId,
+          username: selfMember.username,
+          role: currentRole,
+        }
+      : null;
+
   return (
     <div className="animate-fade-up grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_20rem]">
       {/* Main column — room header + live chat viewport */}
@@ -179,17 +242,17 @@ export function RoomRoute() {
               </p>
             )}
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            data-testid="room-manage-button"
-            onClick={() => {
-              /* Manage-room modal wired up in a follow-up milestone. */
-            }}
-          >
-            Manage room
-          </Button>
+          {canManage && modalCurrentUser ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="room-manage-button"
+              onClick={() => setManageOpen(true)}
+            >
+              Manage room
+            </Button>
+          ) : null}
         </header>
 
         <div className="mt-8 flex flex-1 flex-col overflow-hidden rounded-[1.5rem] bg-surface-container-low">
@@ -230,12 +293,41 @@ export function RoomRoute() {
               key={m.userId}
               className="flex items-center gap-3 rounded-full bg-surface-container-low px-4 py-2"
             >
-              <PresenceDot state={presenceFor(m.userId)} />
-              <span className="font-body text-body-md text-on-surface">{m.username}</span>
+              <UserPopover
+                userId={m.userId}
+                username={m.username}
+                // `isFriend` / `isBlocked` aren't exposed on the room-join
+                // ack; defaulting to `false` lets the add-friend / block
+                // buttons fire, and the BFF surfaces the correct 409
+                // ("already friends" / "already blocked") as an ApiError
+                // the popover renders inline. Wiring the graph here would
+                // need an `/api/v1/friends` fetch on every room open,
+                // which isn't warranted for the MVP.
+                isFriend={false}
+                isBlocked={false}
+                triggerClassName="flex items-center gap-3 px-1 py-1"
+              >
+                <span className="flex items-center gap-3">
+                  <PresenceDot state={presenceFor(m.userId)} />
+                  <span className="font-body text-body-md text-on-surface">
+                    {m.username}
+                  </span>
+                </span>
+              </UserPopover>
             </li>
           ))}
         </ul>
       </GlassCard>
+
+      {manageOpen && modalCurrentUser ? (
+        <ManageRoomModal
+          open={manageOpen}
+          onClose={() => setManageOpen(false)}
+          room={modalRoom}
+          currentUser={modalCurrentUser}
+          members={modalMembers}
+        />
+      ) : null}
     </div>
   );
 }

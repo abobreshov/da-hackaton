@@ -16,6 +16,7 @@ jest.mock('../../config/environment', () => ({
 }));
 
 import { of, throwError } from 'rxjs';
+import { NotFoundException } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { RoomsService } from './rooms.service';
 
@@ -25,13 +26,23 @@ function makeClient() {
   };
 }
 
+function makeUsers() {
+  return {
+    list: jest.fn(),
+    findById: jest.fn(),
+    resolveUserIdByUsername: jest.fn(),
+  };
+}
+
 describe('RoomsService (BFF)', () => {
   let client: ReturnType<typeof makeClient>;
+  let users: ReturnType<typeof makeUsers>;
   let service: RoomsService;
 
   beforeEach(() => {
     client = makeClient();
-    service = new RoomsService(client as any);
+    users = makeUsers();
+    service = new RoomsService(client as any, users as any);
   });
 
   describe('catalog()', () => {
@@ -151,7 +162,7 @@ describe('RoomsService (BFF)', () => {
   });
 
   describe('invite({inviterId,inviteeId,roomId})', () => {
-    it('sends rooms.invite with payload', async () => {
+    it('sends rooms.invite with payload when inviteeId pre-supplied', async () => {
       client.send.mockReturnValueOnce(of({ id: 99, status: 'pending' }));
 
       const result = await service.invite({ inviterId: 3, inviteeId: 4, roomId: 5 });
@@ -165,7 +176,43 @@ describe('RoomsService (BFF)', () => {
           roomId: 5,
         }),
       );
+      // When id is supplied directly, we must not waste an RPC resolving.
+      expect(users.resolveUserIdByUsername).not.toHaveBeenCalled();
       expect(result).toEqual({ id: 99, status: 'pending' });
+    });
+
+    it('resolves {username} → inviteeId via UsersService before forwarding', async () => {
+      users.resolveUserIdByUsername.mockResolvedValueOnce(42);
+      client.send.mockReturnValueOnce(of({ id: 7, status: 'pending' }));
+
+      const result = await service.invite({
+        inviterId: 3,
+        username: 'alice',
+        roomId: 5,
+      });
+
+      expect(users.resolveUserIdByUsername).toHaveBeenCalledWith('alice');
+      expect(client.send).toHaveBeenCalledWith(
+        { cmd: 'rooms.invite' },
+        expect.objectContaining({
+          _sys: 'test-sys-key',
+          inviterId: 3,
+          inviteeId: 42,
+          roomId: 5,
+        }),
+      );
+      expect(result).toEqual({ id: 7, status: 'pending' });
+    });
+
+    it('surfaces NotFoundException from resolver when username is unknown', async () => {
+      users.resolveUserIdByUsername.mockRejectedValueOnce(
+        new NotFoundException('user "ghost" not found'),
+      );
+      await expect(
+        service.invite({ inviterId: 3, username: 'ghost', roomId: 5 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      // Backend RPC must not be reached if resolution failed.
+      expect(client.send).not.toHaveBeenCalled();
     });
 
     it('propagates CONFLICT (duplicate invite)', async () => {

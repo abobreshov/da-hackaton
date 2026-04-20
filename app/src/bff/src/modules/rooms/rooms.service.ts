@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { TcpCmd } from '@app/contracts';
 import { BACKEND_SERVICE } from '../../common/microservice.module';
 import { withSys } from '../../common/rpc-transport';
+import { UsersService } from '../users/users.service';
 
 export interface CreateRoomInput {
   ownerId: number;
@@ -19,7 +20,10 @@ export interface JoinLeaveInput {
 
 export interface InviteInput {
   inviterId: number;
-  inviteeId: number;
+  /** Pre-resolved numeric id. Supply **either** this or `username`. */
+  inviteeId?: number;
+  /** Invitee username — resolved to id via `UsersService` before RPC. */
+  username?: string;
   roomId: number;
 }
 
@@ -37,7 +41,10 @@ export interface UpdateRoomInput {
 
 @Injectable()
 export class RoomsService {
-  constructor(@Inject(BACKEND_SERVICE) private readonly client: ClientProxy) {}
+  constructor(
+    @Inject(BACKEND_SERVICE) private readonly client: ClientProxy,
+    private readonly users: UsersService,
+  ) {}
 
   catalog() {
     return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.catalog }, withSys({})));
@@ -61,8 +68,23 @@ export class RoomsService {
     return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.leave }, withSys({ ...input })));
   }
 
-  invite(input: InviteInput) {
-    return firstValueFrom(this.client.send({ cmd: TcpCmd.rooms.invite }, withSys({ ...input })));
+  /**
+   * Forward an invite to the backend's `rooms.invite` RPC. Accepts either
+   * `{inviteeId}` (legacy id-based callers) or `{username}` (FE popover +
+   * manage-room modal) — in the latter case we resolve via
+   * `UsersService.resolveUserIdByUsername` first. Backend API stays
+   * `{inviterId, inviteeId, roomId}` — unchanged.
+   */
+  async invite(input: InviteInput) {
+    const inviteeId =
+      input.inviteeId ??
+      (await this.users.resolveUserIdByUsername(input.username ?? ''));
+    return firstValueFrom(
+      this.client.send(
+        { cmd: TcpCmd.rooms.invite },
+        withSys({ inviterId: input.inviterId, inviteeId, roomId: input.roomId }),
+      ),
+    );
   }
 
   update(input: UpdateRoomInput) {

@@ -84,10 +84,10 @@ export const updateRoom = (roomId: number, patch: RoomPatch): Promise<RoomRecord
 /**
  * Member+: invite another user to a (private) room by username.
  *
- * NB — BFF today accepts `{ invitedUserId }`; this helper posts by username so
- * the UI doesn't have to pre-resolve the id. Parent epic will land the
- * username → id resolution on BFF; until then the wrapper is the single
- * point we need to change.
+ * BFF's `InviteUserDto` now accepts either `{ username }` or
+ * `{ invitedUserId }`; the FE uniformly sends `{ username }` so components
+ * don't have to pre-resolve ids. Resolution happens in BFF `RoomsService`
+ * via `UsersService.resolveUserIdByUsername` before the backend RPC.
  */
 export const inviteUser = (
   roomId: number,

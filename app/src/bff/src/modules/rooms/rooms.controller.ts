@@ -93,6 +93,7 @@ export class RoomsController {
     return this.service.invite({
       inviterId: getUserId(req),
       inviteeId: dto.invitedUserId,
+      username: dto.username,
       roomId: id,
     });
   }
