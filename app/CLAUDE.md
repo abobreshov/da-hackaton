@@ -63,7 +63,7 @@ E2E tests (`e2e-tests/` — Playwright + POM): page objects in `pages/`, fixture
 
 ## OpenViking memory plugin
 
-`.claude/settings.json` wires SessionStart / UserPromptSubmit / Stop / SessionEnd hooks into `claude-memory-plugin/hooks/*.sh` (Python bridge via `~/.openviking-venv`). Skills `memory-recall`, `ov-search`, `ov-ingest`, `review`, `grill-me` are in `.claude/skills/`. `ov.conf` holds the OpenAI key — gitignored along with `data/` and `.openviking/`. Storage is per-project (`./data/viking`), so memories don't leak across repos.
+Plugin code lives here (`app/claude-memory-plugin/`) but `.claude/settings.json`, `.openviking/`, `data/`, and `ov.conf` all live at the **project root** (`..`). Hook paths use `$CLAUDE_PROJECT_DIR/app/claude-memory-plugin/hooks/*.sh` so Claude must be launched from the project root. Skills `memory-recall`, `ov-search`, `ov-ingest`, `review`, `grill-me` are in `../.claude/skills/`. Python bridge via `~/.openviking-venv`. `ov.conf` holds the OpenAI key — gitignored along with `data/` and `.openviking/`. Storage is per-project (`../data/viking`).
 
 ## Gotchas
 

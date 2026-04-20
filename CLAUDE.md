@@ -1,46 +1,92 @@
-# CLAUDE.md (project root)
+# CLAUDE.md
 
-Project root for the AI Herders Jam hackathon. The implementation lives under `app/`.
+Project root for the AI Herders Jam hackathon. Git repo, agents, OpenViking memory, and specs live here. Implementation code (services, docker stack, E2E suite) lives under `app/` — that is the yarn workspace root.
+
+Launch Claude Code from this folder (`hackathone/`) so SessionStart hooks activate OpenViking memory for the whole project.
 
 ## Structure
 
 ```
 hackathone/
 ├── .claude/
-│   └── agents/                  # project-wide agents (system-architect, business-analyst)
-├── mng/                         # specs + architecture docs (ingested into OpenViking)
-├── app/                         # implementation workspace — yarn workspaces root
-│   ├── src/                     # services: auth-service, backend, bff, frontend, packages
-│   ├── e2e-tests/               # Playwright E2E suite
-│   ├── claude-memory-plugin/    # OpenViking hooks + scripts
-│   ├── .claude/                 # app-scoped skills + settings
-│   ├── docker-compose.*.yml     # dev stack
-│   ├── dev.sh / dev-local.sh    # run stack
-│   ├── package.json             # yarn 4 workspaces root
-│   ├── tsconfig.base.json
-│   └── CLAUDE.md                # stack + architecture details
-├── .gitignore
-├── BOILERPLATE_INSTRUCTIONS.md
-└── 2026_04_18_AI_herders_jam_-_requirements_v3 1.pdf
+│   ├── agents/              system-architect, business-analyst
+│   ├── skills/              memory-recall, ov-search, ov-ingest, review, grill-me
+│   ├── settings.json        OpenViking hooks (point at app/claude-memory-plugin)
+│   └── settings.local.json
+├── .openviking/             (gitignored) session memory state
+├── data/                    (gitignored) OpenViking vectordb + agfs storage
+├── ov.conf                  (gitignored) OpenViking provider config (API keys)
+├── CLAUDE.md                this file
+├── README.md                project overview
+├── docs/                    project-wide docs
+├── mng/
+│   ├── README.md
+│   ├── architecture/        C4 diagrams + architecture notes
+│   ├── specs/               feature specs (numbered 01–13)
+│   └── requirements/        official hackathon requirements PDF
+└── app/                     implementation workspace (yarn 4 monorepo root)
+    ├── CLAUDE.md            stack + service wiring details
+    ├── package.json         yarn workspaces root
+    ├── .yarnrc.yml          yarn 4 config
+    ├── tsconfig.base.json
+    ├── docker-compose.yml
+    ├── docker-compose.dev.yml
+    ├── docker-compose.infra.yml
+    ├── docker-compose.override.yml
+    ├── dev.sh               Docker stack (all services + infra)
+    ├── dev-local.sh         infra in Docker, services on host
+    ├── src/
+    │   ├── auth-service/    NestJS — JWT, 2FA, refresh tokens
+    │   ├── backend/         NestJS — domain tables (Drizzle ORM)
+    │   ├── bff/             NestJS — session cookies, TCP proxy to auth + backend
+    │   ├── frontend/        React 19 + TanStack Router
+    │   └── packages/        shared internal packages
+    ├── e2e-tests/           Playwright + POM
+    └── claude-memory-plugin/  OpenViking hooks + bridge scripts
 ```
 
-Git repo lives at project root. Yarn workspace root is `app/` — run `yarn` commands from `app/` (or `yarn workspace @app/<name> ...`).
+## Agents (`.claude/agents/`)
 
-## Agents (project root `.claude/agents/`)
+| Agent | Scope |
+|---|---|
+| **system-architect** | system design, DB schema, API architecture, microservice decomposition, C4 diagrams, perf + security architecture. Uses OpenViking memory + Context7 for current library docs. Delegates when out of scope. |
+| **business-analyst** | requirements, user stories (INVEST + Gherkin), process flows, impact analysis, prioritization. Mandatory `grill-me` self-review before finalizing. Delegates feasibility to system-architect. |
 
-- **system-architect** — system design, DB schema, API architecture, microservices decomposition, C4 diagrams, perf + security architecture. Uses OpenViking memory + Context7 for current docs. Delegates when out of scope.
-- **business-analyst** — requirements, user stories (INVEST + Gherkin), process flows, impact analysis, prioritization. OpenViking memory + mandatory `grill-me` self-review. Delegates technical feasibility to `system-architect`.
-
-Invoke via trigger phrases in the agent description or `Task` tool with `subagent_type: <name>`.
-
-## Stack details
-
-See `app/CLAUDE.md` for service wiring, auth flow, common commands, gotchas.
+Invoke via trigger phrases in each agent's description, or `Task` tool with `subagent_type: <name>`.
 
 ## OpenViking memory
 
-Configured under `app/`. Session hooks + skills (`memory-recall`, `ov-search`, `ov-ingest`) live in `app/.claude/`. Docs in `mng/` are ingested into OpenViking — use `ov-search` to retrieve.
+- Session hooks: `.claude/settings.json` → `$CLAUDE_PROJECT_DIR/app/claude-memory-plugin/hooks/*.sh`
+- Runtime state: `./.openviking/`, storage: `./data/` (both gitignored)
+- Config + secrets: `./ov.conf` (gitignored)
+- Skills: `.claude/skills/{memory-recall, ov-search, ov-ingest, review, grill-me}`
+- `mng/` content is ingested as searchable knowledge — query via `ov-search`.
+
+Python bridge uses `~/.openviking-venv`. Ensure it is set up before first run.
 
 ## Package manager
 
-Yarn 4.9.1 via corepack. **Never npm.**
+Yarn 4.9.1 via corepack. **Never npm.** Run yarn commands from `app/` (workspace root) or use `yarn workspace @app/<name> ...` from there.
+
+```bash
+cd app
+yarn install
+yarn workspace @app/auth-service seed
+yarn workspace @app/frontend dev
+```
+
+## Running the stack
+
+Both scripts live in `app/`:
+
+```bash
+cd app
+./dev.sh          # full Docker stack (hot-reload via bind mounts)
+./dev-local.sh    # postgres + redis in Docker; services on host
+```
+
+See `app/CLAUDE.md` for ports, auth flow, 2FA behavior, and gotchas.
+
+## Git
+
+Repo root is this folder. Main branch: `master`. Remote: `origin`.
