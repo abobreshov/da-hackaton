@@ -236,9 +236,85 @@ yarn workspace @app/tests report             # open last HTML report
 
 Login UI is user-only — the admin flow is hidden at the frontend (see `app/CLAUDE.md`). E2E covers: successful user login, invalid credentials, client-side validation.
 
+## Local vs production — what to configure / install
+
+### Local (dev + hackathon demo)
+
+**Install once:**
+
+```bash
+# Node 22+ via nvm, fnm, or distro package
+corepack enable && corepack prepare yarn@4.9.1 --activate
+# Docker Engine + docker-compose-plugin (v2)
+```
+
+**Per-run (from `app/`):**
+
+```bash
+./scripts/gen-certs.sh                # mint dev CA + per-service certs (first run only)
+cp src/auth-service/.env.example src/auth-service/.env     # for dev-local.sh; compose has inline values
+# repeat for backend / bff / frontend if you use dev-local.sh
+
+# Option A — everything in Docker (recommended)
+docker compose up --build             # reads docker-compose.yml (with Mailpit, TLS, SYSTEM_KEY)
+
+# Option B — services on host, infra in Docker
+./dev-local.sh                        # also launches Mailpit container via docker-compose.infra.yml
+```
+
+Dev secrets in `docker-compose.yml` are **intentional placeholders** so the stack runs out-of-the-box. Same values are written to `.env` files by `dev-local.sh` / regenerated with `openssl rand -hex 24`. `SYSTEM_KEY` must be identical across auth-service, backend, and bff.
+
+**What you get locally:**
+
+| URL | Purpose |
+|---|---|
+| http://localhost:3007 | Frontend |
+| http://localhost:3006/api/v1 | BFF API |
+| http://localhost:8025 | **Mailpit** — search + view captured emails, REST API for tests |
+| http://localhost:9999 | Dozzle — container log viewer (Option A only) |
+
+### Production — what changes
+
+**Must provide (via your secret store — not committed):**
+
+- `JWT_ADMIN_SECRET`, `JWT_CUSTOMER_SECRET`, `JWT_SECRET`, `COOKIE_SECRET`, `SESSION_COOKIE_SECRET` — each ≥ 32 chars, random, unique per env.
+- `SYSTEM_KEY` — identical across the three services.
+- `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` — managed postgres + redis (RDS / Cloud SQL / Elasticache / Upstash etc).
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` — a real transactional SMTP (SES, SendGrid, Postmark, Mailgun). **Drop Mailpit.**
+- `ALLOWED_ORIGINS` — your real frontend origin(s) with `https://`.
+- `NODE_ENV=production` on every service — enables HSTS in Helmet, `Secure` cookie flag, Fastify `trustProxy`.
+
+**mTLS certs:** the throwaway CA under `secrets/internal-ca/` is **dev-only**. In production, mint service certs from your own PKI (step-ca, HashiCorp Vault, cert-manager, AWS Private CA) and mount them read-only at `/certs/`. Set `TLS_ENABLED=true` plus the three `TLS_*_PATH` env vars per service. Rotate on a schedule.
+
+**Infra changes:**
+
+- Replace ephemeral postgres container with managed DB. Run `yarn workspace @app/backend db:migrate` + the auth seeder once on first deploy.
+- Replace ephemeral redis with managed cache. Keep `maxmemory-policy allkeys-lru` or appropriate.
+- Put the BFF behind an HTTPS-terminating reverse proxy (nginx, Caddy, ALB, Cloudflare). BFF itself speaks plain HTTP inside the cluster; TLS terminates at the edge.
+- Disable Dozzle in production (`docker-compose.dev.yml` only). Use your logging stack (Loki, Datadog, CloudWatch).
+
+**Security hardening unlocked by `NODE_ENV=production`:**
+
+- HSTS header with `max-age=31536000; includeSubDomains; preload`.
+- Session + refresh cookies get the `Secure` flag (HTTPS only).
+- Fastify `trustProxy: true` so rate-limit + logs see the real client IP from `X-Forwarded-For`.
+- Rate-limit loopback allowlist disabled.
+
+**Operational checklist before going live:**
+
+- [ ] All secrets pulled from a secret manager, not inline in compose / .env
+- [ ] Real SMTP provider configured; Mailpit removed from compose
+- [ ] Real internal-PKI certs; CA trust + expiry monitoring in place
+- [ ] DB + redis: managed, backed up, TLS in-transit, network-restricted
+- [ ] HTTPS terminator in front of BFF; HSTS preload enrolled
+- [ ] Log aggregation + alerting (liveness + 5xx rate + auth failure spike)
+- [ ] Seed data removed from prod DB
+
 ## Further reading
 
 - `CLAUDE.md` — project-root guidance for Claude Code sessions.
 - `app/CLAUDE.md` — stack, service wiring, auth flow, gotchas.
 - `mng/README.md` — specs index.
 - `mng/requirements/` — official hackathon brief.
+- `mng/specs/12-deployment.md` — deployment spec (EPIC-12).
+- `mng/specs/14-security-nfrs.md` — security NFRs.

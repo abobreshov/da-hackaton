@@ -55,10 +55,18 @@ sequenceDiagram
     participant BFF
     participant AUTH
     participant DB as Postgres
+    participant RL as Redis rate-limit
+    participant SMTP as Mailpit/SMTP
     FE->>BFF: POST /auth/password-reset/request {email}
+    BFF->>RL: INCR ratelimit:reset:{email} TTL 60s
+    BFF->>RL: INCR ratelimit:reset:ip:{ip} TTL 3600s
+    alt >1/min email OR >5/hr ip
+        BFF-->>FE: 429 {code:RATE_LIMITED, retryAfterMs}
+    end
     BFF->>AUTH: TCP passwordReset.request
     AUTH->>DB: INSERT password_resets (hashed token)
-    AUTH-->>FE: 204 (token returned via email/stub for MVP)
+    AUTH->>SMTP: send reset email with token link
+    AUTH-->>BFF: 204 (generic; no account-existence leak)
     FE->>BFF: POST /auth/password-reset/confirm {token, newPassword}
     BFF->>AUTH: passwordReset.confirm
     AUTH->>DB: UPDATE user.password_hash
@@ -76,15 +84,17 @@ sequenceDiagram
     participant AUTH
     participant BE as BE Service
     participant Q as BullMQ
+    participant W as BullMQ Worker
     participant FS
     FE->>BFF: DELETE /account
     BFF->>AUTH: TCP users.delete
     AUTH->>AUTH: soft-delete user + revoke tokens
     AUTH->>BE: TCP users.delete.cascade {userId}
-    BE->>Q: enqueue cleanup-rooms-of-user
+    BE->>Q: enqueue user.cascade.delete {userId}
     BE-->>AUTH: ack
     AUTH-->>BFF: 204
     BFF-->>FE: clear cookies + 204
-    Q->>BE: worker: delete owned rooms + msgs + attachments
+    Q->>W: worker: delete owned rooms + msgs + attachments
     BE->>FS: unlink attachment files
+    Note over Q: retry w/ exp backoff; >5 attempts → DLQ
 ```

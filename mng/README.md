@@ -75,6 +75,15 @@ mng/
 - EPIC-12 — Deployment — `specs/12-deployment.md`
 - EPIC-13 — XMPP Federation — `specs/13-xmpp-federation.md` — **DEFERRED POST-MVP**
 - EPIC-14 — Security NFRs & Abuse Prevention — `specs/14-security-nfrs.md`
+- EPIC-15 — Wire Contracts & Conventions — `specs/15-contracts.md`
+
+## Architecture flow diagrams
+
+Per-epic Mermaid flow sequences under `architecture/flow/`. Index:
+
+- 01-accounts-auth · 02-sessions-presence · 03-realtime-transport · 04-contacts-friends · 05-rooms
+- 06-moderation · 07-messaging · 08-attachments · 09-notifications-unread · 10-ui-shell (n/a)
+- 11-scale-reliability · 12-deployment · 13-xmpp-federation (DEFERRED) · 14-security-nfrs
 
 ## Architecture
 
@@ -85,6 +94,7 @@ mng/
 ## ADRs
 
 - ADR-001 — Presence source of truth (EPIC-02 owns state; EPIC-03 provides PresencePublisher primitive; EPIC-09 observer only). See EPIC-02 spec + EPIC-03 spec.
+- ADR-002 — Async account-delete cascade: auth-service invokes backend TCP `users.cascade.enqueue`; backend owns BullMQ enqueue to `user.cascade.delete`; consumer in EPIC-11.
 
 ## Demo seed
 
@@ -101,7 +111,7 @@ Demo rooms (via `yarn workspace @app/backend seed:demo` — see EPIC-12):
 - #demo — showcases reply / edit / delete / attachment
 
 Log stream: Dozzle at http://localhost:9999 (EPIC-12).
-Dev SMTP capture: MailHog at http://localhost:8025 (EPIC-12).
+Dev SMTP capture: Mailpit at http://localhost:8025 (EPIC-12).
 
 ## Usage
 

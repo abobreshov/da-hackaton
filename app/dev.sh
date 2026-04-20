@@ -43,11 +43,20 @@ if [ "$NO_SEED" = false ]; then
   info "Seed skipped (service may still be starting)"
 fi
 
+if [ "$NO_SEED" = false ]; then
+  info "Seeding demo rooms..."
+  docker compose -f "$ROOT/docker-compose.dev.yml" exec backend \
+    sh -c "cd /app && yarn seed:demo" 2>/dev/null || \
+  info "Demo-room seed skipped (backend may still be starting, or script not yet implemented)"
+fi
+
 echo ""
 info "Dev environment running."
 echo ""
 echo "  Frontend  →  http://localhost:3007"
 echo "  BFF API   →  http://localhost:3006/api/v1"
+echo "  Mailpit   →  http://localhost:8025  (SMTP capture + search + REST API)"
+echo "  Dozzle    →  http://localhost:9999  (container logs)"
 echo ""
 echo "  Test users:"
 echo "    admin@example.com  /  Admin123!  (admin)"

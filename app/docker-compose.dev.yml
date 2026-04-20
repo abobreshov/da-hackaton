@@ -1,5 +1,3 @@
-version: '3.9'
-
 # Dev: services isolated on internal network. Only frontend + BFF exposed to host.
 # auth-service and backend have NO host ports — only reachable from BFF internally.
 #
@@ -63,6 +61,9 @@ services:
       ALLOWED_ORIGINS: http://localhost:3007
       ALLOW_PASSWORD_ONLY_ADMIN_LOGIN: 'false'
       SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: noreply@local
       TLS_ENABLED: 'true'
       TLS_CA_PATH: /certs/ca.crt
       TLS_CERT_PATH: /certs/auth-service.crt
@@ -82,6 +83,7 @@ services:
     volumes:
       - ./src/backend/src:/app/src:ro
       - ./secrets/internal-ca:/certs:ro
+      - attachments:/data/attachments
     environment:
       PORT: 3004
       TCP_PORT: 4004
@@ -93,6 +95,11 @@ services:
       SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
       ALLOWED_ORIGINS: http://localhost:3006,http://localhost:3007
       LOG_LEVEL: info
+      ATTACHMENTS_DIR: /data/attachments
+      MESSAGE_RETENTION_DAYS: 30
+      ATTACHMENT_RETENTION_DAYS: 30
+      AUDIT_LOG_RETENTION_DAYS: 30
+      ABUSE_REPORT_RETENTION_DAYS: 30
       TLS_ENABLED: 'true'
       TLS_CA_PATH: /certs/ca.crt
       TLS_CERT_PATH: /certs/backend.crt
@@ -126,6 +133,7 @@ services:
       SESSION_COOKIE_TTL: 3600
       REFRESH_COOKIE_TTL: 172800
       ALLOWED_ORIGINS: http://localhost:3007
+      ALLOWED_WS_ORIGINS: http://localhost:3007
       SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
       TLS_ENABLED: 'true'
       TLS_CA_PATH: /certs/ca.crt
@@ -155,5 +163,29 @@ services:
     networks: [app-internal]
     restart: unless-stopped
 
+  mailpit:
+    image: axllent/mailpit:latest
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - '1025:1025'   # SMTP
+      - '8025:8025'   # Web UI (search, REST API, read-on-open)
+    networks: [app-internal]
+    restart: unless-stopped
+
+  dozzle:
+    image: amir20/dozzle:latest
+    environment:
+      DOZZLE_NO_ANALYTICS: 'true'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - '9999:8080'
+    networks: [app-internal]
+    restart: unless-stopped
+
 volumes:
   pgdata_dev:
+  attachments:

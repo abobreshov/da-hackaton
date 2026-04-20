@@ -27,5 +27,17 @@ services:
       timeout: 3s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: hackathone-mailpit
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - '1025:1025'     # SMTP
+      - '8025:8025'     # Web UI — http://localhost:8025
+    restart: unless-stopped
+
 volumes:
   pgdata_dev:

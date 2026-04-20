@@ -1,4 +1,12 @@
-version: '3.9'
+# Canonical production-shaped compose.
+# Usage (from ./app): docker compose up --build
+#
+# Prereqs (first run only):
+#   ./scripts/gen-certs.sh      # mints ./secrets/internal-ca/* for inter-service mTLS
+#
+# Secrets below are DEV-ONLY placeholders identical to those in docker-compose.dev.yml
+# so the stack runs out-of-the-box. Replace with real secrets (env_file, sops, vault…)
+# before anything that resembles production.
 
 services:
   postgres:
@@ -27,10 +35,46 @@ services:
       timeout: 5s
       retries: 5
 
+  mailpit:
+    image: axllent/mailpit:latest
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - '1025:1025'     # SMTP
+      - '8025:8025'     # Web UI — http://localhost:8025
+    restart: unless-stopped
+
   auth-service:
     build:
       context: ./src/auth-service
       dockerfile: Dockerfile
+    volumes:
+      - ./secrets/internal-ca:/certs:ro
+    environment:
+      PORT: 3003
+      TCP_PORT: 4003
+      TCP_BIND: 0.0.0.0
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_ADMIN_SECRET: dev-admin-secret-min-32-characters-ok
+      JWT_CUSTOMER_SECRET: dev-customer-secret-min-32-chars-ok
+      JWT_ACCESS_TOKEN_EXPIRATION: 15m
+      JWT_REFRESH_TOKEN_EXPIRATION: 24h
+      SESSION_MAX_DURATION_DAYS: 7
+      ALLOWED_ORIGINS: http://localhost:3007
+      ALLOW_PASSWORD_ONLY_ADMIN_LOGIN: 'false'
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: noreply@local
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/auth-service.crt
+      TLS_KEY_PATH: /certs/auth-service.key
     ports:
       - '3003:3003'
     depends_on:
@@ -38,13 +82,31 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file: ./src/auth-service/.env
+      mailpit:
+        condition: service_started
     restart: unless-stopped
 
   backend:
     build:
       context: ./src/backend
       dockerfile: Dockerfile
+    volumes:
+      - ./secrets/internal-ca:/certs:ro
+    environment:
+      PORT: 3004
+      TCP_PORT: 4004
+      TCP_BIND: 0.0.0.0
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
+      AUTH_TCP_HOST: auth-service
+      AUTH_TCP_PORT: 4003
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      ALLOWED_ORIGINS: http://localhost:3006,http://localhost:3007
+      LOG_LEVEL: info
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/backend.crt
+      TLS_KEY_PATH: /certs/backend.key
     ports:
       - '3004:3004'
       - '4004:4004'
@@ -53,25 +115,46 @@ services:
         condition: service_healthy
       auth-service:
         condition: service_started
-    env_file: ./src/backend/.env
     restart: unless-stopped
 
   bff:
     build:
       context: ./src/bff
       dockerfile: Dockerfile
+    volumes:
+      - ./secrets/internal-ca:/certs:ro
+    environment:
+      PORT: 3006
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      AUTH_TCP_HOST: auth-service
+      AUTH_TCP_PORT: 4003
+      BACKEND_TCP_HOST: backend
+      BACKEND_TCP_PORT: 4004
+      JWT_SECRET: dev-bff-jwt-secret-min-32-characters-ok
+      SESSION_COOKIE_SECRET: dev-session-cookie-secret-min-32-chars
+      COOKIE_SECRET: dev-cookie-secret-min-32-characters-long
+      SESSION_COOKIE_TTL: 3600
+      REFRESH_COOKIE_TTL: 172800
+      ALLOWED_ORIGINS: http://localhost:3007
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/bff.crt
+      TLS_KEY_PATH: /certs/bff.key
     ports:
       - '3006:3006'
     depends_on:
       - auth-service
       - backend
-    env_file: ./src/bff/.env
     restart: unless-stopped
 
   frontend:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
+    environment:
+      BFF_URL: http://bff:3006
     ports:
       - '3007:3007'
     depends_on:
