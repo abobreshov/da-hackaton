@@ -1,7 +1,7 @@
 # Implementation Status
 
-Live progress tracker MVP build-out. Updated as milestones land.
-See `mng/specs/` for specs + `mng/architecture/` for diagrams.
+Live progress tracker for MVP build-out. Updated as milestones land.
+See `mng/specs/` for specifications + `mng/architecture/` for diagrams.
 
 **Last updated:** 2026-04-20 (M3 plan)
 
@@ -54,7 +54,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 
 ## Deferred / debt (post-M2)
 
-1. **Design-system refactor** — `tailwind.config.ts` default shadcn; login/auth shell partially themed Kinetic Playground. Full UI primitives retheme + route audit pending. Applies to rooms-detail + contacts + admin modal when built.
+1. **Design-system refactor** — `tailwind.config.ts` default shadcn; login/auth shell partially themed to Kinetic Playground. Full UI primitives retheme + route audit pending. Applies to rooms-detail + contacts + admin modal when built.
 2. **M1 contracts drift backfill** — inline wire-string literals allow-listed in grep-gate:
    - `bff/src/auth/auth.service.ts` — 12 `auth.*`
    - `bff/src/modules/users/users.service.ts` — `users.list`, `users.findById`
@@ -66,7 +66,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
    - `backend/src/workers/queue.producer.ts` — 4 `QueueName` values
    - `auth-service/src/modules/auth/admin/admin-auth.tcp.ts` — 3 `auth.admin.*`
 3. **E2E M2 specs red** — live-stack dependent; bring up stack + re-run for green.
-4. **Dashboard copy-drift tests** — 3 pre-existing failures in `dashboard.test.tsx` assert old `scopes:read/write` / `no scopes assigned` / `user` type copy removed in Kinetic Playground redesign.
+4. **Dashboard copy-drift tests** — 3 pre-existing failures in `dashboard.test.tsx` asserting old `scopes:read/write` / `no scopes assigned` / `user` type copy removed in Kinetic Playground redesign.
 5. **Backend schema index.ts coverage** — Drizzle barrel accessors uncovered (40-66%); covered by integration tests only.
 6. **EPIC-02 session DB row** — `user_sessions` table migration exists; backend service still writes only to Redis. Durable session record + active-sessions UI (§2.2.4) pending.
 
@@ -75,12 +75,12 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 **M3a — Messaging pipe (backend + BFF + WS handlers + OOP refactors + seed)**
 
 1. OOP refactor: global RpcExceptionFilter on backend + auth-service microservice bootstrap; delete 6 toRpc copies across modules (rooms, moderation, abuse-reports, audit, friends, bans). Controllers become pure dispatch.
-2. OOP refactor: slim ChatGateway — extract `WsAuthenticator` (cookie → session), inject `RpcProxyService` in place of raw `this.backend.send(...)` calls (currently bypasses new proxy).
-3. Backend `MessagesModule` + `MessagesService` + `MessagesRepository` (port/adapter match rooms) + `MessagesTcpController`. AC-07-16 lazy dm_channels upsert, AC-07-19 atomic INSERT...WHERE NOT EXISTS frozen guard, AC-07-20 composite `(created_at, id)` keyset cursor. Migration for index extension if needed.
+2. OOP refactor: slim ChatGateway — extract `WsAuthenticator` (cookie → session), inject `RpcProxyService` in place of raw `this.backend.send(...)` calls (currently bypasses the new proxy).
+3. Backend `MessagesModule` + `MessagesService` + `MessagesRepository` (port/adapter to match rooms) + `MessagesTcpController`. AC-07-16 lazy dm_channels upsert, AC-07-19 atomic INSERT...WHERE NOT EXISTS frozen guard, AC-07-20 composite `(created_at, id)` keyset cursor. Migration for index extension if needed.
 4. Backend `messages.getById` TCP cmd (reply hover + admin report target hydration).
 5. Backend `rooms.update` TCP cmd + service method (owner PATCH).
 6. BFF `MessagesModule` proxy via `RpcProxyService` + `GET /rooms/:id/messages` + `GET /dms/:userId/messages` + `GET /messages/:id` + `PATCH /rooms/:id` (owner).
-7. BFF `ChatGateway` extended w/ `@SubscribeMessage('message.send'|'message.edit'|'message.delete'|'sync.since')`. Fan-out via `io.to('room:'+id).emit(...)` using Socket.IO + redis-adapter (drop custom BFF subscriber for msg fan-out; keep for presence).
+7. BFF `ChatGateway` extended with `@SubscribeMessage('message.send'|'message.edit'|'message.delete'|'sync.since')`. Fan-out via `io.to('room:'+id).emit(...)` using Socket.IO + redis-adapter (drop custom BFF subscriber for msg fan-out; keep for presence).
 8. AC-14-04 refined rate-limit: 30 msg/5s create, 60/min edit+delete budget. Mount on send/edit/delete WS handlers.
 9. `seed:demo` real impl: `#general`, `#random`, `#demo` rooms + 10-20 sample messages each (mix regular/reply/edited).
 10. E2E specs: backend messaging integration test via testcontainers; BFF WS send-receive spec via socket.io-client.
