@@ -3,7 +3,7 @@
 **Req refs:** §2.2.1–2.2.4, §3.2 (presence ≤2s), §3.5
 
 ## Goal
-Track online / AFK / offline per user across multi tabs + devices. Expose active-sessions screen w/ per-session logout.
+Track online / AFK / offline per user across multi tabs + devices. Expose active-sessions screen w/ per-session logout. EPIC-02 is source of truth for presence state (see ADR-001); EPIC-03 provides transport primitive; EPIC-09 observer only.
 
 ## Acceptance criteria
 
@@ -17,6 +17,7 @@ Track online / AFK / offline per user across multi tabs + devices. Expose active
 | AC-02-06 | User can log out any individual session |
 | AC-02-07 | Logout of current session invalidates only that browser |
 | AC-02-08 | Presence propagation ≤2s |
+| AC-02-09 | PresenceService is single writer of presence state; publishes via PresencePublisher (EPIC-03) only |
 
 ## Data model
 
@@ -50,16 +51,20 @@ presence_state:{userId}      STRING  online|afk|offline  (derived, TTL 90s)
 
 ## Logic
 1. On login: create `user_sessions` row + refresh token → sessionId cookie.
-2. On WS connect: client sends `sessionId`; BFF registers in `presence:{userId}` w/ current ts.
+2. On WS connect: client sends `sessionId`; BFF registers in `presence:{userId}` HASH w/ current ts (via TCP to backend `presence.ping`).
 3. Client sends `presence.ping` every 20s when active; on window blur stop.
-4. BE job (every 10s) scans `presence:{userId}`, evaluates freshest session; if latest > 60s → `afk`; if no sessions → `offline`. Emits `presence.update` via Redis pub/sub.
-5. BFF subscribes, pushes to interested WS clients (contacts + room members).
+4. Backend `PresenceService` owns state machine. Scheduled job (every 10s) scans `presence:{userId}` keys: derives state (online / afk / offline), writes `presence_state:{userId}` STRING TTL 90s. If state changed, calls `PresencePublisher.publish(userId, state)`.
+5. `PresencePublisher` (from EPIC-03 transport module, injected into PresenceService) executes `PUBLISH user:{userId}` + coalesced `presence:global` (500ms debounce for bulk fan-out).
+6. BFF `RedisSubscriberService` (EPIC-03) routes deltas to Socket.IO rooms; delivers `presence.update` to interested WS clients.
+7. EPIC-09 consumes `user:{userId}` channel as observer — no writes.
 
 ## Dependencies
-EPIC-01 (auth).
+EPIC-01 (auth). EPIC-03 (PresencePublisher primitive + transport). See ADR-001.
 
 ## Out of scope
 Device names, geolocation, typing indicators.
 
 ## Risks
 - Storm of presence updates → throttle at BE (coalesce 500ms), fan-out per-room only to joined clients.
+- PresencePublisher coupling: EPIC-02 hard-imports EPIC-03 module (NestJS provider). Acceptable: same backend process, type-safe, mockable.
+- Scheduler skew under load: 300 users × 10s cycle. Mitigate via Redis pipeline batching + per-user dirty flag (set on ping, cleared on evaluate).

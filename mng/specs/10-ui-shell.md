@@ -5,6 +5,9 @@
 ## Goal
 Classic web chat shell. Top menu, right sidebar (rooms + contacts), main chat center, composer bottom, members pane right.
 
+## Scope
+- Web-only layout (desktop breakpoints). Mobile layout POST-MVP stretch if time permits.
+
 ## Acceptance criteria
 
 | ID | Criterion |
@@ -19,6 +22,7 @@ Classic web chat shell. Top menu, right sidebar (rooms + contacts), main chat ce
 | AC-10-08 | Composer: multiline, emoji picker, attach, reply chip (cancellable) |
 | AC-10-09 | Unread indicator near room/contact names |
 | AC-10-10 | Admin actions via top menu + modal dialogs (Manage Room, Ban/Unban, Manage admins, View bans, Delete room) |
+| AC-10-11 | Layout targets desktop viewports ≥1024px. Responsive shrink below is best-effort; mobile breakpoints POST-MVP |
 
 ## Routes (TanStack)
 ```
@@ -55,3 +59,5 @@ Parallel with EPIC-05/06/07.
 
 ## Out of scope
 Themes, mobile-first responsive. Desktop classic layout only.
+- Mobile-specific layouts / touch gestures / PWA (post-MVP stretch)
+- Dark mode / theming

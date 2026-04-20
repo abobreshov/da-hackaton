@@ -15,11 +15,12 @@ Room + DM messaging. Text/emoji/reply/edit/delete, infinite history, offline del
 | AC-07-04 | Author can edit own message; UI shows `edited` indicator |
 | AC-07-05 | Author can delete own message |
 | AC-07-06 | Room admin can delete any message in that room |
-| AC-07-07 | DM allowed only if friends AND neither banned other |
+| AC-07-07 | DM allowed only if friends AND neither banned other AND dm_channels.frozen_at IS NULL (ban transaction owned by EPIC-04) |
 | AC-07-08 | Messages delivered to online recipients ≤3s |
 | AC-07-09 | Messages persisted; chat history scrollable backward (infinite scroll) |
 | AC-07-10 | Offline user receives unread messages on next login |
 | AC-07-11 | Room with 10k messages remains usable |
+| AC-07-12 | Global rate-limit 30 msg / 5s per user (sliding window); exceed → 429 REST / `error {code:'RATE_LIMITED', retryAfterMs}` WS (per EPIC-14) |
 
 ## Data model
 
@@ -61,20 +62,21 @@ Soft delete (`deleted_at`) for audit. UI treat `deleted_at IS NOT NULL` as gone.
 - `GET /api/v1/dms/:userId/messages?before=&limit=50`
 
 ## Send flow
-1. BFF `@SubscribeMessage('message.send')`: validate session, rate-limit (e.g. 10 msg / 5s).
+1. BFF `@SubscribeMessage('message.send')`: validate session, enforce rate-limit 30 msg/5s per user (Redis `ratelimit:msg:{userId}`, sliding window; see EPIC-14).
 2. BFF TCP `messages.create` → BE.
-3. BE: auth (member+not banned OR friends+not user-banned), insert, `PUBLISH room:{id}` (or `dm:{id}`).
+3. BE: auth (member+not banned OR DM-eligible per EPIC-04 invariant — friends + no user_ban either dir + `dm_channels.frozen_at IS NULL`), insert, `PUBLISH room:{id}` (or `dm:{id}`).
 4. BFF WS ack `{id, createdAt}` to sender. Broadcast to other room members on Redis event.
 
 ## DM eligibility check (§2.3.6)
-At create: `exists(friendship accepted) AND NOT exists(user_ban either direction)`. Else 403.
+At create (DM): BE checks `exists(friendship accepted) AND NOT exists(user_ban either direction) AND dm_channels.frozen_at IS NULL`. Invariant maintained atomically by EPIC-04 BanService.banUser transaction. Else 403.
 
 ## Pagination (infinite scroll)
 Keyset: `WHERE room_id = ? AND created_at < :before ORDER BY created_at DESC LIMIT 50`. Avoid offset pain at 10k+.
 
 ## Dependencies
-EPIC-03 (transport), EPIC-04 (DM eligibility), EPIC-05 (rooms), EPIC-06 (admin delete).
+EPIC-03 (transport), EPIC-04 (DM eligibility + frozen_at invariant), EPIC-05 (rooms), EPIC-06 (admin delete), EPIC-14 (rate-limit infra).
 
 ## Risks
 - Edit race with delete → check `deleted_at IS NULL` in UPDATE WHERE clause.
 - Large attachments — see EPIC-08.
+- Rate-limit Redis outage: fail-open for messaging (log warning, allow), fail-closed for login/reset (EPIC-14).

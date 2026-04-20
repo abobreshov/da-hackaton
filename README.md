@@ -144,6 +144,23 @@ docker compose -f docker-compose.dev.yml down -v       # + wipe volumes (fresh D
 docker compose -f docker-compose.infra.yml down        # Option B stop
 ```
 
+### Debug stuck resources — `./dev-doctor.sh`
+
+When a previous run leaves stale processes or `docker-proxy` orphans pinning host ports (symptom: `EADDRINUSE` on `dev-local.sh`), use the doctor script.
+
+```bash
+cd app
+./dev-doctor.sh                    # read-only: shows port owners + hackathone processes
+./dev-doctor.sh --clean-services   # SIGTERM our node/nest/vite procs, keep postgres+redis up
+./dev-doctor.sh --clean            # SIGTERM services + docker infra down
+./dev-doctor.sh --force            # SIGKILL stubborn procs + infra down
+./dev-doctor.sh --ports-only       # re-check ports after cleanup
+```
+
+Only processes whose cwd is inside `app/` are touched — the script is safe next to unrelated Node / Docker workloads.
+
+If a port shows `(docker-proxy orphan — stop with: sudo kill …)`, it means a previous `dev.sh` docker stack was removed but its port-forward proxies survived. Run the listed `sudo kill`, or `sudo systemctl restart docker` to clear.
+
 ## Quality checks
 
 Monorepo-wide scripts (run from `app/`):

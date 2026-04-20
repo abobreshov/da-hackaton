@@ -48,6 +48,24 @@ Browser --HTTP+cookies-->  BFF (3006)
 - **2FA is a structured response, not an error.** When `user.twoFactorEnabled && !totpCode`, auth-service returns `{ requires2fa: true }` (not a 401). BFF `auth.controller.ts` forwards it; frontend `routes/login.tsx` branches on `'requires2fa' in result` to render the TOTP step. Do not re-introduce 401 + message-string matching.
 - **Admin login UI is intentionally hidden** — `login.tsx` renders only the user flow (single email+password step, TOTP as step 2 when required).
 
+## Troubleshooting stuck dev stack — `./dev-doctor.sh`
+
+`EADDRINUSE` on startup almost always means one of:
+
+1. A previous `dev.sh` docker stack was removed but its `docker-proxy` processes still forward 3006/3007 to a dead container IP.
+2. A prior `dev-local.sh` run exited without cleanup (Ctrl-C inside Claude Code session, crashed watcher).
+
+Run the doctor to identify + fix:
+
+```bash
+./dev-doctor.sh                    # report-only
+./dev-doctor.sh --clean-services   # kill only our hackathone node/nest/vite processes, keep postgres + redis
+./dev-doctor.sh --clean            # + `docker compose -f docker-compose.infra.yml down`
+./dev-doctor.sh --force            # SIGKILL after SIGTERM failed
+```
+
+The script only touches PIDs whose `/proc/$pid/cwd` is rooted under `app/`, so it is safe on a shared box. If a port belongs to an orphan `docker-proxy` (root-owned, invisible to us), the report emits the exact `sudo kill <pids>` to run — or `sudo systemctl restart docker` to clear all proxy leftovers.
+
 ## Common commands
 
 ```bash

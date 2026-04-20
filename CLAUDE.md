@@ -22,7 +22,7 @@ hackathone/
 ├── mng/
 │   ├── README.md
 │   ├── architecture/        C4 diagrams + architecture notes
-│   ├── specs/               feature specs (numbered 01–13)
+│   ├── specs/               feature specs (numbered 01–14; EPIC-13 deferred post-MVP)
 │   └── requirements/        official hackathon requirements PDF
 └── app/                     implementation workspace (yarn 4 monorepo root)
     ├── CLAUDE.md            stack + service wiring details
@@ -53,6 +53,22 @@ hackathone/
 | **business-analyst** | requirements, user stories (INVEST + Gherkin), process flows, impact analysis, prioritization. Mandatory `grill-me` self-review before finalizing. Delegates feasibility to system-architect. |
 
 Invoke via trigger phrases in each agent's description, or `Task` tool with `subagent_type: <name>`.
+
+## Parallel subagent dispatch
+
+Prefer running subagents in parallel when work is independent. Send **one message with multiple `Agent` tool calls** — they execute concurrently. Good fits:
+
+- Editing N independent spec files (one agent per file)
+- Running research across separate modules (one agent per module)
+- Compressing / ingesting multiple docs
+- Independent lint / typecheck / test runs across services
+
+Rules:
+- Each agent prompt must be self-contained (no shared conversation state).
+- No two agents should write the same file (race → lost edits).
+- Use `run_in_background: true` when the main thread has other work to do while agents run; you'll be notified on completion.
+- When tasks depend on each other (B needs A's output), run sequentially, not parallel.
+- Foreground parallel fan-out is fine for small batches (≤5); for larger batches use background + continue other work.
 
 ## OpenViking memory
 

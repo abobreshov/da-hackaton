@@ -3,24 +3,83 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
 import fastifyCookie from '@fastify/cookie';
+import fastifyHelmet from '@fastify/helmet';
+import fastifyRateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
 import { RpcErrorInterceptor } from './common/interceptors/rpc-error.interceptor';
 import { env } from './config/environment';
 
+const MAX_BODY_BYTES = 100 * 1024; // 100 KB — BFF handles small JSON only
+const REDACT_PATHS = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'req.body.password',
+  'req.body.totpCode',
+  'req.body.refreshToken',
+  'res.headers["set-cookie"]',
+];
+
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: { level: env.LOG_LEVEL as any } }),
+    new FastifyAdapter({
+      logger: {
+        level: env.LOG_LEVEL as any,
+        redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
+      },
+      bodyLimit: MAX_BODY_BYTES,
+      trustProxy: env.NODE_ENV === 'production',
+      disableRequestLogging: false,
+    }),
   );
+
+  // OWASP-aligned security headers: CSP, HSTS (prod only), X-Frame-Options (via CSP frame-ancestors),
+  // X-Content-Type-Options, Referrer-Policy, Cross-Origin-Resource-Policy.
+  await app.register(fastifyHelmet as any, {
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        'default-src': ["'self'"],
+        'script-src': ["'self'"],
+        'style-src': ["'self'", "'unsafe-inline'"],
+        'img-src': ["'self'", 'data:'],
+        'connect-src': ["'self'", ...env.ALLOWED_ORIGINS.split(',')],
+        'frame-ancestors': ["'none'"],
+        'base-uri': ["'self'"],
+        'form-action': ["'self'"],
+        'object-src': ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'same-site' },
+    hsts:
+      env.NODE_ENV === 'production'
+        ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+        : false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  });
+
+  // Rate limiting — blunt defense against brute force and scraping.
+  await app.register(fastifyRateLimit as any, {
+    global: true,
+    max: 300,
+    timeWindow: '1 minute',
+    allowList: env.NODE_ENV === 'development' ? ['127.0.0.1', '::1'] : [],
+  });
 
   await app.register(fastifyCookie as any, { secret: env.COOKIE_SECRET });
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+  );
   app.useGlobalInterceptors(new RpcErrorInterceptor());
 
   app.enableCors({
     origin: env.ALLOWED_ORIGINS.split(','),
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    maxAge: 600,
   });
 
   app.setGlobalPrefix('api/v1');

@@ -3,7 +3,7 @@
 **Req refs:** §2.7.1–2.7.2, §4.4
 
 ## Goal
-Track unread per user per room/DM. Visual badges near room + contact names. Low-latency presence.
+Track unread per user per room/DM. Visual badges near room + contact names. Low-latency presence. Presence SLA consumer only — no presence writes. Owned by EPIC-02 (see ADR-001).
 
 ## Acceptance criteria
 
@@ -13,6 +13,7 @@ Track unread per user per room/DM. Visual badges near room + contact names. Low-
 | AC-09-02 | Opening a chat clears its unread indicator |
 | AC-09-03 | Indicator distinguishes count (or "1+" for many) |
 | AC-09-04 | Presence state changes appear within ≤2s |
+| AC-09-05 | Presence events observed from `user:{userId}` channel (EPIC-03); EPIC-09 never writes presence state |
 
 ## Data model
 
@@ -40,7 +41,8 @@ CREATE TABLE user_last_read (
 Cheap approximation: `count(*) FROM messages WHERE room_id=? AND id > last_message_id`. Cap 99 for UI. Rooms with 1000 members: per-open-client cost bounded by cursor scan on indexed column.
 
 ## Dependencies
-EPIC-02 (presence), EPIC-07 (messages).
+EPIC-02 (presence owner), EPIC-03 (transport), EPIC-07 (messages).
 
 ## Out of scope
 Push notifications (browser Notification API) — if time permits.
+Direct presence writes (owned by EPIC-02 per ADR-001).

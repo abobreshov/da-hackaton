@@ -1,9 +1,11 @@
 # EPIC-13 — Jabber/XMPP Federation (Advanced)
 
+> **Status: DEFERRED POST-MVP.** Per product decision 2026-04-20, EPIC-13 is not in the MVP deliverable. Full scope retained below for future work. Load-test thresholds + numeric SLAs to be added before implementation kick-off.
+
 **Req refs:** §6
 
 ## Goal
-Interop XMPP clients. Federate two servers in docker-compose. Demo A↔B messaging, 50+ clients each.
+(Post-MVP.) Interop XMPP clients. Federate two servers in docker-compose. Demo A↔B messaging, 50+ clients each.
 
 ## Acceptance criteria
 
@@ -62,12 +64,13 @@ DNS: fake hosts via docker-compose aliases
 - Measure delivery latency + error rate
 
 ## Dependencies
-EPIC-07, EPIC-10, EPIC-12.
+EPIC-07, EPIC-10, EPIC-12. EPIC-14 (security baseline for federated traffic). Kick-off blocked by MVP merge + load-test threshold definition.
 
 ## Risks
 - s2s DNS + TLS requirements. Fake certs for local testing
 - ejabberd auth integration complex. May need separate shadow user store
 - Scope creep. Strictly optional
+- Scope risk: §6 load test requires 50+ clients × 2 servers; no numeric latency/error thresholds yet — must be defined before starting.
 
 ## Out of scope
 Multi-hop federation (>2 servers). Discovery via DNS SRV in production setup.

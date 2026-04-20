@@ -18,7 +18,7 @@ const REFRESH_COOKIE = 'refresh';
 
 const COOKIE_OPTS = {
   httpOnly: true,
-  sameSite: 'lax' as const,
+  sameSite: 'strict' as const,
   secure: env.NODE_ENV === 'production',
   path: '/',
 };
