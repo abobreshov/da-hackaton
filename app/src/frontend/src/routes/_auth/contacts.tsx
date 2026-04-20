@@ -204,6 +204,9 @@ export function ContactsRoute() {
                 {state.data.friends.map((f) => (
                   <li
                     key={f.userId}
+                    data-testid="friend-row"
+                    data-username={f.username}
+                    data-user-id={f.userId}
                     className="flex items-center justify-between gap-3 rounded-full bg-surface-container-low px-4 py-2"
                   >
                     <UserPopover
