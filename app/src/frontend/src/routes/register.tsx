@@ -3,12 +3,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState } from 'react';
+import { AtSign, UserRound, Lock, ArrowRight } from 'lucide-react';
 import { registerUser } from '@/lib/auth';
 import { useSession } from '@/hooks/useSession';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { AuthCard } from '@/components/auth-card';
+import { GlassCard } from '@/components/ui/surface';
+import { FormField } from '@/components/ui/form-field';
+import { FormError } from '@/components/ui/form-error';
+import { Icon } from '@/components/ui/icon';
+import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { ApiError, isErrorCode } from '@/lib/api-client';
 import { ErrorCode } from '@app/contracts';
 
@@ -29,13 +32,15 @@ type RegisterData = z.infer<typeof registerSchema>;
 
 type FieldErrors = Partial<Record<keyof RegisterData, string>>;
 
-export function RegisterPage() {
+export function RegisterPage(): React.ReactElement {
   const navigate = useNavigate();
   const { setSession } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const form = useForm<RegisterData>({ resolver: zodResolver(registerSchema) });
+  const { register, handleSubmit, formState } = form;
+  const { errors, isSubmitting } = formState;
 
   const onSubmit = async (data: RegisterData) => {
     setError(null);
@@ -76,77 +81,73 @@ export function RegisterPage() {
   };
 
   return (
-    <AuthCard
-      title="Create account"
-      footer={
-        <>
-          Already have an account?{' '}
-          <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-            Sign in
-          </Link>
-        </>
-      }
+    <GlassCard
+      radius="xl"
+      padding="xl"
+      shadow="xl"
+      as="section"
+      className="w-full max-w-md animate-fade-up"
     >
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <div>
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            className="mt-1"
-            {...form.register('email')}
-          />
-          {(form.formState.errors.email || fieldErrors.email) && (
-            <p className="text-red-500 text-xs mt-1">
-              {fieldErrors.email ?? form.formState.errors.email?.message}
-            </p>
-          )}
-        </div>
+      <header className="flex flex-col items-center">
+        <ChatChatLogo size={72} />
+        <ChatChatWordmark className="mt-6" />
+        <h1 className="mt-3 text-center font-display text-headline-md font-extrabold text-on-surface">
+          Create account
+        </h1>
+      </header>
 
-        <div>
-          <Label htmlFor="username">Username</Label>
-          <Input
-            id="username"
-            type="text"
-            autoComplete="username"
-            className="mt-1"
-            {...form.register('username')}
-          />
-          {(form.formState.errors.username || fieldErrors.username) && (
-            <p className="text-red-500 text-xs mt-1">
-              {fieldErrors.username ?? form.formState.errors.username?.message}
-            </p>
-          )}
-        </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-6" noValidate>
+        <FormField
+          id="email"
+          label="Email address"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          leading={<Icon icon={AtSign} />}
+          error={fieldErrors.email ?? errors.email?.message}
+          {...register('email')}
+        />
 
-        <div>
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            className="mt-1"
-            {...form.register('password')}
-          />
-          {(form.formState.errors.password || fieldErrors.password) && (
-            <p className="text-red-500 text-xs mt-1">
-              {fieldErrors.password ?? form.formState.errors.password?.message}
-            </p>
-          )}
-        </div>
+        <FormField
+          id="username"
+          label="Username"
+          type="text"
+          autoComplete="username"
+          placeholder="handle"
+          leading={<Icon icon={UserRound} />}
+          error={fieldErrors.username ?? errors.username?.message}
+          {...register('username')}
+        />
 
-        {error && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-3" role="alert">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
+        <FormField
+          id="password"
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="At least 8 characters"
+          leading={<Icon icon={Lock} />}
+          error={fieldErrors.password ?? errors.password?.message}
+          {...register('password')}
+        />
 
-        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? 'Creating account...' : 'Create account'}
+        <FormError>{error}</FormError>
+
+        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          <span>{isSubmitting ? 'Creating account…' : 'Create account'}</span>
+          <Icon icon={ArrowRight} />
         </Button>
       </form>
-    </AuthCard>
+
+      <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">
+        Already have an account?{' '}
+        <Link
+          to="/login"
+          className="font-display font-semibold text-primary hover:text-primary-dim hover:underline underline-offset-4"
+        >
+          Sign in
+        </Link>
+      </p>
+    </GlassCard>
   );
 }
 

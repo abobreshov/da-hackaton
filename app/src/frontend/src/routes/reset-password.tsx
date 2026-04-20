@@ -3,11 +3,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState } from 'react';
+import { AtSign, Lock, ArrowRight } from 'lucide-react';
 import { requestPasswordReset, confirmPasswordReset } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { AuthCard } from '@/components/auth-card';
+import { GlassCard } from '@/components/ui/surface';
+import { FormField } from '@/components/ui/form-field';
+import { FormError } from '@/components/ui/form-error';
+import { Icon } from '@/components/ui/icon';
+import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { ApiError, isErrorCode } from '@/lib/api-client';
 import { ErrorCode } from '@app/contracts';
 
@@ -32,7 +35,7 @@ interface ResetPasswordPageProps {
   token?: string;
 }
 
-export function ResetPasswordPage({ token: tokenOverride }: ResetPasswordPageProps = {}) {
+export function ResetPasswordPage({ token: tokenOverride }: ResetPasswordPageProps = {}): React.ReactElement {
   // When rendered via TanStack Router, read the token from the validated
   // search params. Tests pass it in directly instead.
   let searchToken: string | undefined;
@@ -49,10 +52,57 @@ export function ResetPasswordPage({ token: tokenOverride }: ResetPasswordPagePro
   return token ? <ConfirmForm token={token} /> : <RequestForm />;
 }
 
-function RequestForm() {
+function AuthShell({
+  headline,
+  children,
+  footer,
+}: {
+  headline: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <GlassCard
+      radius="xl"
+      padding="xl"
+      shadow="xl"
+      as="section"
+      className="w-full max-w-md animate-fade-up"
+    >
+      <header className="flex flex-col items-center">
+        <ChatChatLogo size={72} />
+        <ChatChatWordmark className="mt-6" />
+        <h1 className="mt-3 text-center font-display text-headline-md font-extrabold text-on-surface">
+          {headline}
+        </h1>
+      </header>
+      {children}
+      {footer ? (
+        <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">
+          {footer}
+        </p>
+      ) : null}
+    </GlassCard>
+  );
+}
+
+function BackToLoginLink(): React.ReactElement {
+  return (
+    <Link
+      to="/login"
+      className="font-display font-semibold text-primary hover:text-primary-dim hover:underline underline-offset-4"
+    >
+      Back to sign in
+    </Link>
+  );
+}
+
+function RequestForm(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const form = useForm<RequestData>({ resolver: zodResolver(requestSchema) });
+  const { register, handleSubmit, formState } = form;
+  const { errors, isSubmitting } = formState;
 
   const onSubmit = async (data: RequestData) => {
     setError(null);
@@ -72,65 +122,49 @@ function RequestForm() {
 
   if (submitted) {
     return (
-      <AuthCard
-        title="Check your email"
-        description="If an account exists for that email, we sent a link to reset your password."
-        footer={
-          <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-            Back to sign in
-          </Link>
-        }
-      >
-        <p className="text-sm text-gray-600">The link is valid for a limited time.</p>
-      </AuthCard>
+      <AuthShell headline="Check your email" footer={<BackToLoginLink />}>
+        <p className="mt-6 text-center font-body text-body-md text-on-surface-variant">
+          If an account exists for that email, we sent a link to reset your password.
+          The link is valid for a limited time.
+        </p>
+      </AuthShell>
     );
   }
 
   return (
-    <AuthCard
-      title="Reset password"
-      description="Enter your email and we'll send you a link to reset your password."
-      footer={
-        <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-          Back to sign in
-        </Link>
-      }
-    >
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <div>
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            className="mt-1"
-            {...form.register('email')}
-          />
-          {form.formState.errors.email && (
-            <p className="text-red-500 text-xs mt-1">
-              {form.formState.errors.email.message}
-            </p>
-          )}
-        </div>
+    <AuthShell headline="Reset password" footer={<BackToLoginLink />}>
+      <p className="mt-4 text-center font-body text-body-md text-on-surface-variant">
+        Enter your email and we&apos;ll send you a link to reset your password.
+      </p>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-6" noValidate>
+        <FormField
+          id="email"
+          label="Email address"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          leading={<Icon icon={AtSign} />}
+          error={errors.email?.message}
+          {...register('email')}
+        />
 
-        {error && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-3" role="alert">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
+        <FormError>{error}</FormError>
 
-        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? 'Sending...' : 'Send reset link'}
+        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          <span>{isSubmitting ? 'Sending…' : 'Send reset link'}</span>
+          <Icon icon={ArrowRight} />
         </Button>
       </form>
-    </AuthCard>
+    </AuthShell>
   );
 }
 
-function ConfirmForm({ token }: { token: string }) {
+function ConfirmForm({ token }: { token: string }): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const form = useForm<ConfirmData>({ resolver: zodResolver(confirmSchema) });
+  const { register, handleSubmit, formState } = form;
+  const { errors, isSubmitting } = formState;
 
   const onSubmit = async (data: ConfirmData) => {
     setError(null);
@@ -152,54 +186,51 @@ function ConfirmForm({ token }: { token: string }) {
 
   if (done) {
     return (
-      <AuthCard
-        title="Password updated"
-        description="You can now sign in with your new password."
+      <AuthShell
+        headline="Password updated"
         footer={
-          <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+          <Link
+            to="/login"
+            className="font-display font-semibold text-primary hover:text-primary-dim hover:underline underline-offset-4"
+          >
             Go to sign in
           </Link>
         }
       >
-        <p className="text-sm text-gray-600" role="status">
-          Your password has been changed successfully.
+        <p
+          role="status"
+          className="mt-6 text-center font-body text-body-md text-on-surface-variant"
+        >
+          Your password has been changed successfully. You can now sign in with your new password.
         </p>
-      </AuthCard>
+      </AuthShell>
     );
   }
 
   return (
-    <AuthCard
-      title="Choose a new password"
-      description="Your reset link is valid. Enter a new password to continue."
-    >
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <div>
-          <Label htmlFor="newPassword">New password</Label>
-          <Input
-            id="newPassword"
-            type="password"
-            autoComplete="new-password"
-            className="mt-1"
-            {...form.register('newPassword')}
-          />
-          {form.formState.errors.newPassword && (
-            <p className="text-red-500 text-xs mt-1">
-              {form.formState.errors.newPassword.message}
-            </p>
-          )}
-        </div>
+    <AuthShell headline="Choose a new password">
+      <p className="mt-4 text-center font-body text-body-md text-on-surface-variant">
+        Your reset link is valid. Enter a new password to continue.
+      </p>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-6" noValidate>
+        <FormField
+          id="newPassword"
+          label="New password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="At least 8 characters"
+          leading={<Icon icon={Lock} />}
+          error={errors.newPassword?.message}
+          {...register('newPassword')}
+        />
 
-        {error && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-3" role="alert">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
+        <FormError>{error}</FormError>
 
-        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? 'Updating...' : 'Update password'}
+        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          <span>{isSubmitting ? 'Updating…' : 'Update password'}</span>
+          <Icon icon={ArrowRight} />
         </Button>
       </form>
-    </AuthCard>
+    </AuthShell>
   );
 }

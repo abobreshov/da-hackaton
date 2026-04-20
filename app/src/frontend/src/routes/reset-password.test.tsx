@@ -32,6 +32,15 @@ describe('<ResetPasswordPage />', () => {
       expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
     });
 
+    it('renders the brand hero headline and "Back to sign in" link', () => {
+      render(<ResetPasswordPage />);
+      expect(
+        screen.getByRole('heading', { level: 1, name: /reset password/i }),
+      ).toBeInTheDocument();
+      const back = screen.getByRole('link', { name: /back to sign in/i });
+      expect(back).toHaveAttribute('href', '/login');
+    });
+
     it('submits to /password-reset/request and shows confirmation on 204', async () => {
       fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
       render(<ResetPasswordPage />);

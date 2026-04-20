@@ -37,6 +37,15 @@ describe('<Verify2FAPage />', () => {
     expect(screen.getByRole('button', { name: /verify/i })).toBeInTheDocument();
   });
 
+  it('renders the brand hero headline and back-to-login link', () => {
+    render(<Verify2FAPage pendingCredentials={creds} />);
+    expect(
+      screen.getByRole('heading', { level: 1, name: /two-factor authentication/i }),
+    ).toBeInTheDocument();
+    const back = screen.getByRole('link', { name: /back to sign in/i });
+    expect(back).toHaveAttribute('href', '/login');
+  });
+
   it('falls back to a "sign in again" message when no credentials are pending', () => {
     render(<Verify2FAPage pendingCredentials={null} />);
     expect(screen.queryByLabelText(/verification code/i)).not.toBeInTheDocument();

@@ -143,7 +143,11 @@ describe('<AuthLayout />', () => {
     const AuthLayout = getOpts().component;
     render(<AuthLayout />);
     expect(screen.getByRole('link', { name: /chatchat home/i })).toBeInTheDocument();
-    expect(screen.getByText('User One')).toBeInTheDocument();
+    // AppHeader renders the visible name in a sm+-only span; AvatarDisc also
+    // exposes the name as sr-only text. Scope to the visible span.
+    expect(
+      screen.getByText('User One', { selector: 'span.sm\\:inline' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /log ?out/i })).toBeInTheDocument();
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
   });

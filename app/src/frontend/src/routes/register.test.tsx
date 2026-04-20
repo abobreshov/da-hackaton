@@ -48,6 +48,18 @@ describe('<RegisterPage />', () => {
     expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
   });
 
+  it('renders the Kinetic Playground brand hero + headline + sign-in link', () => {
+    render(<RegisterPage />);
+    // Headline comes from the new GlassCard header.
+    expect(
+      screen.getByRole('heading', { level: 1, name: /create account/i }),
+    ).toBeInTheDocument();
+    // Secondary link back to /login.
+    const signIn = screen.getByRole('link', { name: /sign in/i });
+    expect(signIn).toBeInTheDocument();
+    expect(signIn).toHaveAttribute('href', '/login');
+  });
+
   it('submits to /api/v1/auth/register and navigates to /dashboard on success', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(

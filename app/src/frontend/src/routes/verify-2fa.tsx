@@ -3,12 +3,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState } from 'react';
+import { ShieldCheck, ArrowRight } from 'lucide-react';
 import { loginUser } from '@/lib/auth';
 import { useSession } from '@/hooks/useSession';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { AuthCard } from '@/components/auth-card';
+import { GlassCard } from '@/components/ui/surface';
+import { FormField } from '@/components/ui/form-field';
+import { FormError } from '@/components/ui/form-error';
+import { Icon } from '@/components/ui/icon';
+import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { ApiError, isErrorCode } from '@/lib/api-client';
 import { ErrorCode } from '@app/contracts';
 
@@ -63,12 +66,48 @@ interface Verify2FAPageProps {
   pendingCredentials?: PendingCredentials | null;
 }
 
-export function Verify2FAPage({ pendingCredentials }: Verify2FAPageProps = {}) {
+function AuthShell({
+  headline,
+  children,
+  footer,
+}: {
+  headline: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <GlassCard
+      radius="xl"
+      padding="xl"
+      shadow="xl"
+      as="section"
+      className="w-full max-w-md animate-fade-up"
+    >
+      <header className="flex flex-col items-center">
+        <ChatChatLogo size={72} />
+        <ChatChatWordmark className="mt-6" />
+        <h1 className="mt-3 text-center font-display text-headline-md font-extrabold text-on-surface">
+          {headline}
+        </h1>
+      </header>
+      {children}
+      {footer ? (
+        <p className="mt-8 text-center font-body text-body-md text-on-surface-variant">
+          {footer}
+        </p>
+      ) : null}
+    </GlassCard>
+  );
+}
+
+export function Verify2FAPage({ pendingCredentials }: Verify2FAPageProps = {}): React.ReactElement {
   const navigate = useNavigate();
   const { setSession } = useSession();
   const [error, setError] = useState<string | null>(null);
   const creds = pendingCredentials ?? readPendingCredentials();
   const form = useForm<TotpData>({ resolver: zodResolver(totpSchema) });
+  const { register, handleSubmit, formState } = form;
+  const { errors, isSubmitting } = formState;
 
   const onSubmit = async (data: TotpData) => {
     if (!creds) {
@@ -107,61 +146,59 @@ export function Verify2FAPage({ pendingCredentials }: Verify2FAPageProps = {}) {
 
   if (!creds) {
     return (
-      <AuthCard
-        title="Two-factor authentication"
-        description="We need your credentials before verifying your code."
+      <AuthShell
+        headline="Two-factor authentication"
         footer={
-          <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+          <Link
+            to="/login"
+            className="font-display font-semibold text-primary hover:text-primary-dim hover:underline underline-offset-4"
+          >
             Back to sign in
           </Link>
         }
       >
-        <p className="text-sm text-gray-600">
-          Please sign in again to continue.
+        <p className="mt-6 text-center font-body text-body-md text-on-surface-variant">
+          We need your credentials before verifying your code. Please sign in again to continue.
         </p>
-      </AuthCard>
+      </AuthShell>
     );
   }
 
   return (
-    <AuthCard
-      title="Two-factor authentication"
-      description={
-        <>
-          Enter the 6-digit code from your authenticator app for{' '}
-          <span className="font-medium text-gray-900">{creds.email}</span>.
-        </>
-      }
-    >
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <div>
-          <Label htmlFor="totpCode">Verification code</Label>
-          <Input
-            id="totpCode"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="123456"
-            className="mt-1"
-            {...form.register('totpCode')}
-          />
-          {form.formState.errors.totpCode && (
-            <p className="text-red-500 text-xs mt-1">
-              {form.formState.errors.totpCode.message}
-            </p>
-          )}
-        </div>
+    <AuthShell headline="Two-factor authentication">
+      <p className="mt-4 text-center font-body text-body-md text-on-surface-variant">
+        Enter the 6-digit code from your authenticator app for{' '}
+        <span className="font-semibold text-on-surface">{creds.email}</span>.
+      </p>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-6" noValidate>
+        <FormField
+          id="totpCode"
+          label="Verification code"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="123456"
+          leading={<Icon icon={ShieldCheck} />}
+          error={errors.totpCode?.message}
+          {...register('totpCode')}
+        />
 
-        {error && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-3" role="alert">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
+        <FormError>{error}</FormError>
 
-        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? 'Verifying...' : 'Verify'}
+        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          <span>{isSubmitting ? 'Verifying…' : 'Verify'}</span>
+          <Icon icon={ArrowRight} />
         </Button>
       </form>
-    </AuthCard>
+
+      <p className="mt-6 text-center font-body text-body-md text-on-surface-variant">
+        <Link
+          to="/login"
+          className="font-display font-semibold text-primary hover:text-primary-dim hover:underline underline-offset-4"
+        >
+          Back to sign in
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

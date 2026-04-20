@@ -39,12 +39,11 @@ describe('<Dashboard />', () => {
     render(<Dashboard />);
 
     expect(screen.getByRole('heading', { name: /hey, alice/i })).toBeInTheDocument();
-    // Email appears twice — in hero copy and profile Row. Use getAllByText.
+    // Email appears twice — in hero copy and profile StatRow. Use getAllByText.
     expect(screen.getAllByText('alice@x').length).toBeGreaterThan(0);
-    expect(screen.getByText(/rooms:read/)).toBeInTheDocument();
-    expect(screen.getByText(/rooms:write/)).toBeInTheDocument();
-    // `type` is displayed via `capitalize` class — the raw text is still 'user'.
-    expect(screen.getByText('user')).toBeInTheDocument();
+    // Display-name row surfaces the name again in the profile card;
+    // the hero heading also contains it, so multiple matches are expected.
+    expect(screen.getAllByText('Alice').length).toBeGreaterThan(0);
   });
 
   it('falls back to email when name is absent', () => {
@@ -60,14 +59,12 @@ describe('<Dashboard />', () => {
     const Dashboard = getComponent();
     render(<Dashboard />);
     expect(screen.getByRole('heading', { name: /hey, bob@x/i })).toBeInTheDocument();
-    expect(screen.getByText(/no scopes assigned/i)).toBeInTheDocument();
   });
 
   it('renders nothing broken when session is null', () => {
     const Dashboard = getComponent();
     const { container } = render(<Dashboard />);
     expect(container.querySelector('h1')).not.toBeNull();
-    expect(screen.getByText(/no scopes assigned/i)).toBeInTheDocument();
   });
 
   it('renders a "Browse rooms" link that navigates to /rooms', () => {
