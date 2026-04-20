@@ -8,7 +8,8 @@ import { useSession } from '@/hooks/useSession';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ApiError } from '@/lib/api-client';
+import { ApiError, isErrorCode } from '@/lib/api-client';
+import { ErrorCode } from '@app/contracts';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -63,8 +64,10 @@ function LoginPage() {
         setStep('totp');
       }
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(((err.body as Record<string, unknown>)?.message as string) ?? 'Login failed');
+      if (isErrorCode(err, ErrorCode.RATE_LIMITED)) {
+        setError('Too many attempts. Please try again shortly.');
+      } else if (err instanceof ApiError) {
+        setError(err.message || 'Login failed');
       } else {
         setError('Unexpected error');
       }
@@ -80,8 +83,12 @@ function LoginPage() {
         setError('Invalid code');
       }
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(((err.body as Record<string, unknown>)?.message as string) ?? 'Invalid code');
+      if (isErrorCode(err, ErrorCode.TOTP_INVALID)) {
+        setError('Invalid code');
+      } else if (isErrorCode(err, ErrorCode.RATE_LIMITED)) {
+        setError('Too many attempts. Please try again shortly.');
+      } else if (err instanceof ApiError) {
+        setError(err.message || 'Invalid code');
       } else {
         setError('Unexpected error');
       }

@@ -9,6 +9,8 @@ const schema = z
     DATABASE_URL: z.string().url(),
     AUTH_TCP_HOST: z.string().default('localhost'),
     AUTH_TCP_PORT: z.coerce.number().default(4003),
+    REDIS_HOST: z.string().default('localhost'),
+    REDIS_PORT: z.coerce.number().default(6379),
     SYSTEM_KEY: z.string().min(32),
     ALLOWED_ORIGINS: z.string().default('http://localhost:3006,http://localhost:3007'),
     LOG_LEVEL: z.string().default('info'),

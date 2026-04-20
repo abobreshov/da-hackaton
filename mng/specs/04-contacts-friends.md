@@ -22,6 +22,7 @@ Friend graph + per-user bans. Enable DM eligibility (§2.3.6). EPIC-04 owns atom
 | AC-04-11 | Unban (DELETE /users/:userId/ban) does NOT restore friendship or unfreeze DM; user must re-request friend |
 | AC-04-12 | Account deletion: cascade (rooms, messages, attachments, friendships, bans) runs as async BullMQ job (consumer per EPIC-11); user sees immediate 204, cleanup completes eventually |
 | AC-04-13 | Friendships indexed for O(log n) lookup by either side; user_bans indexed by banned_id for "who banned me" queries |
+| AC-04-14 | Cascade enqueue owned by backend. Auth-service invokes TCP `users.cascade.enqueue`; backend writes to BullMQ queue `user.cascade.delete`. Auth-service does not hold BullMQ client. |
 
 ## Data model
 
@@ -85,7 +86,9 @@ EPIC-07 (messaging) consumes this invariant: on message.create for a DM, backend
 
 ## Account deletion cascade (async)
 
-DELETE /api/v1/account → auth-service soft-marks user, enqueues BullMQ job `user.cascade.delete` (queue consumer in EPIC-11). Job deletes: owned rooms + their messages + attachments, friendship rows, user_bans rows, refresh tokens, sessions. User sees immediate 204 + cookie clear.
+DELETE /api/v1/account → auth-service handles auth, soft-marks user (users.deleted_at = NOW()), then calls backend via TCP `users.cascade.enqueue {userId}`. Backend owns BullMQ enqueue to queue `user.cascade.delete`. Queue consumer lives in EPIC-11.
+
+Rationale: keep BullMQ producer co-located with worker + Postgres session (backend). Auth-service stays thin; no direct Redis BullMQ client there. User sees immediate 204 + cookie clear.
 
 ## Dependencies
 EPIC-01.

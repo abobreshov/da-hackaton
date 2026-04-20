@@ -7,11 +7,13 @@ export class DashboardPage extends BasePage {
 
   readonly welcomeHeading: Locator;
   readonly scopesSection: Locator;
+  readonly logoutButton: Locator;
 
   constructor(page: Page) {
     super(page);
     this.welcomeHeading = page.getByRole('heading', { name: /^hello,/i });
     this.scopesSection = page.getByRole('heading', { name: /scopes/i });
+    this.logoutButton = page.getByRole('button', { name: /^logout$/i });
   }
 
   async expectLoaded(): Promise<void> {
@@ -29,5 +31,9 @@ export class DashboardPage extends BasePage {
 
   scopeChip(scope: string): Locator {
     return this.page.locator('span.font-mono', { hasText: scope });
+  }
+
+  async clickLogout(): Promise<void> {
+    await this.logoutButton.click();
   }
 }

@@ -10,9 +10,12 @@ import { JwtService } from './shared/jwt.service';
 import { PasswordService } from './shared/password.service';
 import { RefreshTokenService } from './shared/refresh-token.service';
 import { TotpService } from './shared/totp.service';
+import { CustomerJwtGuard } from './shared/customer-jwt.guard';
+import { BackendClientModule } from './shared/backend-client.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [JwtModule.register({}), MailModule, BackendClientModule],
   controllers: [
     AdminAuthController,
     CustomerAuthController,
@@ -26,6 +29,7 @@ import { TotpService } from './shared/totp.service';
     PasswordService,
     RefreshTokenService,
     TotpService,
+    CustomerJwtGuard,
   ],
 })
 export class AuthModule {}

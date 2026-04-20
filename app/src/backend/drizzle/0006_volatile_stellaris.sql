@@ -1,0 +1,2 @@
+ALTER TABLE "abuse_reports" ADD COLUMN "target_message_id" bigint;--> statement-breakpoint
+ALTER TABLE "abuse_reports" ADD CONSTRAINT "abuse_reports_target_message_id_messages_id_fk" FOREIGN KEY ("target_message_id") REFERENCES "public"."messages"("id") ON DELETE set null ON UPDATE no action;

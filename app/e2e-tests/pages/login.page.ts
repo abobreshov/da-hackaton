@@ -59,4 +59,12 @@ export class LoginPage extends BasePage {
     await expect(this.errorAlert).toBeVisible();
     if (message) await expect(this.errorAlert).toContainText(message);
   }
+
+  async expectTotpStep(email?: string): Promise<void> {
+    await expect(this.totpInput).toBeVisible();
+    await expect(this.verifyButton).toBeVisible();
+    if (email) {
+      await expect(this.page.getByText(email)).toBeVisible();
+    }
+  }
 }

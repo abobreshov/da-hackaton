@@ -1,0 +1,130 @@
+process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://test:test@localhost:5432/test';
+process.env.JWT_ADMIN_SECRET = process.env.JWT_ADMIN_SECRET ?? 'x'.repeat(48);
+process.env.JWT_CUSTOMER_SECRET = process.env.JWT_CUSTOMER_SECRET ?? 'y'.repeat(48);
+process.env.SYSTEM_KEY = process.env.SYSTEM_KEY ?? 'z'.repeat(48);
+
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
+import { CustomerAuthTcpController } from './customer-auth.tcp';
+import { CustomerAuthService } from './customer-auth.service';
+
+function makeService(): jest.Mocked<CustomerAuthService> {
+  return {
+    login: jest.fn(),
+    register: jest.fn(),
+    refresh: jest.fn(),
+    logout: jest.fn(),
+    validateToken: jest.fn(),
+    passwordResetRequest: jest.fn(),
+    passwordResetConfirm: jest.fn(),
+    passwordChange: jest.fn(),
+    deleteAccount: jest.fn(),
+  } as any;
+}
+
+describe('CustomerAuthTcpController', () => {
+  let ctrl: CustomerAuthTcpController;
+  let svc: jest.Mocked<CustomerAuthService>;
+
+  beforeEach(() => {
+    svc = makeService();
+    ctrl = new CustomerAuthTcpController(svc);
+  });
+
+  describe('login', () => {
+    it('passes through the service result', async () => {
+      svc.login.mockResolvedValue({ accessToken: 'a', refreshToken: 'r' } as any);
+      await expect(ctrl.login({ email: 'u@x.com', password: 'pw' } as any)).resolves.toMatchObject({
+        accessToken: 'a',
+      });
+    });
+
+    it('maps HttpException -> RpcException with { status, message }', async () => {
+      svc.login.mockRejectedValue(
+        new HttpException({ code: 'UNAUTHENTICATED', message: 'bad' }, HttpStatus.UNAUTHORIZED),
+      );
+      const promise = ctrl.login({ email: 'u@x.com', password: 'pw' } as any);
+      await expect(promise).rejects.toBeInstanceOf(RpcException);
+      await promise.catch((e: RpcException) => {
+        expect(e.getError()).toMatchObject({ status: 401, message: 'bad' });
+      });
+    });
+  });
+
+  describe('refresh', () => {
+    it('extracts refreshToken and passes through the result', async () => {
+      svc.refresh.mockResolvedValue({ accessToken: 'a' } as any);
+      await ctrl.refresh({ refreshToken: 'u:1:abc' });
+      expect(svc.refresh).toHaveBeenCalledWith('u:1:abc');
+    });
+  });
+
+  describe('logout', () => {
+    it('returns { ok: true } on success', async () => {
+      svc.logout.mockResolvedValue(undefined);
+      await expect(ctrl.logout({ refreshToken: 'u:1:abc' })).resolves.toEqual({ ok: true });
+      expect(svc.logout).toHaveBeenCalledWith('u:1:abc');
+    });
+  });
+
+  describe('validateToken', () => {
+    it('extracts token from payload and delegates', async () => {
+      svc.validateToken.mockResolvedValue({ userId: 1 } as any);
+      await ctrl.validateToken({ token: 'tok' });
+      expect(svc.validateToken).toHaveBeenCalledWith('tok');
+    });
+  });
+
+  describe('register', () => {
+    it('delegates the whole DTO', async () => {
+      svc.register.mockResolvedValue({ accessToken: 'a' } as any);
+      const dto = { email: 'u@x.com', username: 'u', password: 'Sup3rSecret' };
+      await ctrl.register(dto as any);
+      expect(svc.register).toHaveBeenCalledWith(dto);
+    });
+  });
+
+  describe('passwordResetRequest', () => {
+    it('returns { ok: true } on success', async () => {
+      svc.passwordResetRequest.mockResolvedValue(undefined);
+      await expect(
+        ctrl.passwordResetRequest({ email: 'u@x.com' } as any),
+      ).resolves.toEqual({ ok: true });
+    });
+  });
+
+  describe('passwordResetConfirm', () => {
+    it('returns { ok: true } on success', async () => {
+      svc.passwordResetConfirm.mockResolvedValue(undefined);
+      await expect(
+        ctrl.passwordResetConfirm({ token: 't', newPassword: 'p' } as any),
+      ).resolves.toEqual({ ok: true });
+    });
+  });
+
+  describe('passwordChange', () => {
+    it('delegates with userId from payload and returns { ok: true }', async () => {
+      svc.passwordChange.mockResolvedValue(undefined);
+      const payload = { currentPassword: 'old', newPassword: 'NewPass123', userId: 5 };
+      await expect(ctrl.passwordChange(payload as any)).resolves.toEqual({ ok: true });
+      expect(svc.passwordChange).toHaveBeenCalledWith(payload);
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('delegates and returns { ok: true }', async () => {
+      svc.deleteAccount.mockResolvedValue(undefined);
+      await expect(ctrl.deleteAccount({ userId: 9 })).resolves.toEqual({ ok: true });
+      expect(svc.deleteAccount).toHaveBeenCalledWith({ userId: 9 });
+    });
+
+    it('maps unknown Error -> RpcException(500)', async () => {
+      svc.deleteAccount.mockRejectedValue(new Error('boom'));
+      const promise = ctrl.deleteAccount({ userId: 9 });
+      await expect(promise).rejects.toBeInstanceOf(RpcException);
+      await promise.catch((e: RpcException) => {
+        expect(e.getError()).toMatchObject({ status: 500, message: 'boom' });
+      });
+    });
+  });
+});

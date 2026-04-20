@@ -3,7 +3,7 @@
 **Req refs:** cross-cutting (all EPICs); derived from contract-consistency review 2026-04-20.
 
 ## Goal
-Lock wire-level contracts across services (REST paths, TCP cmds, WS events, Redis channels/keys, BullMQ queues, error envelope). Single shared package `@app/contracts` sourced by all services + frontend. Prevents drift, enables typed clients.
+Lock wire-level contracts across services (REST paths, TCP cmds, WS events, Redis channels/keys, BullMQ queues, error envelope). Single shared package `@app/contracts` sourced by all services + frontend. Prevent drift, enable typed clients.
 
 ## Scope
 - Uniform error envelope (all transports)
@@ -24,7 +24,7 @@ Lock wire-level contracts across services (REST paths, TCP cmds, WS events, Redi
 | AC-15-02 | BFF `RpcErrorInterceptor` forwards `{code, message, details?, retryAfterMs?, requestId?}` envelope end-to-end (REST + WS) |
 | AC-15-03 | Error code enum enumerable: `RATE_LIMITED`, `NOT_FOUND`, `FORBIDDEN`, `CONFLICT`, `VALIDATION_FAILED`, `UPSTREAM_UNAVAILABLE`, `DM_FROZEN`, `FRIEND_REQUIRED`, `BANNED_FROM_ROOM`, `TOTP_REQUIRED`, `TOTP_INVALID`, `CSRF_INVALID`, `UNAUTHENTICATED` |
 | AC-15-04 | TCP cmd names: `domain.subdomain.verb` lowercase dot-delimited. Examples `auth.customer.login`, `messages.create`, `presence.touch` |
-| AC-15-05 | WS events: server→client past-tense facts (`message.new`, `room.member.added`, `room.role.changed`, `unread.changed`); client→server imperative (`message.send`, `presence.ping`). No `.me` / `.you` suffixes — channel scope conveys target |
+| AC-15-05 | WS events: server→client past-tense facts (`message.new`, `room.member.added`, `room.role.changed`, `unread.changed`); client→server imperative (`message.send`, `presence.ping`). No `.me` / `.you` suffixes — channel scope convey target |
 | AC-15-06 | Redis pub/sub channels: `room:{id}`, `user:{id}`, `presence:global`, `dm:{id}`, `admins.global` |
 | AC-15-07 | Redis data keys: `presence:sessions:{userId}` (HASH), `presence:state:{userId}` (STRING), `ratelimit:{scope}:{key}`, `refresh:{u\|a}:{userId}:{hash}` |
 | AC-15-08 | BullMQ queues: `user.cascade.delete`, `retention.prune`, `attachments.cleanup`, `abuse.report.notify` |
@@ -141,7 +141,7 @@ All EPICs (cross-cutting). Package must publish before services wire.
 
 ## Risks
 - Lock before EPIC-03 transport code ships; once frontend subscribes, renames become breaking-change clients.
-- Error envelope change to `bff/rpc-error.interceptor.ts` is breaking — must coordinate with frontend error handler in single commit.
+- Error envelope change to `bff/rpc-error.interceptor.ts` breaking — must coordinate with frontend error handler in single commit.
 - `@app/contracts` must build before consumer services — add to yarn workspace build order (tsconfig project refs).
 
 ## Out of scope

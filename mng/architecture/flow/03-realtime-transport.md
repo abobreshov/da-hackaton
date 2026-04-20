@@ -9,6 +9,10 @@ sequenceDiagram
     participant BE
     participant REDIS as Redis
     FE->>BFF: WS upgrade (cookie)
+    BFF->>BFF: OriginGuard check handshake.headers.origin ∈ ALLOWED_WS_ORIGINS
+    alt origin rejected
+        BFF-->>FE: 403 close (WS handshake aborted)
+    end
     BFF->>BFF: SessionGuard verify cookie
     alt invalid
         BFF-->>FE: 401 close

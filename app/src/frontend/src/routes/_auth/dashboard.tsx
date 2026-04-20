@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useSession } from '@/hooks/useSession';
 
 export const Route = createFileRoute('/_auth/dashboard')({
@@ -16,6 +16,16 @@ function Dashboard() {
         Signed in as <span className="font-medium text-gray-700">{session?.email}</span> ·{' '}
         <span className="capitalize">{session?.type}</span>
       </p>
+
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-2">Explore</h2>
+        <Link
+          to="/rooms"
+          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Browse rooms
+        </Link>
+      </section>
 
       <section>
         <h2 className="text-sm font-semibold text-gray-900 mb-2">Scopes</h2>

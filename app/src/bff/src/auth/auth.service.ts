@@ -49,4 +49,46 @@ export class AuthService {
       this.client.send<any>({ cmd: 'auth.customer.validateToken' }, withSys({ token })),
     );
   }
+
+  register(email: string, username: string, password: string) {
+    return firstValueFrom(
+      this.client.send<any>(
+        { cmd: 'auth.customer.register' },
+        withSys({ email, username, password }),
+      ),
+    );
+  }
+
+  passwordResetRequest(email: string) {
+    return firstValueFrom(
+      this.client.send<any>(
+        { cmd: 'auth.customer.passwordReset.request' },
+        withSys({ email }),
+      ),
+    );
+  }
+
+  passwordResetConfirm(token: string, newPassword: string) {
+    return firstValueFrom(
+      this.client.send<any>(
+        { cmd: 'auth.customer.passwordReset.confirm' },
+        withSys({ token, newPassword }),
+      ),
+    );
+  }
+
+  passwordChange(userId: number, currentPassword: string, newPassword: string) {
+    return firstValueFrom(
+      this.client.send<any>(
+        { cmd: 'auth.customer.passwordChange' },
+        withSys({ userId, currentPassword, newPassword }),
+      ),
+    );
+  }
+
+  deleteAccount(userId: number) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.customer.delete' }, withSys({ userId })),
+    );
+  }
 }

@@ -101,5 +101,7 @@ Depth = relationship between colours, not a drop shadow.
 
 - **Tailwind theme** (`app/src/frontend/tailwind.config.ts`) exposes every token above as CSS variables + utility classes (`bg-surface-container-low`, `text-on-surface`, `shadow-ambient`, `rounded-xl`, etc).
 - **Components** in `app/src/frontend/src/components/ui/` consume tokens — never raw hex.
-- **Review rule:** any PR that introduces a 1 px solid border for sectioning, an `<hr>`, a raw hex colour, a pure-grey shadow, or a rigid grid alignment must be rejected.
+- **shadcn/ui pattern is the only UI-primitive source.** Primitives are *copy-pasted* into `src/components/ui/*`, not imported from an npm theme package. Radix primitives (`@radix-ui/react-*`) power behaviour; we own the surface and re-theme to match the tokens above. Do not run `npx shadcn add <comp>` blindly — it overwrites existing retheming. Pull new primitives on demand, then immediately strip default greys + borders and replace with tokens from §2–§5.
+- **Variant API** — use `cva` (class-variance-authority) + `clsx` + `tailwind-merge` (already in devDeps). Public shape: `Button(variant: 'primary' | 'secondary' | 'ghost' | 'danger', size: 'sm' | 'md' | 'lg')`, `Input(variant: 'default' | 'error')`. Keep variants declarative and typed.
+- **Review rule:** any PR that introduces a 1 px solid border for sectioning, an `<hr>`, a raw hex colour, a pure-grey shadow, a rigid grid alignment, or an npm-sourced themed component must be rejected.
 - **Related spec:** `mng/specs/10-ui-shell.md` — feature-level UI requirements. This spec defines the *language*; `10-ui-shell.md` defines the *pages*.

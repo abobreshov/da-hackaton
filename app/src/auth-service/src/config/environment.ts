@@ -27,6 +27,16 @@ const schema = z
     TLS_CA_PATH: z.string().optional(),
     TLS_CERT_PATH: z.string().optional(),
     TLS_KEY_PATH: z.string().optional(),
+    // SMTP — if SMTP_HOST is unset the mailer is a no-op (logs only).
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().default(1025),
+    SMTP_FROM: z.string().default('noreply@local'),
+    // Password-reset email link base (frontend origin).
+    FRONTEND_BASE_URL: z.string().default('http://localhost:3007'),
+    // Backend TCP (for best-effort cascade on account delete). Optional;
+    // cascade is eventually consistent and we log-and-continue if unreachable.
+    BACKEND_TCP_HOST: z.string().default('127.0.0.1'),
+    BACKEND_TCP_PORT: z.coerce.number().default(4004),
   })
   .refine((v) => !v.TLS_ENABLED || (v.TLS_CA_PATH && v.TLS_CERT_PATH && v.TLS_KEY_PATH), {
     message: 'TLS_ENABLED=true requires TLS_CA_PATH, TLS_CERT_PATH, TLS_KEY_PATH',

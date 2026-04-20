@@ -3,7 +3,7 @@
 **Req refs:** §3.1–3.3, §3.6
 
 ## Goal
-Hit non-functional targets. Load-test; verify consistency invariants; harden async cleanup. Retention is configurable via env vars (default 365 days — aligns w/ PDF §3.3 "years"-class persistence; operator can set lower). Hosts the async account-deletion cascade consumer (from EPIC-04). No backup/DR in MVP scope.
+Hit non-functional targets. Load-test; verify consistency invariants; harden async cleanup. Retention is configurable via env vars (default 30 days to cap disk pressure; operator can raise for long-term archival). Hosts the async account-deletion cascade consumer (from EPIC-04). No backup/DR in MVP scope.
 
 ## Acceptance criteria
 
@@ -17,7 +17,7 @@ Hit non-functional targets. Load-test; verify consistency invariants; harden asy
 | AC-11-06 | Rooms with 10k+ messages scroll smoothly (no block >200ms) |
 | AC-11-07 | Messages stored persistently (no data loss, years-long retention) |
 | AC-11-08 | Consistency invariants hold: membership, room bans, file access, history, admin/owner perms |
-| AC-11-09 | Retention env vars: MESSAGE_RETENTION_DAYS (default 365), ATTACHMENT_RETENTION_DAYS (default 365), AUDIT_LOG_RETENTION_DAYS (default 365), ABUSE_REPORT_RETENTION_DAYS (default 365). Prune job nightly; order: abuse_reports → audit_log → attachments (file+row) → messages (handles reply_to). |
+| AC-11-09 | Retention env vars: MESSAGE_RETENTION_DAYS (default 30), ATTACHMENT_RETENTION_DAYS (default 30), AUDIT_LOG_RETENTION_DAYS (default 30), ABUSE_REPORT_RETENTION_DAYS (default 30). Prune job nightly; order: abuse_reports → audit_log → attachments (file+row) → messages (handles reply_to). |
 | AC-11-10 | Nightly BullMQ pruning job deletes rows + files older than respective retention window |
 | AC-11-11 | Async account-deletion cascade consumer (BullMQ queue `user.cascade.delete`) lives here; processes owned rooms + messages + attachments + friendships + user_bans cleanup |
 | AC-11-12 | Prune order invariant: delete attachments before messages (messages.reply_to SET NULL already; attachments.message_id SET NULL) to avoid orphan-attachment rows. Batches ≤5000 rows per table. |
@@ -54,10 +54,10 @@ Hit non-functional targets. Load-test; verify consistency invariants; harden asy
 
 | Env var | Default | Applies to |
 |---|---|---|
-| MESSAGE_RETENTION_DAYS | 365 | messages.created_at |
-| ATTACHMENT_RETENTION_DAYS | 365 | attachments.created_at + file on disk |
-| AUDIT_LOG_RETENTION_DAYS | 365 | audit_log.created_at |
-| ABUSE_REPORT_RETENTION_DAYS | 365 | abuse_reports.created_at (resolved only) |
+| MESSAGE_RETENTION_DAYS | 30 | messages.created_at |
+| ATTACHMENT_RETENTION_DAYS | 30 | attachments.created_at + file on disk |
+| AUDIT_LOG_RETENTION_DAYS | 30 | audit_log.created_at |
+| ABUSE_REPORT_RETENTION_DAYS | 30 | abuse_reports.created_at (resolved only) |
 
 Pruning job: BullMQ nightly worker (`retention.prune`). Deletes in batches (5000 rows) to avoid long locks. Logs count per table.
 

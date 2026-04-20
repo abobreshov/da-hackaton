@@ -23,6 +23,7 @@ Classic web chat shell. Top menu, right sidebar (rooms + contacts), main chat ce
 | AC-10-09 | Unread indicator near room/contact names |
 | AC-10-10 | Admin actions via top menu + modal dialogs (Manage Room, Ban/Unban, Manage admins, View bans, Delete room) |
 | AC-10-11 | Layout targets desktop viewports ≥1024px. Responsive shrink below is best-effort; mobile breakpoints POST-MVP |
+| AC-10-12 | Admin panel MVP surface: only the in-room Manage Room modal (§4.5). Reports queue + audit-log viewer = REST-only; dedicated UI post-MVP. |
 
 ## Routes (TanStack)
 ```
@@ -61,3 +62,4 @@ Parallel with EPIC-05/06/07.
 Themes, mobile-first responsive. Desktop classic layout only.
 - Mobile-specific layouts / touch gestures / PWA (post-MVP stretch)
 - Dark mode / theming
+- Admin UI for audit_log + abuse_reports queue (MVP uses REST endpoints + Dozzle / devtools; dedicated panel POST-MVP stretch)

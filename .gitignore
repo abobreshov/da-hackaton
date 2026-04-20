@@ -49,3 +49,6 @@ data/
 
 .claude/scheduled_tasks.lock
 secrets/
+
+# Dev-only seeded TOTP secret (for local Playwright runs)
+**/.seed-totp.txt

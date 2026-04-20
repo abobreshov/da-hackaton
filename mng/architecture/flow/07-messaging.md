@@ -6,12 +6,17 @@
 sequenceDiagram
     participant S as Sender
     participant BFF
+    participant RL as Redis sliding-window
     participant BE
     participant DB
     participant REDIS
     participant OTHERS as Other members online
     S->>BFF: ws message.send {roomId, body, replyTo?, attachmentIds?}
-    BFF->>BFF: rate-limit check
+    BFF->>RL: ZADD ratelimit:msg:{userId} now; ZREMRANGEBYSCORE <now-5s
+    BFF->>RL: ZCARD → count
+    alt count > 30 (30 msg / 5s per user)
+        BFF-->>S: ws error {code:'RATE_LIMITED', retryAfterMs}
+    end
     BFF->>BE: TCP messages.create
     BE->>DB: check membership + not banned
     BE->>DB: INSERT message tx commit

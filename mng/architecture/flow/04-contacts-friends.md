@@ -34,6 +34,7 @@ sequenceDiagram
     participant BFF
     participant BE
     participant DB
+    participant REDIS
     A->>FE: Block user B
     FE->>BFF: POST /users/:B/ban
     BFF->>BE: TCP users.ban
@@ -42,6 +43,11 @@ sequenceDiagram
     BE->>DB: UPDATE dm_channels SET frozen_at=NOW() WHERE (A,B)
     BE->>DB: DELETE friendships(A,B)
     BE->>DB: COMMIT
+    BE->>REDIS: PUBLISH user:{A.id} user.banned {targetId:B}
+    BE->>REDIS: PUBLISH user:{B.id} dm.frozen {byUserId:A}
+    BE->>REDIS: PUBLISH user:{A.id} friend.removed {userId:B}
+    BE->>REDIS: PUBLISH user:{B.id} friend.removed {userId:A}
+    BE->>DB: INSERT audit_log(actor=A, action='user.ban', target=B)
     BE-->>BFF: 204
 ```
 

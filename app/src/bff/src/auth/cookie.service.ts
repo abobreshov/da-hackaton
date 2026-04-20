@@ -47,6 +47,18 @@ export class CookieService {
     });
   }
 
+  /**
+   * Convenience for login/register/refresh flows: sets both the signed
+   * session JWT cookie and the signed refresh cookie in one call.
+   */
+  issueAuthCookies(
+    reply: any,
+    args: { session: Omit<SessionPayload, 'iat' | 'exp'>; refreshToken: string },
+  ): void {
+    this.setSessionCookie(reply, args.session);
+    this.setRefreshCookie(reply, args.refreshToken);
+  }
+
   readSessionCookie(req: any): string | null {
     const raw = req.cookies?.[SESSION_COOKIE];
     if (!raw) return null;

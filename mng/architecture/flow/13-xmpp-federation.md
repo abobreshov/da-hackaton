@@ -1,5 +1,7 @@
 # Flow — EPIC-13 Jabber/XMPP Federation
 
+> **DEFERRED POST-MVP.** EPIC-13 is not in the MVP cut. Diagrams below are architectural direction only; no wiring lands pre-launch. See spec 13-xmpp-federation.md for scope.
+
 ## Deployment topology (2 federated servers)
 
 ```mermaid

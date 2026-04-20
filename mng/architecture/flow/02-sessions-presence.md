@@ -21,7 +21,9 @@ sequenceDiagram
     participant BE as BE Service
     participant REDIS as Redis
     FE->>BFF: WS presence.ping (every 20s on activity)
-    BFF->>REDIS: HSET presence:{userId} sessionId=now
+    BFF->>BE: TCP presence.touch {userId, sessionId}
+    BE->>REDIS: HSET presence:sessions:{userId} sessionId=now (TTL 90s)
+    Note over BE: PresenceService is single writer (ADR-001)
     loop every 10s (BE worker)
         BE->>REDIS: HGETALL presence:{userId}
         BE->>BE: compute state (online / afk / offline)

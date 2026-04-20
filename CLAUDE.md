@@ -60,6 +60,8 @@ All frontend work (React + Tailwind under `app/src/frontend/`) must follow the b
 
 Full tokens + component rules + enforcement criteria live in the spec. Any PR violating the non-negotiables must be rejected at review.
 
+**UI-primitive pattern — shadcn/ui (copy-paste, never npm-theme).** Radix primitives under the hood, surface owned locally in `app/src/frontend/src/components/ui/*`. Variants via `cva` + `clsx` + `tailwind-merge`. Do not `npx shadcn add` on top of a retheme without manually re-applying Kinetic Playground tokens.
+
 ## Agents (`.claude/agents/`)
 
 | Agent | Scope |

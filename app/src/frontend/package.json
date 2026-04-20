@@ -13,6 +13,7 @@
     "test:cov": "vitest run --coverage"
   },
   "dependencies": {
+    "@app/contracts": "workspace:*",
     "@hookform/resolvers": "^3.0.0",
     "@radix-ui/react-dialog": "latest",
     "@radix-ui/react-label": "latest",
@@ -32,6 +33,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^19.0.0",

@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
 import fastifyCookie from '@fastify/cookie';
+import fastifyCsrfProtection from '@fastify/csrf-protection';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
@@ -68,6 +69,21 @@ async function bootstrap() {
   });
 
   await app.register(fastifyCookie as any, { secret: env.COOKIE_SECRET });
+
+  // CSRF double-submit: cookie is NOT HttpOnly so FE JS can read it and
+  // echo it via the x-csrf-token header. Safe methods (GET/HEAD/OPTIONS)
+  // skip validation by default in @fastify/csrf-protection.
+  await app.register(fastifyCsrfProtection as any, {
+    cookieKey: 'csrf',
+    cookieOpts: {
+      path: '/',
+      sameSite: 'strict',
+      secure: env.NODE_ENV === 'production',
+      httpOnly: false,
+      signed: false,
+    },
+    getToken: (req: any) => (req.headers['x-csrf-token'] as string | undefined) ?? '',
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
