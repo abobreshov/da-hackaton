@@ -2,6 +2,7 @@
 // Hand-written route tree. Keep in sync with routes/* files.
 
 import { Route as rootRouteImport } from './routes/__root';
+import { Route as PublicRouteImport } from './routes/_public';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as RegisterRouteImport } from './routes/register';
 import { Route as ResetPasswordRouteImport } from './routes/reset-password';
@@ -12,28 +13,33 @@ import { Route as AuthContactsRouteImport } from './routes/_auth/contacts';
 import { Route as AuthRoomsIndexRouteImport } from './routes/_auth/rooms/index';
 import { Route as AuthRoomsRoomIdRouteImport } from './routes/_auth/rooms/$roomId';
 
+const PublicRoute = PublicRouteImport.update({
+  id: '/_public',
+  getParentRoute: () => rootRouteImport,
+} as any);
+
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PublicRoute,
 } as any);
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PublicRoute,
 } as any);
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PublicRoute,
 } as any);
 
 const Verify2FARoute = Verify2FARouteImport.update({
   id: '/verify-2fa',
   path: '/verify-2fa',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PublicRoute,
 } as any);
 
 const AuthRoute = AuthRouteImport.update({
@@ -65,6 +71,14 @@ const AuthRoomsRoomIdRoute = AuthRoomsRoomIdRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any);
 
+const PublicRouteChildren = {
+  LoginRoute,
+  RegisterRoute,
+  ResetPasswordRoute,
+  Verify2FARoute,
+};
+const PublicRouteWithChildren = (PublicRoute as any)._addFileChildren(PublicRouteChildren);
+
 const AuthRouteChildren = {
   AuthDashboardRoute,
   AuthContactsRoute,
@@ -75,10 +89,7 @@ const AuthRouteWithChildren = (AuthRoute as any)._addFileChildren(AuthRouteChild
 
 const rootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
-  LoginRoute,
-  RegisterRoute,
-  ResetPasswordRoute,
-  Verify2FARoute,
+  PublicRoute: PublicRouteWithChildren,
 };
 
 export const routeTree = (rootRouteImport as any)
@@ -87,33 +98,40 @@ export const routeTree = (rootRouteImport as any)
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_public': {
+      id: '/_public';
+      path: '';
+      fullPath: '';
+      preLoaderRoute: typeof PublicRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/login': {
       id: '/login';
       path: '/login';
       fullPath: '/login';
       preLoaderRoute: typeof LoginRouteImport;
-      parentRoute: typeof rootRouteImport;
+      parentRoute: typeof PublicRouteImport;
     };
     '/register': {
       id: '/register';
       path: '/register';
       fullPath: '/register';
       preLoaderRoute: typeof RegisterRouteImport;
-      parentRoute: typeof rootRouteImport;
+      parentRoute: typeof PublicRouteImport;
     };
     '/reset-password': {
       id: '/reset-password';
       path: '/reset-password';
       fullPath: '/reset-password';
       preLoaderRoute: typeof ResetPasswordRouteImport;
-      parentRoute: typeof rootRouteImport;
+      parentRoute: typeof PublicRouteImport;
     };
     '/verify-2fa': {
       id: '/verify-2fa';
       path: '/verify-2fa';
       fullPath: '/verify-2fa';
       preLoaderRoute: typeof Verify2FARouteImport;
-      parentRoute: typeof rootRouteImport;
+      parentRoute: typeof PublicRouteImport;
     };
     '/_auth': {
       id: '/_auth';

@@ -84,11 +84,17 @@ export const AvatarDisc = React.forwardRef<HTMLDivElement, AvatarDiscProps>(
     const label = name?.trim() || email?.trim() || 'User';
 
     const Comp = asChild ? Slot : 'div';
+    // When slotting into a real interactive element (<a>, <button>) the
+    // child brings its own accessible role + name. Forcing `role="img"`
+    // onto it would hide the native role and break the link/button from
+    // keyboard nav + assistive tech. We keep the aria-label either way so
+    // the accessible name is consistent across both code paths.
+    const roleProps = asChild ? {} : { role: 'img' as const };
 
     return (
       <Comp
         ref={ref as never}
-        role="img"
+        {...roleProps}
         aria-label={label}
         className={cn(avatarDiscVariants({ size, tone }), className)}
         {...props}

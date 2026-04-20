@@ -96,7 +96,8 @@ export const HeroCard = React.forwardRef<HTMLElement, HeroCardProps>(
 HeroCard.displayName = 'HeroCard';
 
 // ----- SectionHeading ----- consistent display-font heading for cards + sections
-export interface SectionHeadingProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface SectionHeadingProps
+  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   eyebrow?: string;
   title: React.ReactNode;
   level?: 'h1' | 'h2' | 'h3';
