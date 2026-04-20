@@ -47,3 +47,4 @@ ov.conf
 data/
 .openviking/
 
+.claude/scheduled_tasks.lock
