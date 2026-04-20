@@ -131,7 +131,10 @@ interface FakeRoomsAuth {
   roleOf?: jest.Mock;
 }
 
-function makeRoomsAuth(isMember = true, role: 'owner' | 'admin' | 'member' | null = 'member'): FakeRoomsAuth {
+function makeRoomsAuth(
+  isMember = true,
+  role: 'owner' | 'admin' | 'member' | null = 'member',
+): FakeRoomsAuth {
   return {
     ensureMember: jest.fn(async () => {
       if (!isMember) throw new ForbiddenException('not a member of this room');
@@ -199,25 +202,47 @@ const AUTHOR = 10;
 const OTHER = 20;
 const ADMIN = 30;
 
+interface CapturedEvent {
+  event: string;
+  payload: unknown;
+}
+
+class FakeEventPublisher {
+  readonly events: CapturedEvent[] = [];
+  emit(event: string, payload: unknown): void {
+    this.events.push({ event, payload });
+  }
+  on(): void {
+    // unused in service tests
+  }
+}
+
 describe('MessagesService', () => {
   let repo: FakeMessagesRepository;
   let attachments: FakeAttachmentsRepository;
+  let publisher: FakeEventPublisher;
 
   beforeEach(() => {
     repo = new FakeMessagesRepository();
     attachments = new FakeAttachmentsRepository();
+    publisher = new FakeEventPublisher();
   });
 
   function make(rooms: any = makeRoomsAuth(), messagesRepo: any = repo): MessagesService {
-    return new MessagesService(messagesRepo, rooms, attachments);
+    return new MessagesService(messagesRepo, rooms, attachments, publisher as any);
   }
 
   describe('create — XOR scope', () => {
     it('rejects when neither roomId nor dmUserId is present', async () => {
-      const svc = new (require('./messages.service').MessagesService)(repo, makeRoomsAuth(), attachments);
-      await expect(
-        svc.create({ authorId: AUTHOR, body: 'hi' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      const svc = new (require('./messages.service').MessagesService)(
+        repo,
+        makeRoomsAuth(),
+        attachments,
+        publisher,
+      );
+      await expect(svc.create({ authorId: AUTHOR, body: 'hi' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('rejects when both roomId and dmUserId are present', async () => {
@@ -237,9 +262,9 @@ describe('MessagesService', () => {
 
     it('rejects empty body', async () => {
       const svc = make();
-      await expect(
-        svc.create({ authorId: AUTHOR, roomId: 1, body: '' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.create({ authorId: AUTHOR, roomId: 1, body: '' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       await expect(
         svc.create({ authorId: AUTHOR, roomId: 1, body: '   \n\t' }),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -266,9 +291,9 @@ describe('MessagesService', () => {
     it('propagates ForbiddenException when caller is not a room member', async () => {
       const rooms = makeRoomsAuth(false);
       const svc = make(rooms);
-      await expect(
-        svc.create({ authorId: AUTHOR, roomId: 5, body: 'hi' }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.create({ authorId: AUTHOR, roomId: 5, body: 'hi' })).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
       expect(repo.messages).toHaveLength(0);
     });
 
@@ -446,6 +471,58 @@ describe('MessagesService', () => {
     });
   });
 
+  describe('create — event emission (EPIC-09 unread)', () => {
+    it('emits message.created with room scope payload after room insert', async () => {
+      const svc = make();
+      const out = await svc.create({ authorId: AUTHOR, roomId: 7, body: 'hi' });
+
+      const created = publisher.events.filter((e) => e.event === 'message.created');
+      expect(created).toHaveLength(1);
+      expect(created[0].payload).toEqual({
+        scope: 'room',
+        messageId: out.message.id,
+        authorId: AUTHOR,
+        roomId: 7,
+      });
+    });
+
+    it('emits message.created with dm scope + peerUserId after DM insert', async () => {
+      const svc = make();
+      const out = await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'hey' });
+
+      const created = publisher.events.filter((e) => e.event === 'message.created');
+      expect(created).toHaveLength(1);
+      expect(created[0].payload).toEqual({
+        scope: 'dm',
+        messageId: out.message.id,
+        authorId: AUTHOR,
+        dmId: out.message.dmId,
+        peerUserId: OTHER,
+      });
+    });
+
+    it('does NOT emit message.created when DM_FROZEN rejection fires', async () => {
+      const svc = make();
+      await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'ping' });
+      repo.channels[0].frozenAt = new Date();
+      publisher.events.length = 0;
+
+      await expect(
+        svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'still there?' }),
+      ).rejects.toBeInstanceOf(HttpException);
+      expect(publisher.events.filter((e) => e.event === 'message.created')).toHaveLength(0);
+    });
+
+    it('does NOT emit message.created when room membership rejection fires', async () => {
+      const rooms = makeRoomsAuth(false);
+      const svc = make(rooms);
+      await expect(svc.create({ authorId: AUTHOR, roomId: 5, body: 'hi' })).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(publisher.events.filter((e) => e.event === 'message.created')).toHaveLength(0);
+    });
+  });
+
   describe('edit (AC-07-04, AC-07-17)', () => {
     it('updates body + stamps editedAt for the author', async () => {
       const svc = make();
@@ -466,9 +543,9 @@ describe('MessagesService', () => {
     it('rejects empty or >3KB edits', async () => {
       const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'orig' });
-      await expect(
-        svc.edit({ id: message.id, actorId: AUTHOR, body: '' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.edit({ id: message.id, actorId: AUTHOR, body: '' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       await expect(
         svc.edit({ id: message.id, actorId: AUTHOR, body: 'x'.repeat(3 * 1024 + 1) }),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -476,18 +553,18 @@ describe('MessagesService', () => {
 
     it('throws NotFoundException when the message does not exist', async () => {
       const svc = make();
-      await expect(
-        svc.edit({ id: 999n, actorId: AUTHOR, body: 'x' }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(svc.edit({ id: 999n, actorId: AUTHOR, body: 'x' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('throws NotFoundException when the message is already soft-deleted', async () => {
       const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'orig' });
       await svc.delete({ id: message.id, actorId: AUTHOR, isRoomAdmin: false });
-      await expect(
-        svc.edit({ id: message.id, actorId: AUTHOR, body: 'x' }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(svc.edit({ id: message.id, actorId: AUTHOR, body: 'x' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('does NOT enforce a time window (AC-07-17)', async () => {
@@ -630,9 +707,9 @@ describe('MessagesService', () => {
 
     it('requires at least one of roomId / dmId', async () => {
       const svc = make();
-      await expect(
-        svc.since({ lastSeenId: 0n, limit: 50 } as any),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.since({ lastSeenId: 0n, limit: 50 } as any)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
   });
 

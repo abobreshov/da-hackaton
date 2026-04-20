@@ -8,17 +8,40 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ErrorCode, WireError } from '@app/contracts';
-import {
-  MESSAGES_REPOSITORY,
-  MessageRow,
-  MessagesRepositoryPort,
-} from './messages.types';
+import { MESSAGES_REPOSITORY, MessageRow, MessagesRepositoryPort } from './messages.types';
 import { RoomsService } from '../rooms/rooms.service';
 import {
   ATTACHMENTS_REPOSITORY,
   AttachmentRow,
   AttachmentsRepositoryPort,
 } from '../attachments/attachments.types';
+import { EVENT_PUBLISHER, IEventPublisher } from '../../common/events/event-publisher.interface';
+
+/**
+ * EPIC-09 event emitted by MessagesService after a successful insert.
+ * Recipients of the 'unread.changed' WS broadcast are resolved by
+ * `UnreadSubscriber` so the producer stays thin.
+ *
+ * For the DM path `peerUserId` is included directly — the subscriber must
+ * not re-query the dm_channels row to find it, since that would couple the
+ * unread module back to the messages repository.
+ */
+export type MessageCreatedEvent =
+  | {
+      scope: 'room';
+      messageId: bigint;
+      authorId: number;
+      roomId: number;
+    }
+  | {
+      scope: 'dm';
+      messageId: bigint;
+      authorId: number;
+      dmId: number;
+      peerUserId: number;
+    };
+
+export const MESSAGE_CREATED_EVENT = 'message.created';
 
 /** AC-07-02 — body upper bound. 3 KiB of bytes / chars / whatever the spec
  *  says; we count string length here (UTF-16 code units) which is a tight
@@ -87,6 +110,8 @@ export class MessagesService {
     private readonly rooms: RoomsService,
     @Inject(ATTACHMENTS_REPOSITORY)
     private readonly attachments: AttachmentsRepositoryPort,
+    @Inject(EVENT_PUBLISHER)
+    private readonly publisher: IEventPublisher,
   ) {}
 
   async create(
@@ -97,9 +122,7 @@ export class MessagesService {
     const hasRoom = params.roomId != null;
     const hasDm = params.dmUserId != null;
     if (hasRoom === hasDm) {
-      throw new BadRequestException(
-        'exactly one of roomId or dmUserId must be provided',
-      );
+      throw new BadRequestException('exactly one of roomId or dmUserId must be provided');
     }
 
     if (hasRoom) {
@@ -120,6 +143,12 @@ export class MessagesService {
         uploaderId: params.authorId,
         scope: { roomId: params.roomId as number },
       });
+      this.publisher.emit(MESSAGE_CREATED_EVENT, {
+        scope: 'room',
+        messageId: row.id,
+        authorId: params.authorId,
+        roomId: params.roomId as number,
+      } satisfies MessageCreatedEvent);
       return { message: row, attachments: bound };
     }
 
@@ -127,10 +156,7 @@ export class MessagesService {
     if (params.dmUserId === params.authorId) {
       throw new BadRequestException('cannot DM yourself');
     }
-    const channel = await this.repo.upsertDmChannel(
-      params.authorId,
-      params.dmUserId as number,
-    );
+    const channel = await this.repo.upsertDmChannel(params.authorId, params.dmUserId as number);
     const row = await this.repo.insertMessageIfDmNotFrozen({
       roomId: null,
       dmId: channel.id,
@@ -151,6 +177,13 @@ export class MessagesService {
       uploaderId: params.authorId,
       scope: { dmId: channel.id },
     });
+    this.publisher.emit(MESSAGE_CREATED_EVENT, {
+      scope: 'dm',
+      messageId: row.id,
+      authorId: params.authorId,
+      dmId: channel.id,
+      peerUserId: params.dmUserId as number,
+    } satisfies MessageCreatedEvent);
     return { message: row, attachments: bound };
   }
 
@@ -255,9 +288,7 @@ export class MessagesService {
       throw new BadRequestException('body is required');
     }
     if (body.length > MAX_BODY_LENGTH) {
-      throw new BadRequestException(
-        `body exceeds ${MAX_BODY_LENGTH} character cap`,
-      );
+      throw new BadRequestException(`body exceeds ${MAX_BODY_LENGTH} character cap`);
     }
   }
 
@@ -265,9 +296,7 @@ export class MessagesService {
     const hasRoom = p.roomId != null;
     const hasDm = p.dmId != null;
     if (hasRoom === hasDm) {
-      throw new BadRequestException(
-        'exactly one of roomId or dmId must be provided',
-      );
+      throw new BadRequestException('exactly one of roomId or dmId must be provided');
     }
   }
 }
