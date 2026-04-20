@@ -1,6 +1,7 @@
 {
   "name": "app",
   "private": true,
+  "type": "module",
   "workspaces": [
     "src/auth-service",
     "src/backend",
@@ -9,5 +10,32 @@
     "src/packages/*",
     "e2e-tests"
   ],
-  "packageManager": "yarn@4.9.1"
+  "packageManager": "yarn@4.9.1",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "yarn workspaces foreach -A --include '@app/*' --exclude '@app/tests' run typecheck",
+    "build": "yarn workspaces foreach -A --include '@app/*' --exclude '@app/tests' run build",
+    "test": "yarn workspaces foreach -A --include '@app/*' --exclude '@app/tests' --exclude '@app/shared' run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/jest": "^29.5.14",
+    "@types/supertest": "^6.0.2",
+    "eslint": "^9.18.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.18",
+    "globals": "^15.14.0",
+    "jest": "^29.7.0",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.4.2",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "typescript-eslint": "^8.19.1",
+    "vitest": "^2.1.8"
+  }
 }

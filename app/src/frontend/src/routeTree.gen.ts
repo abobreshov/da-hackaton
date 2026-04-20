@@ -1,5 +1,5 @@
 /* eslint-disable */
-// @ts-nocheck
+// Hand-written route tree. Keep in sync with routes/* files.
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as LoginRouteImport } from './routes/login';
@@ -26,13 +26,39 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
 const AuthRouteChildren = {
   AuthDashboardRoute,
 };
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren);
+const AuthRouteWithChildren = (AuthRoute as any)._addFileChildren(AuthRouteChildren);
 
 const rootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   LoginRoute,
 };
 
-export const routeTree = rootRouteImport
+export const routeTree = (rootRouteImport as any)
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes({} as any);
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/login': {
+      id: '/login';
+      path: '/login';
+      fullPath: '/login';
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/_auth': {
+      id: '/_auth';
+      path: '';
+      fullPath: '';
+      preLoaderRoute: typeof AuthRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/_auth/dashboard': {
+      id: '/_auth/dashboard';
+      path: '/dashboard';
+      fullPath: '/dashboard';
+      preLoaderRoute: typeof AuthDashboardRouteImport;
+      parentRoute: typeof AuthRouteImport;
+    };
+  }
+}

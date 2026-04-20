@@ -26,7 +26,10 @@ export abstract class BasePage {
     return this.page.getByLabel(text);
   }
 
-  byRole(role: Parameters<Page['getByRole']>[0], options?: Parameters<Page['getByRole']>[1]): Locator {
+  byRole(
+    role: Parameters<Page['getByRole']>[0],
+    options?: Parameters<Page['getByRole']>[1],
+  ): Locator {
     return this.page.getByRole(role, options);
   }
 

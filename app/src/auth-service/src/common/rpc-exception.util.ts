@@ -7,7 +7,7 @@ export function toRpc<T>(run: () => Promise<T> | T): Promise<T> {
     .catch((err: unknown) => {
       if (err instanceof HttpException) {
         const res = err.getResponse();
-        const message = typeof res === 'string' ? res : (res as any)?.message ?? err.message;
+        const message = typeof res === 'string' ? res : ((res as any)?.message ?? err.message);
         throw new RpcException({ status: err.getStatus(), message });
       }
       if (err instanceof Error) {

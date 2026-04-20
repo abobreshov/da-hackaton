@@ -50,26 +50,85 @@ hackathone/
 | postgres | 5433 (dev-local) / 5432 | — |
 | redis | 6380 (dev-local) / 6379 | — |
 
-## Quick start
+## Run locally
+
+### Prerequisites
+
+- Docker + Docker Compose
+- Node **22+**
+- Corepack (ships with Node 16+); enable yarn 4:
+  ```bash
+  corepack enable
+  corepack prepare yarn@4.9.1 --activate
+  ```
+- For `dev-local.sh`: host ports `5433` (postgres) and `6380` (redis) free.
+- For `dev.sh`: host ports `3006` (bff) and `3007` (frontend) free.
+
+### Install
 
 ```bash
 cd app
 yarn install
-
-# Option A: full stack in Docker
-./dev.sh
-
-# Option B: infra in Docker, services on host
-./dev-local.sh
 ```
 
-Seed creds (created by `src/auth-service/scripts/seed.ts`):
+### Option A — full stack in Docker (recommended)
+
+All 4 services + postgres + redis run in containers. Hot-reload via `src/` bind mounts.
+
+```bash
+cd app
+./dev.sh              # foreground, Ctrl-C tears down
+./dev.sh --build      # rebuild images first
+./dev.sh --no-seed    # skip DB seeding
+```
+
+### Option B — infra in Docker, services on host
+
+Only postgres + redis in Docker. Services run via `yarn start:dev` / `yarn dev` on host. Faster reloads, logs in `app/.dev-logs/*.log`.
+
+```bash
+cd app
+./dev-local.sh
+./dev-local.sh --skip-install --skip-seed
+```
+
+### Access
+
+| URL | Service |
+|---|---|
+| http://localhost:3007 | frontend |
+| http://localhost:3006 | BFF (API) |
+| http://localhost:3003 | auth-service (Option B only) |
+| http://localhost:3004 | backend (Option B only) |
+
+### Seed credentials
+
+Inserted by `src/auth-service/scripts/seed.ts`:
 
 | Email | Password | Role | 2FA |
 |---|---|---|---|
 | admin@example.com | Admin123! | admin | off |
 | user@example.com | User1234! | user | off |
 | user2fa@example.com | Secure2FA! | user | on |
+
+Re-seed anytime: `yarn workspace @app/auth-service seed` (Option B) or `docker compose -f app/docker-compose.dev.yml exec auth-service yarn seed` (Option A).
+
+### Stop / reset
+
+```bash
+cd app
+docker compose -f docker-compose.dev.yml down          # Option A stop
+docker compose -f docker-compose.dev.yml down -v       # + wipe volumes (fresh DB)
+docker compose -f docker-compose.infra.yml down        # Option B stop
+```
+
+### E2E tests
+
+```bash
+cd app
+yarn workspace @app/tests install:browsers   # first run only
+yarn workspace @app/tests test               # after dev.sh or dev-local.sh is up
+```
 
 ## Further reading
 

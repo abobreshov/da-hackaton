@@ -20,9 +20,7 @@ export class AuthService {
   }
 
   refreshAdmin(refreshToken: string) {
-    return firstValueFrom(
-      this.client.send<any>({ cmd: 'auth.admin.refresh' }, { refreshToken }),
-    );
+    return firstValueFrom(this.client.send<any>({ cmd: 'auth.admin.refresh' }, { refreshToken }));
   }
 
   refreshUser(refreshToken: string) {
@@ -32,20 +30,14 @@ export class AuthService {
   }
 
   logoutAdmin(refreshToken: string) {
-    return firstValueFrom(
-      this.client.send<any>({ cmd: 'auth.admin.logout' }, { refreshToken }),
-    );
+    return firstValueFrom(this.client.send<any>({ cmd: 'auth.admin.logout' }, { refreshToken }));
   }
 
   logoutUser(refreshToken: string) {
-    return firstValueFrom(
-      this.client.send<any>({ cmd: 'auth.customer.logout' }, { refreshToken }),
-    );
+    return firstValueFrom(this.client.send<any>({ cmd: 'auth.customer.logout' }, { refreshToken }));
   }
 
   validateUserToken(token: string) {
-    return firstValueFrom(
-      this.client.send<any>({ cmd: 'auth.customer.validateToken' }, { token }),
-    );
+    return firstValueFrom(this.client.send<any>({ cmd: 'auth.customer.validateToken' }, { token }));
   }
 }

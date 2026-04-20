@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, boolean, timestamp, pgEnum, text } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 
 export const roleEnum = pgEnum('role', ['ADMIN', 'USER']);
 export const accessStatusEnum = pgEnum('access_status', ['ACTIVE', 'INACTIVE']);

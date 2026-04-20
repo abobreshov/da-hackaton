@@ -13,8 +13,7 @@ function Dashboard() {
         Hello, {session?.name ?? session?.email}!
       </h1>
       <p className="text-gray-500 text-sm mb-6">
-        Signed in as <span className="font-medium text-gray-700">{session?.email}</span>
-        {' '}·{' '}
+        Signed in as <span className="font-medium text-gray-700">{session?.email}</span> ·{' '}
         <span className="capitalize">{session?.type}</span>
       </p>
 

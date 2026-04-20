@@ -50,7 +50,8 @@ export class AdminAuthService {
 
   async refresh(token: string) {
     const parts = token.split(':');
-    if (parts.length < 3 || parts[0] !== 'a') throw new UnauthorizedException('Invalid refresh token');
+    if (parts.length < 3 || parts[0] !== 'a')
+      throw new UnauthorizedException('Invalid refresh token');
     const adminId = parseInt(parts[1], 10);
 
     const [admin] = await this.db.select().from(admins).where(eq(admins.id, adminId)).limit(1);

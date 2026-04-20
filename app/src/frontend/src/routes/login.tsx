@@ -36,7 +36,11 @@ function LoginPage() {
   const credsForm = useForm<CredentialsData>({ resolver: zodResolver(credentialsSchema) });
   const totpForm = useForm<TotpData>({ resolver: zodResolver(totpSchema) });
 
-  const attemptLogin = async (email: string, password: string, totpCode?: string): Promise<'ok' | 'totp'> => {
+  const attemptLogin = async (
+    email: string,
+    password: string,
+    totpCode?: string,
+  ): Promise<'ok' | 'totp'> => {
     const res = await loginUser(email, password, totpCode);
     if ('requires2fa' in res) return 'totp';
     setSession({
@@ -60,7 +64,7 @@ function LoginPage() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setError((err.body as Record<string, unknown>)?.message as string ?? 'Login failed');
+        setError(((err.body as Record<string, unknown>)?.message as string) ?? 'Login failed');
       } else {
         setError('Unexpected error');
       }
@@ -77,7 +81,7 @@ function LoginPage() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setError((err.body as Record<string, unknown>)?.message as string ?? 'Invalid code');
+        setError(((err.body as Record<string, unknown>)?.message as string) ?? 'Invalid code');
       } else {
         setError('Unexpected error');
       }
@@ -101,7 +105,9 @@ function LoginPage() {
                 {...credsForm.register('email')}
               />
               {credsForm.formState.errors.email && (
-                <p className="text-red-500 text-xs mt-1">{credsForm.formState.errors.email.message}</p>
+                <p className="text-red-500 text-xs mt-1">
+                  {credsForm.formState.errors.email.message}
+                </p>
               )}
             </div>
 
@@ -115,7 +121,9 @@ function LoginPage() {
                 {...credsForm.register('password')}
               />
               {credsForm.formState.errors.password && (
-                <p className="text-red-500 text-xs mt-1">{credsForm.formState.errors.password.message}</p>
+                <p className="text-red-500 text-xs mt-1">
+                  {credsForm.formState.errors.password.message}
+                </p>
               )}
             </div>
 
@@ -150,7 +158,9 @@ function LoginPage() {
                 {...totpForm.register('totpCode')}
               />
               {totpForm.formState.errors.totpCode && (
-                <p className="text-red-500 text-xs mt-1">{totpForm.formState.errors.totpCode.message}</p>
+                <p className="text-red-500 text-xs mt-1">
+                  {totpForm.formState.errors.totpCode.message}
+                </p>
               )}
             </div>
 
@@ -166,7 +176,10 @@ function LoginPage() {
 
             <button
               type="button"
-              onClick={() => { setStep('credentials'); setError(null); }}
+              onClick={() => {
+                setStep('credentials');
+                setError(null);
+              }}
               className="w-full text-sm text-gray-500 hover:text-gray-700"
             >
               Use a different account

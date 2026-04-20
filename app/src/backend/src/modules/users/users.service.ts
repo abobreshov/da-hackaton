@@ -9,14 +9,16 @@ export class UsersService {
   constructor(@Inject(DATABASE) private readonly db: Db) {}
 
   async findAll() {
-    return this.db.select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      accessStatus: users.accessStatus,
-      createdAt: users.createdAt,
-    }).from(users);
+    return this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        accessStatus: users.accessStatus,
+        createdAt: users.createdAt,
+      })
+      .from(users);
   }
 
   async findById(id: number) {

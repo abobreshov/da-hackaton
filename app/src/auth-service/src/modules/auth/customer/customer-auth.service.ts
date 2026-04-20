@@ -47,7 +47,13 @@ export class CustomerAuthService {
     const refreshToken = await this.refreshTokenService.create('u', user.id);
 
     return {
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, scopes: user.scopes ?? [] },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        scopes: user.scopes ?? [],
+      },
       accessToken,
       refreshToken,
     };
@@ -55,7 +61,8 @@ export class CustomerAuthService {
 
   async refresh(token: string) {
     const parts = token.split(':');
-    if (parts.length < 3 || parts[0] !== 'u') throw new UnauthorizedException('Invalid refresh token');
+    if (parts.length < 3 || parts[0] !== 'u')
+      throw new UnauthorizedException('Invalid refresh token');
     const userId = parseInt(parts[1], 10);
 
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -70,7 +77,13 @@ export class CustomerAuthService {
     });
 
     return {
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, scopes: user.scopes ?? [] },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        scopes: user.scopes ?? [],
+      },
       accessToken,
       refreshToken: newRefreshToken,
     };

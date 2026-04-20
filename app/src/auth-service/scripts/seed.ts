@@ -2,7 +2,8 @@ import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/appdb';
+const DATABASE_URL =
+  process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/appdb';
 const pool = new Pool({ connectionString: DATABASE_URL });
 
 async function seed(): Promise<void> {
@@ -83,8 +84,12 @@ async function seed(): Promise<void> {
 
     console.log('Seeded:');
     console.log('  admin@example.com     / Admin123!   (admin)');
-    console.log(`  user@example.com      / User1234!   (user)          scopes=${JSON.stringify(userScopes)}`);
-    console.log(`  user2fa@example.com   / Secure2FA!  (user, 2FA ON)  scopes=${JSON.stringify(userScopes)}`);
+    console.log(
+      `  user@example.com      / User1234!   (user)          scopes=${JSON.stringify(userScopes)}`,
+    );
+    console.log(
+      `  user2fa@example.com   / Secure2FA!  (user, 2FA ON)  scopes=${JSON.stringify(userScopes)}`,
+    );
     console.log(`  TOTP secret for user2fa@example.com: ${totpSecret}`);
     console.log(`  otpauth URI: ${authenticator.keyuri('user2fa@example.com', 'App', totpSecret)}`);
   } finally {

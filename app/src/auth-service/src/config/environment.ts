@@ -13,7 +13,10 @@ const schema = z.object({
   JWT_REFRESH_TOKEN_EXPIRATION: z.string().default('24h'),
   SESSION_MAX_DURATION_DAYS: z.coerce.number().default(7),
   ALLOWED_ORIGINS: z.string().default('http://localhost:3007'),
-  ALLOW_PASSWORD_ONLY_ADMIN_LOGIN: z.string().transform(v => v === 'true').default('false'),
+  ALLOW_PASSWORD_ONLY_ADMIN_LOGIN: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
 });
 
 export type Env = z.infer<typeof schema>;

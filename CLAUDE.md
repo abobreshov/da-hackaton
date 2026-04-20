@@ -77,13 +77,32 @@ yarn workspace @app/frontend dev
 
 ## Running the stack
 
+Prereqs: Docker, Node 22+, corepack-enabled yarn 4.9.1.
+
 Both scripts live in `app/`:
 
 ```bash
 cd app
-./dev.sh          # full Docker stack (hot-reload via bind mounts)
-./dev-local.sh    # postgres + redis in Docker; services on host
+yarn install
+
+./dev.sh                 # full Docker stack (all 4 services + infra, hot-reload)
+./dev.sh --build         # rebuild images
+./dev.sh --no-seed       # skip DB seed
+
+./dev-local.sh           # postgres + redis in Docker (ports 5433/6380), services on host
+./dev-local.sh --skip-install --skip-seed
 ```
+
+After startup:
+
+- frontend → http://localhost:3007
+- BFF → http://localhost:3006
+- auth-service → http://localhost:3003 (dev-local only)
+- backend → http://localhost:3004 (dev-local only)
+
+Stop: `Ctrl-C` (dev.sh traps cleanup). Full wipe: `docker compose -f app/docker-compose.dev.yml down -v`.
+
+Seed creds (see README) are inserted on first run. Re-seed with `yarn workspace @app/auth-service seed`.
 
 See `app/CLAUDE.md` for ports, auth flow, 2FA behavior, and gotchas.
 

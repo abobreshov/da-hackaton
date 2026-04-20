@@ -12,7 +12,9 @@ async function bootstrap() {
     new FastifyAdapter({ logger: { level: 'info' } }),
   );
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
+  );
 
   app.enableCors({
     origin: env.ALLOWED_ORIGINS.split(','),
