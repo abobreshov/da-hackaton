@@ -71,6 +71,28 @@ cd app
 yarn install
 ```
 
+### Environment files
+
+Each service reads its config from a gitignored `.env` at the service root. Create them before booting the stack:
+
+| File | Required vars (all secrets ≥ 32 chars) |
+|---|---|
+| `src/auth-service/.env` | `JWT_ADMIN_SECRET`, `JWT_CUSTOMER_SECRET`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` |
+| `src/bff/.env` | `JWT_SECRET`, `SESSION_COOKIE_SECRET`, `COOKIE_SECRET`, `AUTH_TCP_HOST`, `BACKEND_TCP_HOST` |
+| `src/backend/.env` | `SYSTEM_KEY`, `DATABASE_URL`, `AUTH_TCP_HOST` |
+| `src/frontend/.env` | `VITE_BFF_URL=http://localhost:3006` |
+
+Generate dev secrets quickly:
+
+```bash
+for f in src/auth-service src/bff src/backend; do
+  echo "# generated $(date -Iseconds)" > "$f/.env"
+done
+# then fill each required key with: openssl rand -hex 24
+```
+
+`dev-local.sh` injects `DATABASE_URL` / `REDIS_HOST` / `REDIS_PORT` itself, so those can be omitted in Option B. `dev.sh` reads inline env from the docker-compose files and ignores service `.env` entirely.
+
 ### Option A — full stack in Docker (recommended)
 
 All 4 services + postgres + redis run in containers. Hot-reload via `src/` bind mounts.
@@ -122,13 +144,43 @@ docker compose -f docker-compose.dev.yml down -v       # + wipe volumes (fresh D
 docker compose -f docker-compose.infra.yml down        # Option B stop
 ```
 
-### E2E tests
+## Quality checks
+
+Monorepo-wide scripts (run from `app/`):
+
+```bash
+yarn typecheck     # tsc --noEmit across all services
+yarn build         # production builds (NestJS dist, Vite bundle)
+yarn test          # unit tests (Jest for NestJS, Vitest for frontend)
+yarn lint          # ESLint 9 flat config
+yarn lint:fix      # ESLint with autofix
+yarn format        # Prettier write
+yarn format:check  # Prettier verify
+```
+
+Per-service scripts (in addition to `build`, `start`, `start:dev`):
+
+| Service | test | test:watch | test:cov | typecheck |
+|---|---|---|---|---|
+| `@app/auth-service` | Jest | ✓ | ✓ | ✓ |
+| `@app/backend` | Jest | ✓ | ✓ | ✓ |
+| `@app/bff` | Jest | ✓ | ✓ | ✓ |
+| `@app/frontend` | Vitest | ✓ | ✓ (v8) | ✓ |
+
+Unit-test layout: colocated `*.spec.ts` (NestJS) or `*.test.ts` (frontend) next to the file under test.
+
+### E2E tests (Playwright)
+
+E2E specs live at `app/e2e-tests/` (separate `@app/tests` workspace, POM pattern under `pages/`, fixtures in `fixtures/test.ts`).
 
 ```bash
 cd app
 yarn workspace @app/tests install:browsers   # first run only
 yarn workspace @app/tests test               # after dev.sh or dev-local.sh is up
+yarn workspace @app/tests report             # open last HTML report
 ```
+
+Login UI is user-only — the admin flow is hidden at the frontend (see `app/CLAUDE.md`). E2E covers: successful user login, invalid credentials, client-side validation.
 
 ## Further reading
 
