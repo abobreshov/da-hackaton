@@ -3,7 +3,7 @@
 Live progress tracker MVP build-out. Updated as milestones land.
 See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-20 (M3 shipped + review fixes)
+**Last updated:** 2026-04-20 (M4 feature work shipped; review round pending)
 
 ## Milestone map
 
@@ -13,7 +13,7 @@ See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 | **M2a — WS + presence pipeline** | WS gateway mounted, cookie handshake, PresenceService + eager publish + scheduler, 2-browser presence demo. | **DONE** (2026-04-20) |
 | **M2b — Rooms & membership UI** | Browse/join/leave rooms; presence dots on members pane; friends pane; rate-limits on register/login/reset. | **DONE** (2026-04-20) |
 | **M3 — Messaging core** | Room + DM messaging, admin delete, friend → DM flow, moderation basics, admin FE panel. | **DONE** (2026-04-20) |
-| **M4 — Attachments & unread** | Upload image/file; unread badges; offline delivery. | NOT STARTED |
+| **M4 — Attachments & unread** | Upload image/file; unread badges; offline delivery. | **FEATURE WORK DONE** (2026-04-20) — review + E2E + sessions FE pending |
 | **M5 — Reviewer-ready** | Top-5 reviewer journeys green; load test; retention tested; dep-hygiene. | NOT STARTED |
 
 ## Per-EPIC status
@@ -29,9 +29,9 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | 05 rooms | ✅ membersOf/ensureMember/update | ✅ proxy (RpcProxyService) | ✅ catalog + detail + Manage Room modal | ✅ | PATCH room (name/desc/visibility) owner-only; username-resolve invite (ADR-005 fail-silent) |
 | 06 moderation | ✅ moderation + reports + audit (Observer-driven) | ✅ proxy + AdminGuard | ✅ Manage Room tabs + admin layout | ✅ | ModerationRepositoryPort + AbuseReportsRepositoryPort extracted; AuditSubscriber via IEventPublisher |
 | 07 messaging | ✅ MessagesService + repository + TCP | ✅ proxy + WS send/edit/delete/sync.since | ✅ MessageList + Composer + Bubble + useMessages split | ✅ | Atomic DM-frozen INSERT...WHERE NOT EXISTS guard; composite `(created_at, id)` keyset; migration 0009 |
-| 08 attachments | 🟡 schema | ⏳ | ⏳ | — | service + FS storage + 20MB/3MB limits pending (M4) |
-| 09 notifications-unread | 🟡 schema | ⏳ | ⏳ | — | `user_last_read` functional unique index; observer logic pending (M4) |
-| 10 ui-shell | — | — | ✅ login/register/reset/2FA/dashboard/rooms catalog+detail/contacts/chat/DM/admin + ManageRoom + UserPopover | ✅ | chat composer responsive breakpoints + attachments UI pending (M4) |
+| 08 attachments | ✅ service + FS storage + magic-byte sniff + 20/3 MiB caps + path-traversal guard + UUID gen + bind-on-create | ✅ multipart upload (rooms + DMs) + RFC 5987 download + Content-Disposition hardening + `dmUserId`→`dmId` resolve | ✅ `lib/attachments` + `<AttachmentUploader>` chip strip + paste handler + `<AttachmentView>` inline image/file | ✅ | security-review applied (Vuln 1–5 fixed); history listing does NOT carry attachments yet (follow-up) |
+| 09 notifications-unread | ✅ UnreadService + repo + TCP + `UnreadSubscriber` via IEventPublisher fan-out on `user:{id}` | ✅ proxy (GET /unread, POST /rooms/:id/read, POST /dms/:userId/read) + WS delta passthrough | ✅ `useUnread` zustand store + `useAutoMarkRead` (visibility-gated) + `<UnreadBadge>` (99+ cap) | ✅ | DM badges keyed by peerUserId (not dmId) so FE can address via route param |
+| 10 ui-shell | — | — | ✅ login/register/reset/2FA/dashboard/rooms catalog+detail/contacts/chat/DM/admin + ManageRoom + UserPopover + attachments + unread badges | ✅ | chat composer responsive breakpoints + sessions-management page pending |
 | 11 scale-reliability | ✅ workers + scheduler | ✅ throttle on register/login/reset | ⏳ | ✅ | BullMQ 4 queues + nightly retention.prune; Redis sliding-window |
 | 12 deployment | ✅ compose + shutdown hooks | — | — | — | Postgres, Redis, Mailpit, Dozzle, attachments volume; mTLS certs; Redis `.quit()` on SIGTERM |
 | 13 xmpp-federation | ⏸ DEFERRED | ⏸ | ⏸ | ⏸ | post-MVP per product decision |
@@ -39,50 +39,51 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | 15 contracts | ✅ | ✅ | ✅ | ✅ + grep-gate | `@app/contracts` wired; PASSWORD_MIN/USERNAME_MIN/USERNAME_MAX + MessageScope XOR + ErrorCode enum (14) + inline-drift CI gate |
 | design-system | — | — | 🟡 partial retheme | — | Kinetic Playground tokens partial; full UI primitives retheme + responsive breakpoints pending |
 
-## Test coverage (post-M3 + review fixes)
+## Test coverage (post-M4 feature work)
 
 | Workspace | Tests | Notes |
 |---|---|---|
-| `@app/auth-service` | 173 | +36 since M2; 99.8% stmt |
-| `@app/backend` | 402 | +116 since M2; 3 pre-existing messages.controller spec fails (bigint JSON test mock) |
-| `@app/bff` | 345 | +119 since M2; 3 pre-existing redis-io adapter spec fails (env mock) |
-| `@app/frontend` | 409 | +266 since M2 |
-| `@app/contracts` | 65 | +33 since M2; grep-gate + validators + scopes specs |
-| **Unit total** | **1394** | +570 since M2 |
-| E2E (Playwright) | 24 | +8 M3 specs (red until live stack) |
-| Integration (testcontainers) | 3 | +2 (messages, seed-demo) |
+| `@app/auth-service` | 173 | unchanged since M3 |
+| `@app/backend` | 462 | +60 since M3 (attachments service/repo/tcp + unread service/repo/tcp + unread-subscriber + messages event emit) |
+| `@app/bff` | 371 | +26 since M3 (attachments proxy/multipart + unread proxy + chat.gateway attachments unwrap) |
+| `@app/frontend` | 460 | +51 since M3 (lib/attachments + AttachmentUploader/View + lib/unread + useUnread + useAutoMarkRead + UnreadBadge) |
+| `@app/contracts` | 65 | +1 `messages.resolveDm` command |
+| **Unit total** | **1531** | +137 since M3 |
+| E2E (Playwright) | 24 | unchanged — M4 specs pending in T13/T15/T22/T27 block |
+| Integration (testcontainers) | 3 | unchanged |
 
-## Deferred / debt (post-M3)
+## Deferred / debt (post-M4 feature work)
 
-1. **Design-system refactor** — full Kinetic Playground retheme of UI primitives + responsive breakpoints for chat composer + ManageRoom modal.
-2. **M1-era contracts drift backfill** — inline wire-string literals allow-listed in grep-gate:
-   - `bff/src/auth/auth.service.ts` — 12 `auth.*`
-   - `backend/src/common/guards/jwt.guard.ts` — `auth.customer.validateToken`
-   - `backend/src/modules/audit/audit.controller.ts` — `auth.customer.validateToken`
-   - `backend/src/modules/bans/bans.service.ts` — `dm.frozen`, `friend.removed`
-   - `backend/src/modules/friends/friends.service.ts` — `friend.removed`, `friend.request.accepted`, `friend.request.new`
-   - `backend/src/modules/users/users.tcp.ts` — `users.list`, `users.findById` (extended w/ `users.findByUsername` in M3)
-   - `auth-service/src/modules/auth/admin/admin-auth.tcp.ts` — 3 `auth.admin.*`
-3. **E2E specs red** — live-stack dependent; M2 + M3 specs need stack up + run for green.
-4. **Frontend moderation.ts inviteUser** — return type out-of-sync w/ new BFF `{queued, invited}` shape (fail-silent enumeration fix). FE update pending.
-5. **3 pre-existing backend messages.controller spec fails** — bigint JSON serialization test mock.
-6. **3 pre-existing BFF redis-io + shutdown spec fails** — env seeding mismatch in tests.
-7. **Migration 0009/0010 not CONCURRENTLY** — prod day-one lock risk; MVP-safe only.
-8. **Dashboard copy-drift tests** — Kinetic Playground redesign broke 3 assertions.
-9. **Backend schema index.ts coverage** — Drizzle barrel accessors uncovered; integration-only.
-10. **EPIC-02 session DB row** — `user_sessions` table exists; backend still writes only Redis. §2.2.4 active-sessions UI pending.
-11. **zod 3 → 4 bump** — cascades type breakage across 4 workspaces + `@hookform/resolvers` upgrade. Deferred.
-12. **Dependabot** — 12 vulns (10 high + 2 moderate) flagged on origin/master.
+1. **M4 review round** — 5 reviewers (oop-patterns, devils-advocate, system-architect, business-analyst, code-reviewer) + consolidated + critical fixes. Not yet run.
+2. **M4 Playwright E2E** — T13 (attachment upload + view), T15 (unread badge + auto-mark-read), T22 (sessions), T27 (PDF-requirement pass) all pending.
+3. **Attachments history hydration gap** — `messages.list` + `.since` don't JOIN attachments. Send-ack + WS broadcast carry them, but scrolling history shows body-only. Follow-up: batch `findAttachmentsByMessageIds` in service.
+4. **Sessions management FE** — backend writes `user_sessions` on login + revoke endpoint + BFF proxy + FE `/_auth/sessions` route (T23–T26 block). Still uses Redis-only refresh store today.
+5. **Design-system refactor** — full Kinetic Playground retheme of UI primitives + responsive breakpoints for chat composer + ManageRoom modal.
+6. **M1-era contracts drift backfill** — inline wire-string literals allow-listed in grep-gate (unchanged list from M3).
+7. **E2E specs red** — live-stack dependent; M2 + M3 specs need stack up + run for green.
+8. **Frontend moderation.ts inviteUser** — return type out-of-sync w/ new BFF `{queued, invited}` shape. FE update pending.
+9. **Pre-existing backend messages.controller spec fails** — bigint JSON serialization test mock (unaffected by M4).
+10. **Migration 0009/0010 not CONCURRENTLY** — prod day-one lock risk; MVP-safe only.
+11. **Dashboard copy-drift tests** — Kinetic Playground redesign broke 3 assertions.
+12. **zod 3 → 4 bump** — cascades type breakage across 4 workspaces + `@hookform/resolvers` upgrade. Deferred.
+13. **Dependabot** — 12 vulns (10 high + 2 moderate) flagged on origin/master.
 
-## M4 candidates (ordered by critical path)
+## M4 commits (2026-04-20)
 
-1. **EPIC-08 attachments** — MessagesService.create extended w/ attachment refs; backend FS storage path + size/MIME guards (§3.4 20MB/3MB); BFF multipart upload endpoint; FE `<AttachmentUploader>` + paste handler + thumbnail gallery.
-2. **EPIC-09 notifications + unread** — user_last_read writer on message.read WS event; batched `unread.changed` WS broadcast; FE unread badges on room/contact rows (AC-09-01/02/03).
-3. **EPIC-02 session DB row** — backend writes `user_sessions` on login + revoke on logout; BFF `/sessions` endpoint + FE active-sessions screen (§2.2.4).
-4. **Responsive + design-system** — finish Kinetic Playground tokens; mobile breakpoints on chat + Manage Room + admin panel.
-5. **Chat composer polish** — emoji picker (§4.3); paste-to-send; typing-indicator scaffolding (stretch).
-6. **ErrorCode.INTERNAL_ERROR wiring** — FE moderation.ts + components consuming new return shapes.
-7. **Frontend follow-ups** — fix `moderation.ts inviteUser` return shape; dashboard copy-drift tests.
+- `eb27823` — backend attachments (schema, service, storage, repo, tcp) + unread module + messages `bindAttachments`
+- `0fe4a2e` — BFF attachments multipart + RFC 5987 download + `messages.attachmentIds` passthrough
+- `35c7fcf` — `message.created` event emit + UnreadSubscriber → `unread.changed` Redis fan-out
+- `9917323` — BFF unread endpoints + backend `dmUserId` → `dmId` resolution in unread tcp
+- `1046088` — FE unread badges + auto-mark-read + DM peer-keyed counts
+- `6a88f19` — FE attachments UI (uploader, paste, inline view, composer integration) + chat.gateway unwrap
+
+## M4 pending
+
+1. **T13/T15/T22/T27** — Playwright E2E: attachment round-trip (image + file), unread badge appearance + auto-clear, session revoke, PDF-requirement coverage pass.
+2. **T23–T26** — sessions DB writer on login, backend TCP `sessions.listForUser`/`.revoke`, BFF `/sessions` endpoints, FE `/_auth/sessions` route.
+3. **T28–T32** — polish: Kinetic Playground token audit, responsive breakpoints, emoji picker, `moderation.ts inviteUser` shape fix, dashboard copy-drift tests.
+4. **M4 review round** — 5 reviewers → consolidated → critical fixes → this doc refresh.
+5. **Attachments history hydration** — batch `findAttachmentsByMessageIds` into `messages.list`/`.since` so older history carries attachments too.
 
 ## M5 candidates (reviewer-ready)
 
