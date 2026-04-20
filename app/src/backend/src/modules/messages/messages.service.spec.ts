@@ -20,6 +20,12 @@ import type {
   MessagesRepositoryPort,
   SinceMessagesInput,
 } from './messages.types';
+import type {
+  AttachmentRow,
+  AttachmentsRepositoryPort,
+  BindAttachmentsInput,
+  CreateAttachmentInput,
+} from '../attachments/attachments.types';
 import { ErrorCode } from '@app/contracts';
 
 class FakeMessagesRepository implements MessagesRepositoryPort {
@@ -135,34 +141,94 @@ function makeRoomsAuth(isMember = true, role: 'owner' | 'admin' | 'member' | nul
   };
 }
 
+class FakeAttachmentsRepository implements AttachmentsRepositoryPort {
+  rows: AttachmentRow[] = [];
+  bindCalls: BindAttachmentsInput[] = [];
+
+  async insertAttachment(input: CreateAttachmentInput): Promise<AttachmentRow> {
+    const row: AttachmentRow = {
+      id: input.id,
+      roomId: input.roomId,
+      dmId: input.dmId,
+      messageId: null,
+      uploaderId: input.uploaderId,
+      filename: input.filename,
+      mime: input.mime,
+      sizeBytes: input.sizeBytes,
+      path: input.path,
+      comment: input.comment,
+      isImage: input.isImage,
+      createdAt: new Date(),
+    };
+    this.rows.push(row);
+    return row;
+  }
+
+  async findById(id: string): Promise<AttachmentRow | null> {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
+
+  async findByMessageId(messageId: bigint): Promise<AttachmentRow[]> {
+    return this.rows.filter((r) => r.messageId === messageId);
+  }
+
+  async bindAttachmentsToMessage(input: BindAttachmentsInput): Promise<AttachmentRow[]> {
+    this.bindCalls.push(input);
+    if (input.attachmentIds.length === 0) return [];
+    const bound: AttachmentRow[] = [];
+    for (const id of input.attachmentIds) {
+      const r = this.rows.find((x) => x.id === id);
+      if (!r) continue;
+      if (r.messageId != null) continue;
+      if (r.uploaderId !== input.uploaderId) continue;
+      if ('roomId' in input.scope) {
+        if (r.roomId !== input.scope.roomId) continue;
+      } else if (r.dmId !== input.scope.dmId) continue;
+      r.messageId = input.messageId;
+      bound.push(r);
+    }
+    return bound;
+  }
+
+  async isDmParticipant(): Promise<boolean> {
+    return true;
+  }
+}
+
 const AUTHOR = 10;
 const OTHER = 20;
 const ADMIN = 30;
 
 describe('MessagesService', () => {
   let repo: FakeMessagesRepository;
+  let attachments: FakeAttachmentsRepository;
 
   beforeEach(() => {
     repo = new FakeMessagesRepository();
+    attachments = new FakeAttachmentsRepository();
   });
+
+  function make(rooms: any = makeRoomsAuth(), messagesRepo: any = repo): MessagesService {
+    return new MessagesService(messagesRepo, rooms, attachments);
+  }
 
   describe('create — XOR scope', () => {
     it('rejects when neither roomId nor dmUserId is present', async () => {
-      const svc = new (require('./messages.service').MessagesService)(repo, makeRoomsAuth());
+      const svc = new (require('./messages.service').MessagesService)(repo, makeRoomsAuth(), attachments);
       await expect(
         svc.create({ authorId: AUTHOR, body: 'hi' }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects when both roomId and dmUserId are present', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(
         svc.create({ authorId: AUTHOR, roomId: 1, dmUserId: OTHER, body: 'hi' }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects body > 3 KiB (AC-07-02)', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const bigBody = 'a'.repeat(3 * 1024 + 1);
       await expect(
         svc.create({ authorId: AUTHOR, roomId: 1, body: bigBody }),
@@ -170,7 +236,7 @@ describe('MessagesService', () => {
     });
 
     it('rejects empty body', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(
         svc.create({ authorId: AUTHOR, roomId: 1, body: '' }),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -183,7 +249,7 @@ describe('MessagesService', () => {
   describe('create — room path', () => {
     it('creates a room message after membership check passes', async () => {
       const rooms = makeRoomsAuth(true);
-      const svc = new MessagesService(repo, rooms as any);
+      const svc = make(rooms);
 
       const out = await svc.create({ authorId: AUTHOR, roomId: 5, body: 'hello room' });
 
@@ -199,7 +265,7 @@ describe('MessagesService', () => {
 
     it('propagates ForbiddenException when caller is not a room member', async () => {
       const rooms = makeRoomsAuth(false);
-      const svc = new MessagesService(repo, rooms as any);
+      const svc = make(rooms);
       await expect(
         svc.create({ authorId: AUTHOR, roomId: 5, body: 'hi' }),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -208,7 +274,7 @@ describe('MessagesService', () => {
 
     it('accepts a replyToId pointing at an existing non-deleted message', async () => {
       const rooms = makeRoomsAuth(true);
-      const svc = new MessagesService(repo, rooms as any);
+      const svc = make(rooms);
       const first = await svc.create({ authorId: AUTHOR, roomId: 5, body: 'parent' });
       const reply = await svc.create({
         authorId: OTHER,
@@ -222,7 +288,7 @@ describe('MessagesService', () => {
 
   describe('create — DM path (AC-07-16 + AC-07-19)', () => {
     it('lazily creates dm_channels row and inserts the message', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const out = await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'hey' });
       expect(repo.channels).toHaveLength(1);
       expect(repo.channels[0]).toMatchObject({
@@ -233,7 +299,7 @@ describe('MessagesService', () => {
     });
 
     it('returns 403 DM_FROZEN WireError when dm_channels.frozen_at is set', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       // First message provisions the channel.
       await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'ping' });
       // External state flip — simulate BanService freezing the channel.
@@ -251,16 +317,138 @@ describe('MessagesService', () => {
     });
 
     it('rejects DM to self with BadRequestException', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(
         svc.create({ authorId: AUTHOR, dmUserId: AUTHOR, body: 'hi me' }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 
+  describe('create — attachment binding (EPIC-08)', () => {
+    it('does not call bindAttachmentsToMessage when attachmentIds is omitted', async () => {
+      const svc = make();
+      const out = await svc.create({ authorId: AUTHOR, roomId: 5, body: 'hi' });
+      expect(attachments.bindCalls).toHaveLength(0);
+      expect(out).toMatchObject({ attachments: [] });
+    });
+
+    it('does not call bindAttachmentsToMessage when attachmentIds is empty', async () => {
+      const svc = make();
+      const out = await svc.create({
+        authorId: AUTHOR,
+        roomId: 5,
+        body: 'hi',
+        attachmentIds: [],
+      });
+      expect(attachments.bindCalls).toHaveLength(0);
+      expect(out).toMatchObject({ attachments: [] });
+    });
+
+    it('binds attachmentIds with room scope + uploaderId + newly-created messageId', async () => {
+      // Seed two orphan attachments for AUTHOR in room 5.
+      await attachments.insertAttachment({
+        id: 'att-1',
+        roomId: 5,
+        dmId: null,
+        uploaderId: AUTHOR,
+        filename: 'a.png',
+        mime: 'image/png',
+        sizeBytes: 10,
+        path: '/tmp/a',
+        comment: null,
+        isImage: true,
+      });
+      await attachments.insertAttachment({
+        id: 'att-2',
+        roomId: 5,
+        dmId: null,
+        uploaderId: AUTHOR,
+        filename: 'b.png',
+        mime: 'image/png',
+        sizeBytes: 20,
+        path: '/tmp/b',
+        comment: null,
+        isImage: true,
+      });
+
+      const svc = make();
+      const out = await svc.create({
+        authorId: AUTHOR,
+        roomId: 5,
+        body: 'with attachments',
+        attachmentIds: ['att-1', 'att-2'],
+      });
+
+      expect(attachments.bindCalls).toHaveLength(1);
+      expect(attachments.bindCalls[0]).toEqual({
+        attachmentIds: ['att-1', 'att-2'],
+        messageId: out.message.id,
+        uploaderId: AUTHOR,
+        scope: { roomId: 5 },
+      });
+      expect(out.attachments).toHaveLength(2);
+      expect(out.attachments.map((a: any) => a.id).sort()).toEqual(['att-1', 'att-2']);
+    });
+
+    it('binds attachmentIds with DM scope on the DM path', async () => {
+      const svc = make();
+      // First message provisions the DM channel so we know its id.
+      const bootstrap = await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'hi' });
+      const dmId = bootstrap.message.dmId!;
+
+      await attachments.insertAttachment({
+        id: 'dm-att-1',
+        roomId: null,
+        dmId,
+        uploaderId: AUTHOR,
+        filename: 'c.png',
+        mime: 'image/png',
+        sizeBytes: 30,
+        path: '/tmp/c',
+        comment: null,
+        isImage: true,
+      });
+
+      const out = await svc.create({
+        authorId: AUTHOR,
+        dmUserId: OTHER,
+        body: 'with attach',
+        attachmentIds: ['dm-att-1'],
+      });
+
+      expect(attachments.bindCalls).toHaveLength(1);
+      expect(attachments.bindCalls[0]).toEqual({
+        attachmentIds: ['dm-att-1'],
+        messageId: out.message.id,
+        uploaderId: AUTHOR,
+        scope: { dmId },
+      });
+      expect(out.attachments).toHaveLength(1);
+      expect(out.attachments[0].id).toBe('dm-att-1');
+    });
+
+    it('does NOT call bindAttachmentsToMessage when DM_FROZEN rejection fires', async () => {
+      const svc = make();
+      // Provision + freeze.
+      await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'ping' });
+      repo.channels[0].frozenAt = new Date();
+      attachments.bindCalls = [];
+
+      await expect(
+        svc.create({
+          authorId: AUTHOR,
+          dmUserId: OTHER,
+          body: 'still there?',
+          attachmentIds: ['whatever'],
+        }),
+      ).rejects.toBeInstanceOf(HttpException);
+      expect(attachments.bindCalls).toHaveLength(0);
+    });
+  });
+
   describe('edit (AC-07-04, AC-07-17)', () => {
     it('updates body + stamps editedAt for the author', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'orig' });
       const updated = await svc.edit({ id: message.id, actorId: AUTHOR, body: 'fixed' });
       expect(updated.message.body).toBe('fixed');
@@ -268,7 +456,7 @@ describe('MessagesService', () => {
     });
 
     it('rejects edits from non-author (ForbiddenException)', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'orig' });
       await expect(
         svc.edit({ id: message.id, actorId: OTHER, body: 'nope' }),
@@ -276,7 +464,7 @@ describe('MessagesService', () => {
     });
 
     it('rejects empty or >3KB edits', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'orig' });
       await expect(
         svc.edit({ id: message.id, actorId: AUTHOR, body: '' }),
@@ -287,14 +475,14 @@ describe('MessagesService', () => {
     });
 
     it('throws NotFoundException when the message does not exist', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(
         svc.edit({ id: 999n, actorId: AUTHOR, body: 'x' }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('throws NotFoundException when the message is already soft-deleted', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'orig' });
       await svc.delete({ id: message.id, actorId: AUTHOR, isRoomAdmin: false });
       await expect(
@@ -303,7 +491,7 @@ describe('MessagesService', () => {
     });
 
     it('does NOT enforce a time window (AC-07-17)', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'ancient' });
       // Age the row out past any would-be MVP window.
       const row = repo.messages.find((m) => m.id === message.id)!;
@@ -316,7 +504,7 @@ describe('MessagesService', () => {
 
   describe('delete (AC-07-05, AC-07-06)', () => {
     it('author can soft-delete their own message', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'hi' });
       await svc.delete({ id: message.id, actorId: AUTHOR, isRoomAdmin: false });
       const row = repo.messages.find((m) => m.id === message.id)!;
@@ -324,7 +512,7 @@ describe('MessagesService', () => {
     });
 
     it('room admin can delete any message in that room', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'hi' });
       await svc.delete({ id: message.id, actorId: ADMIN, isRoomAdmin: true });
       const row = repo.messages.find((m) => m.id === message.id)!;
@@ -332,7 +520,7 @@ describe('MessagesService', () => {
     });
 
     it('non-author non-admin cannot delete', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'hi' });
       await expect(
         svc.delete({ id: message.id, actorId: OTHER, isRoomAdmin: false }),
@@ -340,14 +528,14 @@ describe('MessagesService', () => {
     });
 
     it('throws NotFoundException for missing id', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(
         svc.delete({ id: 9999n, actorId: AUTHOR, isRoomAdmin: false }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('idempotent: second delete of same message throws NotFoundException', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'hi' });
       await svc.delete({ id: message.id, actorId: AUTHOR, isRoomAdmin: false });
       await expect(
@@ -358,7 +546,7 @@ describe('MessagesService', () => {
 
   describe('list — keyset pagination (AC-07-20)', () => {
     it('returns most recent first, capped at limit', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       for (let i = 0; i < 5; i++) {
         await svc.create({ authorId: AUTHOR, roomId: 1, body: `m${i}` });
         // Ensure distinct createdAt to exercise the ordering path.
@@ -371,7 +559,7 @@ describe('MessagesService', () => {
     });
 
     it('respects the composite cursor — id breaks ties on identical createdAt', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const a = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'a' });
       const b = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'b' });
       const c = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'c' });
@@ -394,7 +582,7 @@ describe('MessagesService', () => {
     });
 
     it('filters deleted messages out of the list', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const one = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'keep' });
       const two = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'drop' });
       await svc.delete({ id: two.message.id, actorId: AUTHOR, isRoomAdmin: false });
@@ -405,12 +593,12 @@ describe('MessagesService', () => {
     });
 
     it('rejects a list call with neither scope set', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(svc.list({ limit: 10 } as any)).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('caps limit to a hard maximum (50)', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const out = await svc.list({ roomId: 1, limit: 9999 });
       expect(out).toBeDefined();
       // The fake tolerates unbounded; we just assert the service adjusts.
@@ -424,7 +612,7 @@ describe('MessagesService', () => {
           return [];
         },
       } as any;
-      const svc2 = new MessagesService(probeRepo, makeRoomsAuth() as any);
+      const svc2 = make(makeRoomsAuth(), probeRepo);
       await svc2.list({ roomId: 1, limit: 9999 });
       expect(captured[0].limit).toBeLessThanOrEqual(50);
     });
@@ -432,7 +620,7 @@ describe('MessagesService', () => {
 
   describe('since — reconnect hydrate', () => {
     it('returns messages with id > lastSeenId (ascending)', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const a = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'a' });
       const b = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'b' });
       const c = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'c' });
@@ -441,7 +629,7 @@ describe('MessagesService', () => {
     });
 
     it('requires at least one of roomId / dmId', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(
         svc.since({ lastSeenId: 0n, limit: 50 } as any),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -450,19 +638,19 @@ describe('MessagesService', () => {
 
   describe('getById', () => {
     it('returns the message row wrapped in { message }', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'x' });
       const out = await svc.getById(message.id);
       expect(out.message.id).toBe(message.id);
     });
 
     it('throws NotFoundException when the id is unknown', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       await expect(svc.getById(9999n)).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('still returns the row when soft-deleted (caller decides how to render)', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any);
+      const svc = make();
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'x' });
       await svc.delete({ id: message.id, actorId: AUTHOR, isRoomAdmin: false });
       const out = await svc.getById(message.id);

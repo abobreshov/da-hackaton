@@ -77,4 +77,15 @@ export const TcpCmd = {
   audit: {
     page: 'audit.page',
   },
+  attachments: {
+    upload: 'attachments.upload',
+    download: 'attachments.download',
+    listByMessage: 'attachments.listByMessage',
+    findById: 'attachments.findById',
+  },
+  unread: {
+    markRead: 'unread.markRead',
+    getForUser: 'unread.getForUser',
+    countSince: 'unread.countSince',
+  },
 } as const;

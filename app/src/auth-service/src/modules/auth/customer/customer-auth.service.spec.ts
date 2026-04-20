@@ -137,6 +137,8 @@ function makeTotpService(): jest.Mocked<TotpService> {
 function makeMailer(): jest.Mocked<MailerService> {
   return {
     sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+    sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+    sendAccountExistsEmail: jest.fn().mockResolvedValue(undefined),
     onModuleInit: jest.fn(),
   } as any;
 }
@@ -298,64 +300,218 @@ describe('CustomerAuthService', () => {
     });
   });
 
-  // -------- register --------------------------------------------------------
+  // -------- register (OWASP V3.1.1 enumeration-safe) -----------------------
+  //
+  // The service-level SELECT is used twice per call (email first, username
+  // second). Here we drive both lookups through a single fluent builder: each
+  // test queues the ordered `limit` results it expects the two .limit() calls
+  // to resolve to. The double builder is a jest.fn that returns a fresh
+  // thenable whose `limit()` pops the next queued value.
 
-  describe('register', () => {
-    it('bcrypt-hashes the password, INSERTs a USER with default scopes, and issues tokens', async () => {
-      const user = baseUser({ id: 2, email: 'new@x.com', name: 'new' });
-      deps.insertBuilder.__setTerminal('returning', [user]);
+  describe('register (OWASP V3.1.1 enumeration-safe)', () => {
+    function queueSelects(rows: unknown[][]) {
+      // Each call to db.select() returns a new builder; .limit() resolves to
+      // the next row-array in `rows`. Order: [0]=email lookup, [1]=username.
+      const queue = [...rows];
+      (deps.select as jest.Mock).mockImplementation(() => {
+        const b = builder([]);
+        b.__setTerminal('limit', queue.shift() ?? []);
+        return b;
+      });
+    }
 
-      const result = await svc.register({
+    it('case A: new email + new username → inserts user with emailVerified=false, sends verification email, returns { ok: true }', async () => {
+      queueSelects([[], []]); // email miss, username miss
+      const inserted = baseUser({ id: 9, email: 'new@x.com', name: 'new' });
+      // The insert happens inside db.transaction(cb) — cb receives `tx`, so
+      // the returning() resolution lives on txInsertBuilder.
+      (deps as any).tx.insert.mockImplementation(() => {
+        const b = builder([]);
+        b.__setTerminal('returning', [inserted]);
+        return b;
+      });
+
+      const res = await svc.register({
         email: 'new@x.com',
         username: 'new',
         password: 'Sup3rSecret',
       });
 
+      expect(res).toEqual({ ok: true });
       expect(pw.hash).toHaveBeenCalledWith('Sup3rSecret');
-      expect(deps.insertBuilder.values).toHaveBeenCalledWith({
-        email: 'new@x.com',
-        name: 'new',
-        passwordHash: 'hashed-password',
-        role: 'USER',
-        scopes: ['read:profile', 'write:profile', 'read:dashboard'],
-      });
-      expect(refresh.create).toHaveBeenCalledWith('u', user.id);
-      expect(result).toMatchObject({ accessToken: 'user.jwt', refreshToken: 'u:1:abcd' });
+      expect(deps.transaction).toHaveBeenCalledTimes(1);
+      const valuesArg = deps.tx.insert.mock.results[0].value.values.mock.calls[0][0];
+      expect(valuesArg.email).toBe('new@x.com');
+      expect(valuesArg.name).toBe('new');
+      expect(valuesArg.emailVerified).toBe(false);
+      expect(valuesArg.verifyTokenHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(valuesArg.verifyTokenExpiresAt.getTime()).toBeGreaterThan(
+        Date.now() + 23 * 60 * 60 * 1000,
+      );
+
+      expect(mailer.sendVerificationEmail).toHaveBeenCalledTimes(1);
+      const [to, token] = mailer.sendVerificationEmail.mock.calls[0];
+      expect(to).toBe('new@x.com');
+      expect(token).toMatch(/^[0-9a-f]{64}$/);
+      // Hash stored == sha256(plaintext emailed token).
+      const { createHash } = await import('crypto');
+      expect(createHash('sha256').update(token).digest('hex')).toBe(valuesArg.verifyTokenHash);
+
+      expect(mailer.sendAccountExistsEmail).not.toHaveBeenCalled();
+      // No session / refresh on the registration path — user must verify first.
+      expect(refresh.create).not.toHaveBeenCalled();
+      expect(jwt.signUser).not.toHaveBeenCalled();
     });
 
-    it('throws HttpException(CONFLICT) on postgres unique-violation (code=23505)', async () => {
-      const err: any = new Error('duplicate key');
-      err.code = '23505';
-      deps.insertBuilder.returning.mockRejectedValue(err);
+    it('case B: existing email → sends account-exists email with real reset token, no user created, returns { ok: true }', async () => {
+      const existing = baseUser({ id: 4, email: 'dup@x.com' });
+      queueSelects([[existing]]); // email hit — no 2nd select needed
 
-      const promise = svc.register({
+      const res = await svc.register({
         email: 'dup@x.com',
-        username: 'dup',
+        username: 'whatever',
         password: 'Sup3rSecret',
       });
-      await expect(promise).rejects.toBeInstanceOf(HttpException);
-      await promise.catch((e: HttpException) => {
-        expect(e.getStatus()).toBe(HttpStatus.CONFLICT);
-        const body = e.getResponse() as { code: string; message: string };
-        expect(body.code).toBe('CONFLICT');
-      });
+
+      expect(res).toEqual({ ok: true });
+
+      // Reset token was generated + stored (hashed) in password_resets.
+      expect(deps.insert).toHaveBeenCalled();
+      const valuesArg = deps.insertBuilder.values.mock.calls[0][0];
+      expect(valuesArg.userId).toBe(4);
+      expect(valuesArg.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(deps.insertBuilder.onConflictDoNothing).toHaveBeenCalled();
+
+      // Account-exists email sent — NOT the verification email.
+      expect(mailer.sendAccountExistsEmail).toHaveBeenCalledTimes(1);
+      const [to, token] = mailer.sendAccountExistsEmail.mock.calls[0];
+      expect(to).toBe('dup@x.com');
+      // Stored hash must match sha256(plaintext) from the email link.
+      const { createHash } = await import('crypto');
+      expect(createHash('sha256').update(token).digest('hex')).toBe(valuesArg.tokenHash);
+
+      expect(mailer.sendVerificationEmail).not.toHaveBeenCalled();
+      expect(pw.hash).not.toHaveBeenCalled();
+      expect(deps.transaction).not.toHaveBeenCalled();
     });
 
-    it('rethrows unknown DB errors untouched', async () => {
+    it('case C: username collides but email is new → silent no-op, no emails, warn-logs, returns { ok: true }', async () => {
+      queueSelects([[], [baseUser({ id: 7, name: 'taken' })]]);
+      const warn = jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => undefined);
+
+      const res = await svc.register({
+        email: 'brand-new@x.com',
+        username: 'taken',
+        password: 'Sup3rSecret',
+      });
+
+      expect(res).toEqual({ ok: true });
+      expect(pw.hash).not.toHaveBeenCalled();
+      expect(deps.transaction).not.toHaveBeenCalled();
+      expect(mailer.sendVerificationEmail).not.toHaveBeenCalled();
+      expect(mailer.sendAccountExistsEmail).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it('treats a soft-deleted email-match as free (falls through to username check)', async () => {
+      const soft = baseUser({ id: 3, email: 'recycled@x.com', deletedAt: new Date() });
+      queueSelects([[soft], []]);
+      (deps as any).tx.insert.mockImplementation(() => {
+        const b = builder([]);
+        b.__setTerminal('returning', [baseUser({ id: 10 })]);
+        return b;
+      });
+
+      const res = await svc.register({
+        email: 'recycled@x.com',
+        username: 'fresh',
+        password: 'Sup3rSecret',
+      });
+
+      expect(res).toEqual({ ok: true });
+      expect(mailer.sendAccountExistsEmail).not.toHaveBeenCalled();
+      expect(mailer.sendVerificationEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('silently absorbs postgres unique-violation during insert (race loser is indistinguishable)', async () => {
+      queueSelects([[], []]);
+      const err: any = new Error('duplicate key');
+      err.code = '23505';
+      // Transaction callback raises — the service's catch turns that into ok.
+      deps.transaction.mockImplementation(async () => {
+        throw err;
+      });
+
+      const res = await svc.register({
+        email: 'race@x.com',
+        username: 'race',
+        password: 'Sup3rSecret',
+      });
+      expect(res).toEqual({ ok: true });
+      expect(mailer.sendVerificationEmail).not.toHaveBeenCalled();
+    });
+
+    it('rethrows unknown DB errors during insert (fail loud on non-race failures)', async () => {
+      queueSelects([[], []]);
       const err = new Error('boom');
-      deps.insertBuilder.returning.mockRejectedValue(err);
+      deps.transaction.mockImplementation(async () => {
+        throw err;
+      });
       await expect(
         svc.register({ email: 'a@x.com', username: 'a', password: 'Sup3rSecret' }),
       ).rejects.toBe(err);
     });
+  });
 
-    it('throws INTERNAL_SERVER_ERROR if INSERT returning is empty', async () => {
-      deps.insertBuilder.__setTerminal('returning', []);
-      const promise = svc.register({ email: 'a@x.com', username: 'a', password: 'Sup3rSecret' });
+  // -------- verifyEmail ----------------------------------------------------
+
+  describe('verifyEmail', () => {
+    it('throws NOT_FOUND when no unexpired user row matches the hashed token', async () => {
+      deps.selectBuilder.__setTerminal('limit', []);
+      const promise = svc.verifyEmail('no-such-token');
       await expect(promise).rejects.toBeInstanceOf(HttpException);
       await promise.catch((e: HttpException) => {
-        expect(e.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+        expect(e.getStatus()).toBe(HttpStatus.NOT_FOUND);
       });
+    });
+
+    it('marks verified, clears token columns, and issues fresh session tokens', async () => {
+      const user = baseUser({
+        id: 11,
+        emailVerified: false,
+        verifyTokenHash: 'x'.repeat(64),
+        verifyTokenExpiresAt: new Date(Date.now() + 60_000),
+      });
+      deps.selectBuilder.__setTerminal('limit', [user]);
+
+      const res = await svc.verifyEmail('raw-token-value');
+
+      expect(deps.updateBuilder.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          emailVerified: true,
+          verifyTokenHash: null,
+          verifyTokenExpiresAt: null,
+        }),
+      );
+      expect(jwt.signUser).toHaveBeenCalled();
+      expect(refresh.create).toHaveBeenCalledWith('u', 11);
+      expect(res).toMatchObject({
+        user: { id: 11, email: user.email },
+        accessToken: 'user.jwt',
+        refreshToken: 'u:1:abcd',
+      });
+    });
+
+    it('treats a soft-deleted match as NOT_FOUND', async () => {
+      const user = baseUser({
+        id: 2,
+        deletedAt: new Date(),
+        verifyTokenHash: 'x'.repeat(64),
+        verifyTokenExpiresAt: new Date(Date.now() + 60_000),
+      });
+      deps.selectBuilder.__setTerminal('limit', [user]);
+      await expect(svc.verifyEmail('t')).rejects.toBeInstanceOf(HttpException);
     });
   });
 

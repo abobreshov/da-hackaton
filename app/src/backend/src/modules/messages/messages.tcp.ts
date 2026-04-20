@@ -20,6 +20,7 @@ interface CreatePayload {
   dmUserId?: number;
   body: string;
   replyToId?: bigint | null;
+  attachmentIds?: string[];
   _sys?: string;
 }
 
@@ -70,6 +71,7 @@ export class MessagesTcpController {
       dmUserId: data.dmUserId,
       body: data.body,
       replyToId: data.replyToId,
+      attachmentIds: data.attachmentIds,
     });
   }
 

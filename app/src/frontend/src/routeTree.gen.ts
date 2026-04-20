@@ -7,6 +7,7 @@ import { Route as LoginRouteImport } from './routes/login';
 import { Route as RegisterRouteImport } from './routes/register';
 import { Route as ResetPasswordRouteImport } from './routes/reset-password';
 import { Route as Verify2FARouteImport } from './routes/verify-2fa';
+import { Route as VerifyEmailRouteImport } from './routes/verify-email';
 import { Route as AuthRouteImport } from './routes/_auth';
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard';
 import { Route as AuthContactsRouteImport } from './routes/_auth/contacts';
@@ -44,6 +45,12 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const Verify2FARoute = Verify2FARouteImport.update({
   id: '/verify-2fa',
   path: '/verify-2fa',
+  getParentRoute: () => PublicRoute,
+} as any);
+
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => PublicRoute,
 } as any);
 
@@ -87,6 +94,7 @@ const PublicRouteChildren = {
   RegisterRoute,
   ResetPasswordRoute,
   Verify2FARoute,
+  VerifyEmailRoute,
 };
 const PublicRouteWithChildren = (PublicRoute as any)._addFileChildren(PublicRouteChildren);
 
@@ -168,6 +176,13 @@ declare module '@tanstack/react-router' {
       path: '/verify-2fa';
       fullPath: '/verify-2fa';
       preLoaderRoute: typeof Verify2FARouteImport;
+      parentRoute: typeof PublicRouteImport;
+    };
+    '/verify-email': {
+      id: '/verify-email';
+      path: '/verify-email';
+      fullPath: '/verify-email';
+      preLoaderRoute: typeof VerifyEmailRouteImport;
       parentRoute: typeof PublicRouteImport;
     };
     '/_auth': {

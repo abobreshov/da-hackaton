@@ -44,6 +44,7 @@ function makeAuthServiceMock() {
     loginUser: jest.fn(),
     loginAdmin: jest.fn(),
     register: jest.fn(),
+    verifyEmail: jest.fn(),
     passwordResetRequest: jest.fn(),
     passwordResetConfirm: jest.fn(),
     passwordChange: jest.fn(),
@@ -75,40 +76,65 @@ describe('AuthController — new endpoints', () => {
     controller = new AuthController(authSvc, cookieSvc);
   });
 
-  describe('POST /auth/register', () => {
-    it('proxies {email,username,password} to auth-service and sets session cookies on success', async () => {
-      const user = { id: 42, email: 'a@b.com', name: 'alice', scopes: ['chat'] };
-      const refreshToken = 'refresh-xyz';
-      authSvc.register.mockResolvedValue({ user, refreshToken });
-
-      const reply = makeReply();
-      const body = await controller.register(
-        { email: 'a@b.com', username: 'alice', password: 'pw12345678' } as any,
-        reply as any,
-      );
-
-      expect(authSvc.register).toHaveBeenCalledWith('a@b.com', 'alice', 'pw12345678');
-      expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
-        sub: 'u:42',
+  describe('POST /auth/register (OWASP V3.1.1)', () => {
+    it('proxies the DTO to auth-service and returns the enumeration-safe envelope with NO cookies', async () => {
+      authSvc.register.mockResolvedValue({ ok: true });
+      const body = await controller.register({
         email: 'a@b.com',
-        name: 'alice',
+        username: 'alice',
+        password: 'pw12345678',
+      } as any);
+      expect(authSvc.register).toHaveBeenCalledWith('a@b.com', 'alice', 'pw12345678');
+      // Identical body regardless of internal branch (new / existing / collision).
+      expect(body).toEqual({
+        ok: true,
+        message: 'If the address is available, check your inbox to verify.',
+      });
+      expect(cookieSvc.setSessionCookie).not.toHaveBeenCalled();
+      expect(cookieSvc.setRefreshCookie).not.toHaveBeenCalled();
+    });
+
+    it('returns the same envelope when the upstream would have been a collision (BFF is a pass-through)', async () => {
+      authSvc.register.mockResolvedValue({ ok: true });
+      const body = await controller.register({
+        email: 'dup@b.com',
+        username: 'dup',
+        password: 'pw12345678',
+      } as any);
+      expect(body).toEqual({
+        ok: true,
+        message: 'If the address is available, check your inbox to verify.',
+      });
+      expect(cookieSvc.setSessionCookie).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/verify-email', () => {
+    it('proxies the token, mints cookies, and returns { user }', async () => {
+      const user = { id: 21, email: 'v@b.com', name: 'verified', scopes: ['read:profile'] };
+      const refreshToken = 'u:21:fresh';
+      authSvc.verifyEmail.mockResolvedValue({ user, refreshToken, accessToken: 'at' });
+      const reply = makeReply();
+      const body = await controller.verifyEmail({ token: 'opaque' } as any, reply as any);
+
+      expect(authSvc.verifyEmail).toHaveBeenCalledWith('opaque');
+      expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
+        sub: 'u:21',
+        email: 'v@b.com',
+        name: 'verified',
         type: 'user',
-        scopes: ['chat'],
+        scopes: ['read:profile'],
       });
       expect(cookieSvc.setRefreshCookie).toHaveBeenCalledWith(reply, refreshToken);
       expect(body).toEqual({ user });
     });
 
-    it('propagates upstream RpcException (duplicate email → CONFLICT)', async () => {
-      const rpc = new RpcException({ status: 409, message: 'email already registered' });
-      authSvc.register.mockRejectedValue(rpc);
-
+    it('propagates upstream NOT_FOUND and does not touch cookies', async () => {
+      const rpc = new RpcException({ status: 404, message: 'Verification token invalid or expired' });
+      authSvc.verifyEmail.mockRejectedValue(rpc);
       const reply = makeReply();
       await expect(
-        controller.register(
-          { email: 'dup@b.com', username: 'dup', password: 'pw12345678' } as any,
-          reply as any,
-        ),
+        controller.verifyEmail({ token: 'bad' } as any, reply as any),
       ).rejects.toBe(rpc);
       expect(cookieSvc.setSessionCookie).not.toHaveBeenCalled();
       expect(cookieSvc.setRefreshCookie).not.toHaveBeenCalled();

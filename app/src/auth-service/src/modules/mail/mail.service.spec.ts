@@ -3,6 +3,7 @@ process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://test:test@loc
 process.env.JWT_ADMIN_SECRET = process.env.JWT_ADMIN_SECRET ?? 'x'.repeat(48);
 process.env.JWT_CUSTOMER_SECRET = process.env.JWT_CUSTOMER_SECRET ?? 'y'.repeat(48);
 process.env.SYSTEM_KEY = process.env.SYSTEM_KEY ?? 'z'.repeat(48);
+process.env.FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL ?? 'http://localhost:3007';
 
 // Replace nodemailer with a controllable mock before importing the service.
 const sendMail: jest.Mock = jest.fn();
@@ -92,6 +93,84 @@ describe('MailerService', () => {
       // Must not throw — breaking on sendMail would leak that the email existed.
       await expect(
         svc.sendPasswordResetEmail('u@x.com', 'http://reset/link'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('sendVerificationEmail (OWASP V3.1.1 case A)', () => {
+    it('logs + no-ops when no transporter is configured (dev fallback)', async () => {
+      const { MailerService } = load();
+      const svc = new MailerService();
+      svc.onModuleInit();
+      await svc.sendVerificationEmail('new@x.com', 'tok123');
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('embeds FRONTEND_BASE_URL/verify-email?token=<raw> in subject/body when wired', async () => {
+      process.env.SMTP_HOST = 'smtp.example.com';
+      const { MailerService } = load();
+      const svc = new MailerService();
+      svc.onModuleInit();
+
+      await svc.sendVerificationEmail('new@x.com', 'abcdef');
+      expect(sendMail).toHaveBeenCalledTimes(1);
+      const arg = sendMail.mock.calls[0][0];
+      expect(arg).toMatchObject({
+        to: 'new@x.com',
+        subject: expect.stringMatching(/confirm your email/i),
+      });
+      const expected = 'http://localhost:3007/verify-email?token=abcdef';
+      expect(arg.text).toContain(expected);
+      expect(arg.html).toContain(expected);
+    });
+
+    it('swallows sendMail errors (enumeration-safe)', async () => {
+      process.env.SMTP_HOST = 'smtp.example.com';
+      const { MailerService } = load();
+      const svc = new MailerService();
+      svc.onModuleInit();
+      sendMail.mockRejectedValue(new Error('smtp down'));
+      await expect(
+        svc.sendVerificationEmail('new@x.com', 'tok'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('sendAccountExistsEmail (OWASP V3.1.1 case B)', () => {
+    it('logs + no-ops when no transporter is configured (dev fallback)', async () => {
+      const { MailerService } = load();
+      const svc = new MailerService();
+      svc.onModuleInit();
+      await svc.sendAccountExistsEmail('dup@x.com', 'reset123');
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('embeds FRONTEND_BASE_URL/reset-password?token=<raw> in subject/body when wired', async () => {
+      process.env.SMTP_HOST = 'smtp.example.com';
+      const { MailerService } = load();
+      const svc = new MailerService();
+      svc.onModuleInit();
+
+      await svc.sendAccountExistsEmail('dup@x.com', 'rawReset');
+      expect(sendMail).toHaveBeenCalledTimes(1);
+      const arg = sendMail.mock.calls[0][0];
+      expect(arg).toMatchObject({
+        to: 'dup@x.com',
+        subject: expect.stringMatching(/someone tried to create an account/i),
+      });
+      const expected = 'http://localhost:3007/reset-password?token=rawReset';
+      expect(arg.text).toContain(expected);
+      expect(arg.html).toContain(expected);
+    });
+
+    it('swallows sendMail errors (enumeration-safe)', async () => {
+      process.env.SMTP_HOST = 'smtp.example.com';
+      const { MailerService } = load();
+      const svc = new MailerService();
+      svc.onModuleInit();
+      sendMail.mockRejectedValue(new Error('smtp down'));
+      await expect(
+        svc.sendAccountExistsEmail('dup@x.com', 'rawReset'),
       ).resolves.toBeUndefined();
     });
   });

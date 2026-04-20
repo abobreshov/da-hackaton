@@ -81,6 +81,7 @@ describe('MessagesTcpController', () => {
       dmUserId: undefined,
       body: 'hi',
       replyToId: undefined,
+      attachmentIds: undefined,
     });
     expect(out).toEqual({ message: { id: 1n, body: 'hi' } });
   });

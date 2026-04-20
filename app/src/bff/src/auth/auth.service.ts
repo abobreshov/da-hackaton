@@ -59,6 +59,12 @@ export class AuthService {
     );
   }
 
+  verifyEmail(token: string) {
+    return firstValueFrom(
+      this.client.send<any>({ cmd: 'auth.customer.verifyEmail' }, withSys({ token })),
+    );
+  }
+
   passwordResetRequest(email: string) {
     return firstValueFrom(
       this.client.send<any>(

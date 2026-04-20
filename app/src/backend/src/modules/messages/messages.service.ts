@@ -14,6 +14,11 @@ import {
   MessagesRepositoryPort,
 } from './messages.types';
 import { RoomsService } from '../rooms/rooms.service';
+import {
+  ATTACHMENTS_REPOSITORY,
+  AttachmentRow,
+  AttachmentsRepositoryPort,
+} from '../attachments/attachments.types';
 
 /** AC-07-02 — body upper bound. 3 KiB of bytes / chars / whatever the spec
  *  says; we count string length here (UTF-16 code units) which is a tight
@@ -30,6 +35,9 @@ export interface CreateMessageParams {
   dmUserId?: number;
   body: string;
   replyToId?: bigint | null;
+  /** Orphan attachment UUIDs to bind to the new message. Service enforces
+   *  same uploader + same scope via the attachments repo. */
+  attachmentIds?: string[];
 }
 
 export interface EditMessageParams {
@@ -77,9 +85,13 @@ export class MessagesService {
     @Inject(MESSAGES_REPOSITORY)
     private readonly repo: MessagesRepositoryPort,
     private readonly rooms: RoomsService,
+    @Inject(ATTACHMENTS_REPOSITORY)
+    private readonly attachments: AttachmentsRepositoryPort,
   ) {}
 
-  async create(params: CreateMessageParams): Promise<{ message: MessageRow }> {
+  async create(
+    params: CreateMessageParams,
+  ): Promise<{ message: MessageRow; attachments: AttachmentRow[] }> {
     this.assertBody(params.body);
 
     const hasRoom = params.roomId != null;
@@ -103,7 +115,12 @@ export class MessagesService {
         body: params.body,
         replyTo: params.replyToId ?? null,
       });
-      return { message: row };
+      const bound = await this.bindAttachments(params.attachmentIds, {
+        messageId: row.id,
+        uploaderId: params.authorId,
+        scope: { roomId: params.roomId as number },
+      });
+      return { message: row, attachments: bound };
     }
 
     // DM path
@@ -129,7 +146,31 @@ export class MessagesService {
         'DM is frozen; one side has banned the other',
       );
     }
-    return { message: row };
+    const bound = await this.bindAttachments(params.attachmentIds, {
+      messageId: row.id,
+      uploaderId: params.authorId,
+      scope: { dmId: channel.id },
+    });
+    return { message: row, attachments: bound };
+  }
+
+  /** Bind orphan attachments to a freshly-inserted message. Returns []
+   *  when caller passed no ids; otherwise delegates to attachments repo. */
+  private async bindAttachments(
+    ids: string[] | undefined,
+    input: {
+      messageId: bigint;
+      uploaderId: number;
+      scope: { roomId: number } | { dmId: number };
+    },
+  ): Promise<AttachmentRow[]> {
+    if (!ids || ids.length === 0) return [];
+    return this.attachments.bindAttachmentsToMessage({
+      attachmentIds: ids,
+      messageId: input.messageId,
+      uploaderId: input.uploaderId,
+      scope: input.scope,
+    });
   }
 
   async edit(params: EditMessageParams): Promise<{ message: MessageRow }> {

@@ -105,17 +105,31 @@ export const loginUser = (
 export const logout = (): Promise<void> => apiFetch('/api/v1/auth/logout', { method: 'POST' });
 
 /**
- * Register a new user. BFF sets session + CSRF cookies on success and returns
- * the user payload — identical in shape to a successful loginUser response.
+ * Register a new user. OWASP V3.1.1 — the BFF always responds 202 with an
+ * identical envelope regardless of whether the email / username was taken.
+ * The user is NOT authenticated on success; they must click the emailed
+ * verification link to finish.
  */
 export const registerUser = (
   email: string,
   username: string,
   password: string,
-): Promise<{ user: AuthenticatedUser }> =>
+): Promise<{ ok: true; message: string }> =>
   apiFetch('/api/v1/auth/register', {
     method: 'POST',
     body: JSON.stringify({ email, username, password }),
+  });
+
+/**
+ * Exchange a verification token from the emailed link for a live session.
+ * BFF sets session + refresh cookies on success, identical to login.
+ */
+export const verifyEmail = (
+  token: string,
+): Promise<{ user: AuthenticatedUser }> =>
+  apiFetch('/api/v1/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
   });
 
 /**

@@ -23,8 +23,8 @@ describe('AuthService — new proxy methods', () => {
   });
 
   describe('register', () => {
-    it('sends auth.customer.register with withSys-wrapped {email,username,password}', async () => {
-      const expected = { user: { id: 1, email: 'a@b.com' }, refreshToken: 'r' };
+    it('sends auth.customer.register with withSys-wrapped {email,username,password} and resolves to { ok: true }', async () => {
+      const expected = { ok: true };
       client.send.mockReturnValue(of(expected));
       await expect(svc.register('a@b.com', 'alice', 'pw12345678')).resolves.toEqual(expected);
       expect(client.send).toHaveBeenCalledWith(
@@ -33,10 +33,28 @@ describe('AuthService — new proxy methods', () => {
       );
     });
 
-    it('propagates RpcException CONFLICT from upstream', async () => {
-      const rpc = new RpcException({ status: 409, message: 'email already registered' });
+    it('propagates RpcException from upstream (e.g. rate-limit / infra failure)', async () => {
+      const rpc = new RpcException({ status: 429, message: 'rate limit exceeded' });
       client.send.mockReturnValue(throwError(() => rpc));
       await expect(svc.register('a@b.com', 'alice', 'pw12345678')).rejects.toBe(rpc);
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('sends auth.customer.verifyEmail with withSys-wrapped {token}', async () => {
+      const expected = { user: { id: 1 }, accessToken: 'at', refreshToken: 'u:1:r' };
+      client.send.mockReturnValue(of(expected));
+      await expect(svc.verifyEmail('tok')).resolves.toEqual(expected);
+      expect(client.send).toHaveBeenCalledWith(
+        { cmd: 'auth.customer.verifyEmail' },
+        { token: 'tok', _sys: 'test-sys-key' },
+      );
+    });
+
+    it('propagates RpcException NOT_FOUND for invalid or expired tokens', async () => {
+      const rpc = new RpcException({ status: 404, message: 'Verification token invalid or expired' });
+      client.send.mockReturnValue(throwError(() => rpc));
+      await expect(svc.verifyEmail('bad')).rejects.toBe(rpc);
     });
   });
 

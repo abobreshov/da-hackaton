@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -58,6 +59,7 @@ export class MessagesController {
       dmUserId: dto.dmUserId,
       body: dto.body,
       replyToId: dto.replyToId ? BigInt(dto.replyToId) : null,
+      attachmentIds: dto.attachmentIds,
     });
   }
 
@@ -134,10 +136,7 @@ export class RoomMessagesController {
     const userId = getUserId(req);
     await this.rooms.ensureMember({ roomId, userId });
 
-    const cursor =
-      before && beforeId
-        ? { createdAt: new Date(before), id: BigInt(beforeId) }
-        : undefined;
+    const cursor = parseBeforeCursor(before, beforeId);
     return this.service.list({
       roomId,
       before: cursor,
@@ -166,16 +165,40 @@ export class DmMessagesController {
     const dmId = await this.service.resolveDmChannelId(me, otherUserId);
     if (dmId == null) return { messages: [] };
 
-    const cursor =
-      before && beforeId
-        ? { createdAt: new Date(before), id: BigInt(beforeId) }
-        : undefined;
+    const cursor = parseBeforeCursor(before, beforeId);
     return this.service.list({
       dmId,
       before: cursor,
       limit: parseLimit(limit),
     });
   }
+}
+
+/** CR-N4 — validate `?before=` is a parseable ISO timestamp paired w/ a
+ *  BigInt-safe id. Invalid values → 400 rather than Invalid Date / NaN
+ *  leaking into Drizzle's query builder. */
+function parseBeforeCursor(
+  before: string | undefined,
+  beforeId: string | undefined,
+): { createdAt: Date; id: bigint } | undefined {
+  if (!before || !beforeId) return undefined;
+  const createdAt = new Date(before);
+  if (Number.isNaN(createdAt.getTime())) {
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid `before` — expected ISO 8601 timestamp',
+    });
+  }
+  let id: bigint;
+  try {
+    id = BigInt(beforeId);
+  } catch {
+    throw new BadRequestException({
+      code: 'VALIDATION_FAILED',
+      message: 'invalid `beforeId` — expected integer string',
+    });
+  }
+  return { createdAt, id };
 }
 
 function parseLimit(raw: string | undefined): number {

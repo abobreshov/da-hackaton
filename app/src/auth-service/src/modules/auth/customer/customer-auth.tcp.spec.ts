@@ -19,6 +19,7 @@ function makeService(): jest.Mocked<CustomerAuthService> {
   return {
     login: jest.fn(),
     register: jest.fn(),
+    verifyEmail: jest.fn(),
     refresh: jest.fn(),
     logout: jest.fn(),
     validateToken: jest.fn(),
@@ -81,11 +82,20 @@ describe('CustomerAuthTcpController', () => {
   });
 
   describe('register', () => {
-    it('delegates the whole DTO', async () => {
-      svc.register.mockResolvedValue({ accessToken: 'a' } as any);
+    it('delegates the whole DTO and forwards the { ok: true } shape', async () => {
+      svc.register.mockResolvedValue({ ok: true } as any);
       const dto = { email: 'u@x.com', username: 'u', password: 'Sup3rSecret' };
-      await ctrl.register(dto as any);
+      await expect(ctrl.register(dto as any)).resolves.toEqual({ ok: true });
       expect(svc.register).toHaveBeenCalledWith(dto);
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('extracts token from payload, delegates, and forwards the session envelope', async () => {
+      const envelope = { user: { id: 1 }, accessToken: 'at', refreshToken: 'u:1:r' };
+      svc.verifyEmail.mockResolvedValue(envelope as any);
+      await expect(ctrl.verifyEmail({ token: 'tok' })).resolves.toBe(envelope);
+      expect(svc.verifyEmail).toHaveBeenCalledWith('tok');
     });
   });
 

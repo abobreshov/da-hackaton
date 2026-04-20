@@ -78,16 +78,35 @@ export class AuthController {
     }
   }
 
+  /**
+   * OWASP V3.1.1 — register never discloses whether the email / username is
+   * available. Always 202 + identical body. No cookies set; the user must
+   * verify their email before being authenticated.
+   */
   @Post('register')
-  @HttpCode(201)
+  @HttpCode(202)
   @UseGuards(ThrottleGuard)
   @Throttle({ scope: 'register', limit: 5, windowMs: 3_600_000, failClosed: true })
-  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) reply: any) {
-    const { user, refreshToken } = await this.authService.register(
-      dto.email,
-      dto.username,
-      dto.password,
-    );
+  async register(@Body() dto: RegisterDto) {
+    await this.authService.register(dto.email, dto.username, dto.password);
+    return {
+      ok: true,
+      message: 'If the address is available, check your inbox to verify.',
+    };
+  }
+
+  /**
+   * Consume the link emailed on registration. On success we mint the session
+   * + refresh cookies (user is now logged in) and return `{ user }`.
+   */
+  @Post('verify-email')
+  @UseGuards(ThrottleGuard)
+  @Throttle({ scope: 'verify-email', limit: 5, windowMs: 900_000, failClosed: true })
+  async verifyEmail(
+    @Body() dto: { token: string },
+    @Res({ passthrough: true }) reply: any,
+  ) {
+    const { user, refreshToken } = await this.authService.verifyEmail(dto.token);
     this.cookieService.issueAuthCookies(reply, {
       session: {
         sub: makeSub('user', user.id),

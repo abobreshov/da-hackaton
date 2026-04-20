@@ -27,7 +27,7 @@ function fillForm(over: Partial<{ email: string; username: string; password: str
   });
 }
 
-describe('<RegisterPage />', () => {
+describe('<RegisterPage /> (OWASP V3.1.1 enumeration-safe)', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -50,21 +50,19 @@ describe('<RegisterPage />', () => {
 
   it('renders the Kinetic Playground brand hero + headline + sign-in link', () => {
     render(<RegisterPage />);
-    // Headline comes from the new GlassCard header.
     expect(
       screen.getByRole('heading', { level: 1, name: /create account/i }),
     ).toBeInTheDocument();
-    // Secondary link back to /login.
     const signIn = screen.getByRole('link', { name: /sign in/i });
     expect(signIn).toBeInTheDocument();
     expect(signIn).toHaveAttribute('href', '/login');
   });
 
-  it('submits to /api/v1/auth/register and navigates to /dashboard on success', async () => {
+  it('submits to /api/v1/auth/register and renders the "check your inbox" card on 202', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ user: { id: 7, email: 'new@example.com', name: 'newuser', role: 'user' } }),
-        { status: 201, headers: { 'Content-Type': 'application/json' } },
+        JSON.stringify({ ok: true, message: 'If the address is available, check your inbox to verify.' }),
+        { status: 202, headers: { 'Content-Type': 'application/json' } },
       ),
     );
 
@@ -82,15 +80,19 @@ describe('<RegisterPage />', () => {
       password: 'Secret123!',
     });
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/dashboard' }));
-    expect(useSession.getState().session?.email).toBe('new@example.com');
+    // Success state = confirmation card that echoes the email. NO navigation
+    // (the user must click the emailed link) and NO session cookie side effects.
+    await screen.findByRole('heading', { name: /check your inbox/i });
+    expect(screen.getByText(/new@example.com/i)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(useSession.getState().session).toBeNull();
   });
 
-  it('shows "email or username taken" on CONFLICT', async () => {
+  it('shows a generic error on non-2xx (does NOT leak email-taken copy)', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ code: 'CONFLICT', message: 'already exists' }),
-        { status: 409, headers: { 'Content-Type': 'application/json' } },
+        JSON.stringify({ code: 'RATE_LIMITED', message: 'Too many attempts' }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } },
       ),
     );
 
@@ -99,30 +101,9 @@ describe('<RegisterPage />', () => {
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/email or username.*taken/i);
-    expect(navigateMock).not.toHaveBeenCalled();
-  });
-
-  it('shows field-level errors on VALIDATION_FAILED', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          code: 'VALIDATION_FAILED',
-          message: 'validation failed',
-          details: [
-            { field: 'username', message: 'Username is not available' },
-            { field: 'password', message: 'Password too weak' },
-          ],
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
-
-    render(<RegisterPage />);
-    fillForm();
-    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
-
-    await screen.findByText(/username is not available/i);
-    expect(screen.getByText(/password too weak/i)).toBeInTheDocument();
+    expect(alert).toBeInTheDocument();
+    // Ensure the deprecated enumeration copy is gone.
+    expect(alert.textContent ?? '').not.toMatch(/email or username.*taken/i);
+    expect(alert.textContent ?? '').not.toMatch(/already registered/i);
   });
 });

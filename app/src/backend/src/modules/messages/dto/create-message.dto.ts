@@ -1,4 +1,15 @@
-import { IsInt, IsOptional, IsPositive, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -28,4 +39,14 @@ export class CreateMessageDto {
   @Type(() => String)
   @IsString()
   replyToId?: string;
+
+  /**
+   * Optional list of orphan attachment UUIDs (uploaded with `messageId=null`)
+   * to bind to this message. Server enforces same uploader + same scope.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('4', { each: true })
+  attachmentIds?: string[];
 }

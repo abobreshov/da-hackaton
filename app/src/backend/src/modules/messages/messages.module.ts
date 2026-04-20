@@ -9,9 +9,10 @@ import { MessagesService } from './messages.service';
 import { DrizzleMessagesRepository } from './messages.repository';
 import { MESSAGES_REPOSITORY } from './messages.types';
 import { RoomsModule } from '../rooms/rooms.module';
+import { AttachmentsModule } from '../attachments/attachments.module';
 
 @Module({
-  imports: [RoomsModule],
+  imports: [RoomsModule, AttachmentsModule],
   controllers: [
     MessagesController,
     RoomMessagesController,
