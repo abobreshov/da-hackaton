@@ -9,6 +9,8 @@ const schema = z
     AUTH_TCP_PORT: z.coerce.number().default(4003),
     BACKEND_TCP_HOST: z.string().default('localhost'),
     BACKEND_TCP_PORT: z.coerce.number().default(4004),
+    REDIS_HOST: z.string().default('localhost'),
+    REDIS_PORT: z.coerce.number().default(6379),
     JWT_SECRET: z.string().min(32),
     SESSION_COOKIE_SECRET: z.string().min(32),
     COOKIE_SECRET: z.string().min(32),

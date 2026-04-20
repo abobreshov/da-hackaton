@@ -44,7 +44,13 @@ import { RedisSubscriberService } from './redis-subscriber.service';
  * anonymous `error` emits which are harder to diagnose from the FE.
  */
 @Injectable()
-@WebSocketGateway({ namespace: '/ws', cors: false })
+@WebSocketGateway({
+  namespace: '/ws',
+  cors: {
+    origin: (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3007').split(','),
+    credentials: true,
+  },
+})
 export class ChatGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
 {

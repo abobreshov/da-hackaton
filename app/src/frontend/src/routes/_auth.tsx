@@ -48,7 +48,14 @@ function AuthLayout() {
   const { session, clearSession } = useSession();
 
   const handleLogout = async () => {
-    await logout();
+    // Always clear client state + redirect, even if the server round-trip
+    // fails. A stale server session is lower risk than a user stuck on an
+    // authenticated page with broken WS / network.
+    try {
+      await logout();
+    } catch {
+      /* swallow — redirect below still runs */
+    }
     clearSession();
     window.location.href = '/login';
   };
