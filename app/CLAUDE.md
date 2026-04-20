@@ -96,6 +96,22 @@ Listeners bind to `127.0.0.1` by default via `TCP_BIND` — nothing on the LAN c
 
 Why not just CSP/rate-limit/OriginGuard at the BFF? Those only protect the browser-facing boundary. An attacker who lands on the host (prod bastion, developer laptop, LAN) could otherwise call `auth.customer.validateToken` or `auth.admin.login` directly on port 4003 and bypass the BFF entirely — that's what this layer closes.
 
+## Frontend design system — binding
+
+Visual language is locked down by **`mng/specs/design-system.md`** ("The Editorial Archive / Precision Monolith"). Applies to every file under `src/frontend/`.
+
+Hard rules (PR-rejecting):
+
+- No 1 px solid borders for sectioning. Separate regions with `surface_container_low` → `surface` → `surface_container_high` tier shifts.
+- No `<hr>` / horizontal rule dividers. Use tonal background transitions.
+- No raw hex literals in components — every colour comes from a token in `tailwind.config.ts`.
+- No 100% black text (`on_surface` = `#27343f`). No pure-gray shadows — tint with `on_surface`.
+- Manrope for `display-*`, `headline-*`, `title-*`; Inter for `body-*`, `label-*`.
+- `DEFAULT` radius `0.25rem`. Avoid consumer-social "bubbly" over-rounding.
+- Message bubbles use the no-bubble gutter layout (see spec §5).
+
+When editing or adding UI primitives under `src/frontend/src/components/ui/`, consult the spec first. Token gaps (missing Tailwind utility for a surface tier, missing font scale) are additions to `tailwind.config.ts`, not exceptions to the rules.
+
 ## Gotchas
 
 - NestJS services run `tsc --watch`. When adding a package, also install it inside the running container (or rebuild) — `docker-compose.dev.yml` mounts only `src/` ro, so `node_modules` baked into the image is what actually runs. `@nestjs/microservices` is required in auth-service (not just bff/backend).

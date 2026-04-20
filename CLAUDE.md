@@ -45,6 +45,19 @@ hackathone/
     └── claude-memory-plugin/  OpenViking hooks + bridge scripts
 ```
 
+## Frontend design system
+
+All frontend work (React + Tailwind under `app/src/frontend/`) must follow the binding spec at **`mng/specs/design-system.md`** — "The Editorial Archive / Precision Monolith". Short rules:
+
+- No 1 px solid borders for sectioning — separate panes with `surface_container_*` tier shifts.
+- No `<hr>` dividers — tonal transitions only.
+- No raw hex literals in components — consume tokens from `tailwind.config.ts`.
+- No 100% black text (`on_surface` = #27343f), no pure-gray shadows (tint with `on_surface`).
+- Manrope for `display/headline/title`, Inter for `body/label`.
+- `DEFAULT` radius `0.25rem`; no bubbly over-rounding.
+
+Full tokens + component rules + enforcement criteria live in the spec. Any PR violating the non-negotiables must be rejected at review.
+
 ## Agents (`.claude/agents/`)
 
 | Agent | Scope |
