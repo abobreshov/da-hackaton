@@ -47,14 +47,16 @@ hackathone/
 
 ## Frontend design system
 
-All frontend work (React + Tailwind under `app/src/frontend/`) must follow the binding spec at **`mng/specs/design-system.md`** — "The Editorial Archive / Precision Monolith". Short rules:
+All frontend work (React + Tailwind under `app/src/frontend/`) must follow the binding spec at **`mng/specs/design-system.md`** — "The Kinetic Playground". Fluid, bouncy, lounge energy — not a dashboard. Short rules:
 
-- No 1 px solid borders for sectioning — separate panes with `surface_container_*` tier shifts.
-- No `<hr>` dividers — tonal transitions only.
+- No 1 px solid borders for sectioning — separate regions with `surface_container_*` tier shifts.
+- No `<hr>` dividers — tonal transitions or whitespace only.
 - No raw hex literals in components — consume tokens from `tailwind.config.ts`.
-- No 100% black text (`on_surface` = #27343f), no pure-gray shadows (tint with `on_surface`).
-- Manrope for `display/headline/title`, Inter for `body/label`.
-- `DEFAULT` radius `0.25rem`; no bubbly over-rounding.
+- No pure-grey shadows — tint with `on_surface` (#39264c) at 4–8%, blur 30–60 px.
+- No rigid-grid alignment — intentional off-axis drift encouraged.
+- Plus Jakarta Sans for `display/headline/title`, Be Vietnam Pro for `body/label`.
+- Primary buttons: full round (9999 px), gradient `primary` → `primary_dim`, 1.02× hover scale.
+- Chat bubbles: asymmetric — `xl` on 3 corners, `sm` on avatar-side corner (speech-tail, no triangles).
 
 Full tokens + component rules + enforcement criteria live in the spec. Any PR violating the non-negotiables must be rejected at review.
 

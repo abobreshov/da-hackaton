@@ -98,17 +98,22 @@ Why not just CSP/rate-limit/OriginGuard at the BFF? Those only protect the brows
 
 ## Frontend design system — binding
 
-Visual language is locked down by **`mng/specs/design-system.md`** ("The Editorial Archive / Precision Monolith"). Applies to every file under `src/frontend/`.
+Visual language is locked down by **`mng/specs/design-system.md`** ("The Kinetic Playground"). Applies to every file under `src/frontend/`. Fluid, bouncy, lounge energy — not a dashboard.
 
 Hard rules (PR-rejecting):
 
 - No 1 px solid borders for sectioning. Separate regions with `surface_container_low` → `surface` → `surface_container_high` tier shifts.
-- No `<hr>` / horizontal rule dividers. Use tonal background transitions.
+- No `<hr>` / horizontal dividers. Tonal shifts + whitespace only.
 - No raw hex literals in components — every colour comes from a token in `tailwind.config.ts`.
-- No 100% black text (`on_surface` = `#27343f`). No pure-gray shadows — tint with `on_surface`.
-- Manrope for `display-*`, `headline-*`, `title-*`; Inter for `body-*`, `label-*`.
-- `DEFAULT` radius `0.25rem`. Avoid consumer-social "bubbly" over-rounding.
-- Message bubbles use the no-bubble gutter layout (see spec §5).
+- No pure-grey shadows. Tint with `on_surface` (`#39264c`) at 4–8% opacity, blur 30–60 px, diffuse.
+- No rigid-grid alignment — intentional off-axis drift and avatar overlap are features, not bugs.
+- Plus Jakarta Sans for `display-*`, `headline-*`, `title-*`. Be Vietnam Pro for `body-*`, `label-*`. Strategy: extreme scale contrast (`display-md` paired with `body-md`).
+- Primary buttons: full round (`9999px`), gradient `primary` → `primary_dim`, hover scale `1.02x`.
+- Chat bubbles — signature component:
+  - "Me" → `primary` bg, "Them" → `surface_container_high` bg.
+  - Asymmetric rounding: `xl` (3 rem) on three corners, `sm` (0.5 rem) on the corner nearest the avatar. Speech-tail effect without literal triangles.
+- Inputs: `surface_container_low` bg, no default border, focus = `primary` ghost border at 20% + ambient glow.
+- Cards: `lg` (2 rem) corner radius. Chips: pill (`full`), `tertiary_container` for accents.
 
 When editing or adding UI primitives under `src/frontend/src/components/ui/`, consult the spec first. Token gaps (missing Tailwind utility for a surface tier, missing font scale) are additions to `tailwind.config.ts`, not exceptions to the rules.
 
