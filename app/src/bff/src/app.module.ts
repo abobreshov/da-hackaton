@@ -1,4 +1,4 @@
-import { Global, Module, type OnApplicationShutdown } from '@nestjs/common';
+import { Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import Redis from 'ioredis';
 import { MicroserviceModule } from './common/microservice.module';
@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { UnreadModule } from './modules/unread/unread.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { FriendsModule } from './modules/friends/friends.module';
 import { BansModule } from './modules/bans/bans.module';
@@ -41,9 +42,23 @@ import { env } from './config/environment';
   ],
   exports: [REDIS_CLIENT],
 })
-class RedisModule implements OnApplicationShutdown {
-  constructor() {}
-  async onApplicationShutdown(): Promise<void> {}
+export class RedisModule implements OnApplicationShutdown {
+  private readonly logger = new Logger(RedisModule.name);
+
+  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+
+  /** Drain the ioredis client on process teardown so reconnect timers
+   *  don't keep the Node event loop alive after Nest close. */
+  async onApplicationShutdown(): Promise<void> {
+    try {
+      await this.redis.quit();
+    } catch (err) {
+      this.logger.warn(
+        `Redis quit failed, falling back to disconnect(): ${(err as Error)?.message}`,
+      );
+      this.redis.disconnect();
+    }
+  }
 }
 
 @Module({
@@ -55,6 +70,7 @@ class RedisModule implements OnApplicationShutdown {
     UsersModule,
     RoomsModule,
     MessagesModule,
+    UnreadModule,
     AttachmentsModule,
     FriendsModule,
     BansModule,

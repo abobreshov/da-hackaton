@@ -8,6 +8,7 @@ import { BadRequestException } from '@nestjs/common';
 import { TcpCmd } from '@app/contracts';
 import { UnreadTcpController } from './unread.tcp';
 import { UnreadService } from './unread.service';
+import { MessagesService } from '../messages/messages.service';
 
 function makeService(): jest.Mocked<UnreadService> {
   return {
@@ -17,21 +18,27 @@ function makeService(): jest.Mocked<UnreadService> {
   } as unknown as jest.Mocked<UnreadService>;
 }
 
+function makeMessagesService(): jest.Mocked<Pick<MessagesService, 'resolveDmChannelId'>> {
+  return {
+    resolveDmChannelId: jest.fn(),
+  } as unknown as jest.Mocked<Pick<MessagesService, 'resolveDmChannelId'>>;
+}
+
 describe('UnreadTcpController', () => {
   let service: jest.Mocked<UnreadService>;
+  let messages: jest.Mocked<Pick<MessagesService, 'resolveDmChannelId'>>;
   let controller: UnreadTcpController;
 
   beforeEach(() => {
     service = makeService();
-    controller = new UnreadTcpController(service);
+    messages = makeMessagesService();
+    controller = new UnreadTcpController(service, messages as unknown as MessagesService);
   });
 
   it('exposes a @MessagePattern for every unread.* TcpCmd', () => {
     const expected = new Set<string>(Object.values(TcpCmd.unread));
     const proto = Object.getPrototypeOf(controller);
-    const methods = Object.getOwnPropertyNames(proto).filter(
-      (m) => m !== 'constructor',
-    );
+    const methods = Object.getOwnPropertyNames(proto).filter((m) => m !== 'constructor');
 
     const seen = new Set<string>();
     for (const m of methods) {
@@ -86,9 +93,9 @@ describe('UnreadTcpController', () => {
 
   it('unread.markRead bubbles BadRequestException unchanged', async () => {
     service.markRead.mockRejectedValue(new BadRequestException('bad scope'));
-    await expect(
-      controller.markRead({ userId: 1, lastReadId: 0n } as any),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.markRead({ userId: 1, lastReadId: 0n } as any)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('unread.getForUser forwards userId and returns service result', async () => {
@@ -121,5 +128,59 @@ describe('UnreadTcpController', () => {
       dmId: 11,
     });
     expect(out).toEqual({ count: 2 });
+  });
+
+  describe('markRead dmUserId → dmId resolution', () => {
+    it('resolves dmUserId to dmId and forwards with dmId', async () => {
+      messages.resolveDmChannelId.mockResolvedValue(42);
+      service.markRead.mockResolvedValue(undefined as unknown as void);
+
+      const out = await controller.markRead({
+        userId: 7,
+        dmUserId: 99,
+        lastReadId: 100n,
+      } as any);
+
+      expect(messages.resolveDmChannelId).toHaveBeenCalledWith(7, 99);
+      expect(service.markRead).toHaveBeenCalledWith({
+        userId: 7,
+        roomId: undefined,
+        dmId: 42,
+        lastReadId: 100n,
+      });
+      expect(out).toEqual({ ok: true });
+    });
+
+    it('returns { ok: true } no-op when dm channel does not exist yet', async () => {
+      messages.resolveDmChannelId.mockResolvedValue(null);
+
+      const out = await controller.markRead({
+        userId: 7,
+        dmUserId: 99,
+        lastReadId: 100n,
+      } as any);
+
+      expect(service.markRead).not.toHaveBeenCalled();
+      expect(out).toEqual({ ok: true });
+    });
+
+    it('prefers explicit dmId over dmUserId when both are present', async () => {
+      service.markRead.mockResolvedValue(undefined as unknown as void);
+
+      await controller.markRead({
+        userId: 7,
+        dmId: 5,
+        dmUserId: 99,
+        lastReadId: 100n,
+      } as any);
+
+      expect(messages.resolveDmChannelId).not.toHaveBeenCalled();
+      expect(service.markRead).toHaveBeenCalledWith({
+        userId: 7,
+        roomId: undefined,
+        dmId: 5,
+        lastReadId: 100n,
+      });
+    });
   });
 });

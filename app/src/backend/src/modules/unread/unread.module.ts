@@ -5,6 +5,7 @@ import { UnreadTcpController } from './unread.tcp';
 import { DrizzleUnreadRepository } from './unread.repository';
 import { UNREAD_REPOSITORY } from './unread.types';
 import { RoomsModule } from '../rooms/rooms.module';
+import { MessagesModule } from '../messages/messages.module';
 
 /**
  * EPIC-09 — notifications + unread tracking. Pure backend feature; no
@@ -18,7 +19,7 @@ import { RoomsModule } from '../rooms/rooms.module';
  * and `TransportModule` provide the publisher port + Redis pub client.
  */
 @Module({
-  imports: [RoomsModule],
+  imports: [RoomsModule, MessagesModule],
   controllers: [UnreadTcpController],
   providers: [
     UnreadService,
