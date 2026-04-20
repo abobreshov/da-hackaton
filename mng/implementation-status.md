@@ -3,7 +3,7 @@
 Live progress tracker MVP build-out. Updated as milestones land.
 See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-20 (M4 feature work shipped; review round pending)
+**Last updated:** 2026-04-20 (M4 feature work + 5-reviewer round + critical fixes shipped)
 
 ## Milestone map
 
@@ -76,14 +76,35 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 - `9917323` — BFF unread endpoints + backend `dmUserId` → `dmId` resolution in unread tcp
 - `1046088` — FE unread badges + auto-mark-read + DM peer-keyed counts
 - `6a88f19` — FE attachments UI (uploader, paste, inline view, composer integration) + chat.gateway unwrap
+- `feacf6f` — Playwright specs: attachment upload round-trip + unread badge round-trip (2 specs; live-stack dependent)
+- `9a82aa4` — review fixes: TCP scope XOR, broadcastTarget orphan fallback drop, UnreadSubscriber batched fan-out + self-DM guard, useAutoMarkRead dep-array
+
+## M4 review round — consolidated (5 reviewers: oop-patterns / devils-advocate / system-architect / business-analyst / coderabbit)
+
+### Applied in `9a82aa4`
+
+- Scope-XOR runtime guard on `TcpCmd.attachments.upload` (closes: could persist row with both roomId + dmId).
+- `broadcastTarget` orphan fallback dropped — no more `room:orphan` leak vector; malformed upstream = log + skip fan-out.
+- `UnreadSubscriber` room fan-out batched at concurrency 16 + self-DM echo guard.
+- `useAutoMarkRead` dep array flattened to primitives.
+
+### Deferred to M5 (documented, not fixed)
+
+- **Unread batched SQL** — subscriber still issues N `countSince` queries per room write (concurrency now bounded, but SQL count unchanged). R1 for M5: one SQL returning (userId, count) tuples OR publish bare `unread.bumped` + have FE hydrate.
+- **Attachments history hydration** — `messages.list` / `.since` don't JOIN attachments. Send-ack + WS push them, but scroll-back shows body-only. Ship `findAttachmentsByMessageIds` batch → service glue.
+- **DM lazy upsert friend/ban gate** — `resolveOrCreateDmChannelId` upserts a `dm_channels` row for any user pair an attacker addresses. Low impact in hackathon demo; add friend/ban check before upsert for hardening.
+- **AC-09-03 "1+" vs "99+" text drift** — spec says "1+", FE renders "99+". Reconcile by editing the spec (UI cap matches spec intent).
+- **AC-09-07 strict-delta `unread.changed`** — subscriber currently fires on every message.created; AC says "only on count delta". Compare prior vs next before PUBLISH.
+- **AC-08-04 comment UI** — DB + API accept `comment` field, but uploader doesn't expose an input.
+- **Controller SRP / DTO unification** — `bff/attachments.controller.ts` mixes HTTP + multipart + header encoding; `AttachmentDto` + `BffAttachment` + `AttachmentRow` are three near-identical shapes worth unifying into `@app/contracts`.
+- **`<img src>` vs octet-stream UX** — Safari may refuse to render images from `Content-Disposition: attachment` responses. Add a `/attachments/:id/inline` route with `Content-Disposition: inline` + sandbox CSP for known-safe image MIMEs.
+- **Attachments paste cap** — composer paste-upload skips the `MAX_FILES_PER_UPLOAD` check (uploader enforces, paste doesn't). Move cap enforcement into `uploadAttachments`.
 
 ## M4 pending
 
-1. **T13/T15/T22/T27** — Playwright E2E: attachment round-trip (image + file), unread badge appearance + auto-clear, session revoke, PDF-requirement coverage pass.
+1. **T13/T15/T22/T27** — Remaining Playwright E2E: session revoke (T22), PDF-requirement pass (T27). Attachments + unread specs landed in `feacf6f`.
 2. **T23–T26** — sessions DB writer on login, backend TCP `sessions.listForUser`/`.revoke`, BFF `/sessions` endpoints, FE `/_auth/sessions` route.
 3. **T28–T32** — polish: Kinetic Playground token audit, responsive breakpoints, emoji picker, `moderation.ts inviteUser` shape fix, dashboard copy-drift tests.
-4. **M4 review round** — 5 reviewers → consolidated → critical fixes → this doc refresh.
-5. **Attachments history hydration** — batch `findAttachmentsByMessageIds` into `messages.list`/`.since` so older history carries attachments too.
 
 ## M5 candidates (reviewer-ready)
 
