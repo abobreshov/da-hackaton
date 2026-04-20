@@ -54,4 +54,14 @@ export class FriendsTcpController {
       this.service.remove({ userId: data.userId, otherUserId: data.otherUserId }),
     );
   }
+
+  @MessagePattern({ cmd: TcpCmd.friends.list })
+  list(@Payload() data: { userId: number; _sys?: string }) {
+    return toRpc(() => this.service.list({ userId: data.userId }));
+  }
+
+  @MessagePattern({ cmd: TcpCmd.friends.listPending })
+  listPending(@Payload() data: { userId: number; _sys?: string }) {
+    return toRpc(() => this.service.listPending({ userId: data.userId }));
+  }
 }

@@ -8,6 +8,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
 import { RpcErrorInterceptor } from './common/interceptors/rpc-error.interceptor';
+import { RedisIoAdapter } from './ws/redis-io.adapter';
 import { env } from './config/environment';
 
 const MAX_BODY_BYTES = 100 * 1024; // 100 KB — BFF handles small JSON only
@@ -94,11 +95,18 @@ async function bootstrap() {
     origin: env.ALLOWED_ORIGINS.split(','),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
     maxAge: 600,
   });
 
   app.setGlobalPrefix('api/v1');
+
+  // WS plane — Socket.IO adapter backed by Redis pub/sub so broadcasts
+  // fan out across BFF replicas. Connect to Redis *before* listen() so
+  // the adapter is live when the first WS upgrade arrives.
+  const ioAdapter = new RedisIoAdapter(app);
+  await ioAdapter.connectToRedis();
+  app.useWebSocketAdapter(ioAdapter);
 
   await app.listen(env.PORT, '0.0.0.0');
   console.log(`BFF running on port ${env.PORT}`);

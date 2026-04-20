@@ -28,6 +28,19 @@ export class AuthController {
   ) {}
 
   @Post('login')
+  @UseGuards(ThrottleGuard)
+  @Throttle({
+    scope: 'login',
+    limit: 5,
+    windowMs: 900_000,
+    failClosed: true,
+    // Rate-limit per target email, not per IP — stops credential stuffing
+    // even when attackers rotate IPs. Falls back to IP if body is malformed.
+    keyFn: (req: any) =>
+      req?.body?.email
+        ? `email:${req.body.email}`
+        : `ip:${req?.ip ?? req?.socket?.remoteAddress ?? 'unknown'}`,
+  })
   async login(@Body() dto: LoginDto, @Req() req: any, @Res({ passthrough: true }) reply: any) {
     const isAdmin = dto.type === 'admin';
 
@@ -66,6 +79,8 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(201)
+  @UseGuards(ThrottleGuard)
+  @Throttle({ scope: 'register', limit: 5, windowMs: 3_600_000, failClosed: true })
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) reply: any) {
     const { user, refreshToken } = await this.authService.register(
       dto.email,
@@ -88,7 +103,18 @@ export class AuthController {
   @Post('password-reset/request')
   @HttpCode(204)
   @UseGuards(ThrottleGuard)
-  @Throttle({ scope: 'reset', limit: 1, windowMs: 60_000, failClosed: true })
+  @Throttle({
+    scope: 'reset',
+    limit: 1,
+    windowMs: 60_000,
+    failClosed: true,
+    // Per-email bucket — 1/min across all IPs for a given target address.
+    // Falls back to IP when the body is malformed, so limiter still bites.
+    keyFn: (req: any) =>
+      req?.body?.email
+        ? `email:${req.body.email}`
+        : `ip:${req?.ip ?? req?.socket?.remoteAddress ?? 'unknown'}`,
+  })
   @Throttle({
     scope: 'reset-ip',
     limit: 5,

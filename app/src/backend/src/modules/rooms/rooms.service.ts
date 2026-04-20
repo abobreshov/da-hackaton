@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {
   InvitationRow,
+  MemberWithUsername,
   MembershipRole,
   MembershipRow,
   RoomRow,
@@ -32,6 +33,11 @@ export interface InviteParams {
   inviterId: number;
   inviteeId: number;
   roomId: number;
+}
+
+export interface EnsureMemberParams {
+  roomId: number;
+  userId: number;
 }
 
 const VALID_VISIBILITY: ReadonlySet<string> = new Set(['public', 'private']);
@@ -159,6 +165,36 @@ export class RoomsService {
     }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     void inviterMembership;
+  }
+
+  /**
+   * EPIC-03 AC-03-09 + EPIC-15 AC-15-13. Returns the joined list of
+   * `{ userId, role, username }` for the BFF fanout and `room.join` ack
+   * member pane. Throws NotFoundException when the room is missing or
+   * soft-deleted — callers (BFF) map to a NOT_FOUND WireError.
+   */
+  async membersOf(roomId: number): Promise<{ members: MemberWithUsername[] }> {
+    await this.requireRoom(roomId);
+    const members = await this.repo.findMembersWithUsernames(roomId);
+    return { members };
+  }
+
+  /**
+   * EPIC-15 AC-15-13. Fast auth check used by BFF before delivering
+   * `room.*` WebSocket frames. Returns `{ ok: true }` when the caller has
+   * a membership row; otherwise throws ForbiddenException (FORBIDDEN
+   * WireError). Missing / soft-deleted rooms throw NotFoundException.
+   *
+   * Ban handling: `room_bans` removes the membership row at ban time, so
+   * membership presence alone is sufficient — no separate ban check here.
+   */
+  async ensureMember(params: EnsureMemberParams): Promise<{ ok: true }> {
+    await this.requireRoom(params.roomId);
+    const membership = await this.repo.findMembership(params.roomId, params.userId);
+    if (!membership) {
+      throw new ForbiddenException('not a member of this room');
+    }
+    return { ok: true };
   }
 
   // ——— helpers ———

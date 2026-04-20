@@ -8,7 +8,9 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password';
 import { Route as Verify2FARouteImport } from './routes/verify-2fa';
 import { Route as AuthRouteImport } from './routes/_auth';
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard';
+import { Route as AuthContactsRouteImport } from './routes/_auth/contacts';
 import { Route as AuthRoomsIndexRouteImport } from './routes/_auth/rooms/index';
+import { Route as AuthRoomsRoomIdRouteImport } from './routes/_auth/rooms/$roomId';
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -45,15 +47,29 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any);
 
+const AuthContactsRoute = AuthContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
+  getParentRoute: () => AuthRoute,
+} as any);
+
 const AuthRoomsIndexRoute = AuthRoomsIndexRouteImport.update({
   id: '/rooms/',
   path: '/rooms/',
   getParentRoute: () => AuthRoute,
 } as any);
 
+const AuthRoomsRoomIdRoute = AuthRoomsRoomIdRouteImport.update({
+  id: '/rooms/$roomId',
+  path: '/rooms/$roomId',
+  getParentRoute: () => AuthRoute,
+} as any);
+
 const AuthRouteChildren = {
   AuthDashboardRoute,
+  AuthContactsRoute,
   AuthRoomsIndexRoute,
+  AuthRoomsRoomIdRoute,
 };
 const AuthRouteWithChildren = (AuthRoute as any)._addFileChildren(AuthRouteChildren);
 
@@ -113,11 +129,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardRouteImport;
       parentRoute: typeof AuthRouteImport;
     };
+    '/_auth/contacts': {
+      id: '/_auth/contacts';
+      path: '/contacts';
+      fullPath: '/contacts';
+      preLoaderRoute: typeof AuthContactsRouteImport;
+      parentRoute: typeof AuthRouteImport;
+    };
     '/_auth/rooms/': {
       id: '/_auth/rooms/';
       path: '/rooms/';
       fullPath: '/rooms/';
       preLoaderRoute: typeof AuthRoomsIndexRouteImport;
+      parentRoute: typeof AuthRouteImport;
+    };
+    '/_auth/rooms/$roomId': {
+      id: '/_auth/rooms/$roomId';
+      path: '/rooms/$roomId';
+      fullPath: '/rooms/$roomId';
+      preLoaderRoute: typeof AuthRoomsRoomIdRouteImport;
       parentRoute: typeof AuthRouteImport;
     };
   }

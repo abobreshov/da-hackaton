@@ -21,6 +21,7 @@ const schema = z
     TLS_CA_PATH: z.string().optional(),
     TLS_CERT_PATH: z.string().optional(),
     TLS_KEY_PATH: z.string().optional(),
+    AFK_THRESHOLD_SECONDS: z.coerce.number().int().positive().default(60),
   })
   .refine((v) => !v.TLS_ENABLED || (v.TLS_CA_PATH && v.TLS_CERT_PATH && v.TLS_KEY_PATH), {
     message: 'TLS_ENABLED=true requires TLS_CA_PATH, TLS_CERT_PATH, TLS_KEY_PATH',

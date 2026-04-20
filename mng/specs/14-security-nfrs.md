@@ -18,6 +18,7 @@ Non-functional security baseline. Rate-limit abuse vectors (login, password-rese
 - Session cookies: HttpOnly, Secure (prod), SameSite=Lax, signed + encrypted (existing two-layer per app/CLAUDE.md)
 - JWT refresh rotation: single-use refresh tokens, Redis-backed (existing)
 - SMTP credentials via env, never committed
+- WS connect + spam rate-limits (friend-req, room-create, report-create) per AC-14-12/13
 
 ## Acceptance criteria
 
@@ -34,6 +35,8 @@ Non-functional security baseline. Rate-limit abuse vectors (login, password-rese
 | AC-14-09 | Passwords bcrypt ≥12 rounds (invariant check on startup) |
 | AC-14-10 | Session cookies HttpOnly + SameSite=Lax; Secure enforced when `NODE_ENV=production` |
 | AC-14-11 | Refresh tokens single-use; reuse attempt → full session revocation for that user |
+| AC-14-12 | WS connect rate-limit: 10 connects/60s per userId (Redis `ratelimit:wsconn:{userId}`). Exceed → handshake close code 4429 `WireError {code:RATE_LIMITED}`. Fail-closed. |
+| AC-14-13 | Spam rate-limits: friend-request create 20/hr per userId, room-create 10/hr per userId, report-create 10/hr per userId. Exceed → 429 `WireError {code:RATE_LIMITED, retryAfterMs}`. Fail-open (chat bias). |
 
 ## API impact
 - All mutating REST endpoints: accept `X-CSRF-Token` header, compared against cookie-bound token (`csrf` cookie, not HttpOnly)

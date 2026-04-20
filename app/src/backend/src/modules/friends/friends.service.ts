@@ -9,7 +9,10 @@ import { and, eq, or } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { friendships, userBans, users } from '../../database/schema';
-import { EventPublisher } from '../../common/events/event-publisher';
+import {
+  EVENT_PUBLISHER,
+  IEventPublisher,
+} from '../../common/events/event-publisher.interface';
 
 export interface FriendRequestInput {
   requesterId: number;
@@ -48,7 +51,7 @@ function pair(a: number, b: number): { low: number; high: number } {
 export class FriendsService {
   constructor(
     @Inject(DATABASE) private readonly db: Db,
-    private readonly events: EventPublisher,
+    @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
 
   /**

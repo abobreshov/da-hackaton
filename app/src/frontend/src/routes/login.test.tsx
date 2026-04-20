@@ -47,7 +47,7 @@ describe('<LoginPage />', () => {
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/verification code/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /let's go/i })).toBeInTheDocument();
   });
 
   it('happy path — submits to /api/v1/auth/login, stores session, navigates to /dashboard', async () => {
@@ -68,7 +68,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0];
@@ -98,7 +98,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials({ email: 'user2fa@example.com' });
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     const totpInput = await screen.findByLabelText(/verification code/i);
     expect(totpInput).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials({ email: 'user2fa@example.com' });
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     const totpInput = await screen.findByLabelText(/verification code/i);
     fireEvent.change(totpInput, { target: { value: '123456' } });
@@ -163,7 +163,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     const totpInput = await screen.findByLabelText(/verification code/i);
     fireEvent.change(totpInput, { target: { value: '000000' } });
@@ -189,7 +189,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     const totpInput = await screen.findByLabelText(/verification code/i);
     fireEvent.change(totpInput, { target: { value: '000000' } });
@@ -214,7 +214,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     const totpInput = await screen.findByLabelText(/verification code/i);
     fireEvent.change(totpInput, { target: { value: '000000' } });
@@ -241,7 +241,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     const totpInput = await screen.findByLabelText(/verification code/i);
     fireEvent.change(totpInput, { target: { value: '000000' } });
@@ -260,7 +260,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials({ password: 'WrongPass12!' });
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     await screen.findByText(/invalid credentials/i);
     expect(navigateMock).not.toHaveBeenCalled();
@@ -278,7 +278,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     await screen.findByText(/too many attempts/i);
   });
@@ -291,7 +291,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     // apiFetch wraps TypeError into ApiError with message "Failed to fetch".
     await screen.findByText(/failed to fetch/i);
@@ -307,7 +307,7 @@ describe('<LoginPage />', () => {
 
     render(<LoginPage />);
     fillCredentials();
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
 
     await screen.findByLabelText(/verification code/i);
     fireEvent.click(screen.getByRole('button', { name: /use a different account/i }));

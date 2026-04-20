@@ -32,4 +32,9 @@ export class BansTcpController {
       this.service.unbanUser({ bannerId: data.bannerId, bannedId: data.bannedId }),
     );
   }
+
+  @MessagePattern({ cmd: TcpCmd.users.listBans })
+  listBans(@Payload() data: { userId: number; _sys?: string }) {
+    return toRpc(() => this.service.listBansByUser({ userId: data.userId }));
+  }
 }

@@ -19,6 +19,13 @@ interface ResolvePayload {
 
 interface DismissPayload extends ResolvePayload {}
 
+interface ListPayload {
+  adminId: number;
+  limit: number;
+  beforeCreatedAt?: string;
+  beforeId?: number | string | bigint;
+}
+
 function toBig(v: number | string | bigint): bigint {
   return typeof v === 'bigint' ? v : BigInt(v);
 }
@@ -60,6 +67,21 @@ export class AbuseReportsTcpController {
         note: data.note,
       });
       return { ok: true };
+    });
+  }
+
+  @MessagePattern({ cmd: TcpCmd.reports.list })
+  list(@Payload() data: ListPayload) {
+    return toRpc(() => {
+      const before =
+        data.beforeCreatedAt && data.beforeId !== undefined
+          ? { createdAt: new Date(data.beforeCreatedAt), id: toBig(data.beforeId) }
+          : undefined;
+      return this.service.listOpen({
+        adminId: data.adminId,
+        limit: data.limit,
+        before,
+      });
     });
   }
 }

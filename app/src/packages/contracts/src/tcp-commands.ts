@@ -22,6 +22,7 @@ export const TcpCmd = {
     findById: 'users.findById',
     ban: 'users.ban',
     unban: 'users.unban',
+    listBans: 'users.listBans',
   },
   messages: {
     create: 'messages.create',
@@ -37,20 +38,37 @@ export const TcpCmd = {
     invite: 'rooms.invite',
     listMy: 'rooms.listMy',
     catalog: 'rooms.catalog',
+    membersOf: 'rooms.membersOf',
+    ensureMember: 'rooms.ensureMember',
+    delete: 'rooms.delete',
+    members: {
+      promote: 'rooms.members.promote',
+      demote: 'rooms.members.demote',
+      ban: 'rooms.members.ban',
+    },
+    bans: {
+      unban: 'rooms.bans.unban',
+      list: 'rooms.bans.list',
+    },
   },
   friends: {
     request: 'friends.request',
     accept: 'friends.accept',
     reject: 'friends.reject',
     remove: 'friends.remove',
+    list: 'friends.list',
+    listPending: 'friends.listPending',
   },
   presence: {
     touch: 'presence.touch',
+    stateOf: 'presence.stateOf',
+    disconnect: 'presence.disconnect',
   },
   reports: {
     create: 'reports.create',
     resolve: 'reports.resolve',
     dismiss: 'reports.dismiss',
+    list: 'reports.list',
   },
   audit: {
     page: 'audit.page',

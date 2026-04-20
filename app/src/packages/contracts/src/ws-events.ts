@@ -20,6 +20,7 @@ export const WsEvent = {
     roomDeleted: 'room.deleted',
     friendRequestNew: 'friend.request.new',
     friendRequestAccepted: 'friend.request.accepted',
+    friendRequestRejected: 'friend.request.rejected',
     friendRemoved: 'friend.removed',
     userBanned: 'user.banned',
     dmFrozen: 'dm.frozen',

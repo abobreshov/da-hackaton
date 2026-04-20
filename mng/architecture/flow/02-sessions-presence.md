@@ -25,7 +25,7 @@ sequenceDiagram
     BE->>REDIS: HSET presence:sessions:{userId} sessionId=now (TTL 90s)
     Note over BE: PresenceService is single writer (ADR-001)
     loop every 10s (BE worker)
-        BE->>REDIS: HGETALL presence:{userId}
+        BE->>REDIS: HGETALL presence:sessions:{userId}
         BE->>BE: compute state (online / afk / offline)
         alt state changed
             BE->>REDIS: PUBLISH presence:global {userId, state}

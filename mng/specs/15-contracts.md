@@ -32,6 +32,8 @@ Lock wire-level contracts across services (REST paths, TCP cmds, WS events, Redi
 | AC-15-10 | Renames applied across specs 04, 05, 06, 09: `user.banned.me` → `user.banned`; `room.banned.you` → `room.banned`; `unread.incremented` → `unread.changed`; `invitation.new` → `room.invitation.new` |
 | AC-15-11 | Code enum + constants reside under `/home/abobreshov/Work/dataart/hackathone/app/src/packages/contracts/` |
 | AC-15-12 | BFF + auth-service + backend + frontend import from `@app/contracts` (no string literals for wire names) |
+| AC-15-13 | TCP cmd surface completeness (M2): presence.stateOf (batch state hydrate), presence.disconnect (WS close cleanup), rooms.membersOf (BFF fanout + member pane), rooms.ensureMember (BFF auth check). |
+| AC-15-14 | WS server event additions (M2): room.members.initial payload on join ack (see EPIC-03 AC-03-09), friend.request.rejected. |
 
 ## API impact
 - Extend `auth-service/src/common/rpc-exception.util.ts` `toRpc` signature to pass `{ status, code, message, details?, retryAfterMs? }`
@@ -78,9 +80,9 @@ export const TcpCmd = {
   },
   users: { list: 'users.list', findById: 'users.findById', ban: 'users.ban', unban: 'users.unban' },
   messages: { create: 'messages.create', edit: 'messages.edit', delete: 'messages.delete', list: 'messages.list', since: 'messages.since' },
-  rooms: { create: 'rooms.create', join: 'rooms.join', leave: 'rooms.leave', invite: 'rooms.invite', listMy: 'rooms.listMy', catalog: 'rooms.catalog' },
+  rooms: { create: 'rooms.create', join: 'rooms.join', leave: 'rooms.leave', invite: 'rooms.invite', listMy: 'rooms.listMy', catalog: 'rooms.catalog', membersOf: 'rooms.membersOf', ensureMember: 'rooms.ensureMember' },
   friends: { request: 'friends.request', accept: 'friends.accept', reject: 'friends.reject', remove: 'friends.remove' },
-  presence: { touch: 'presence.touch' },
+  presence: { touch: 'presence.touch', stateOf: 'presence.stateOf', disconnect: 'presence.disconnect' },
   reports: { create: 'reports.create', resolve: 'reports.resolve', dismiss: 'reports.dismiss' },
   audit: { page: 'audit.page' },
 } as const;
@@ -90,7 +92,7 @@ export const TcpCmd = {
 // @app/contracts/src/ws-events.ts
 export const WsEvent = {
   client: { messageSend: 'message.send', messageEdit: 'message.edit', messageDelete: 'message.delete', roomJoin: 'room.join', roomLeave: 'room.leave', presencePing: 'presence.ping', syncSince: 'sync.since' },
-  server: { messageNew: 'message.new', messageEdited: 'message.edited', messageDeleted: 'message.deleted', roomMemberAdded: 'room.member.added', roomMemberRemoved: 'room.member.removed', roomRoleChanged: 'room.role.changed', roomBanned: 'room.banned', roomInvitationNew: 'room.invitation.new', roomDeleted: 'room.deleted', friendRequestNew: 'friend.request.new', friendRequestAccepted: 'friend.request.accepted', friendRemoved: 'friend.removed', userBanned: 'user.banned', dmFrozen: 'dm.frozen', presenceUpdate: 'presence.update', unreadChanged: 'unread.changed', reportNew: 'report.new', reportResolved: 'report.resolved', reportDismissed: 'report.dismissed', error: 'error' },
+  server: { messageNew: 'message.new', messageEdited: 'message.edited', messageDeleted: 'message.deleted', roomMemberAdded: 'room.member.added', roomMemberRemoved: 'room.member.removed', roomRoleChanged: 'room.role.changed', roomBanned: 'room.banned', roomInvitationNew: 'room.invitation.new', roomDeleted: 'room.deleted', friendRequestNew: 'friend.request.new', friendRequestAccepted: 'friend.request.accepted', friendRequestRejected: 'friend.request.rejected', friendRemoved: 'friend.removed', userBanned: 'user.banned', dmFrozen: 'dm.frozen', presenceUpdate: 'presence.update', unreadChanged: 'unread.changed', reportNew: 'report.new', reportResolved: 'report.resolved', reportDismissed: 'report.dismissed', error: 'error' },
 } as const;
 ```
 

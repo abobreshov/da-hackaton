@@ -22,7 +22,7 @@ hackathone/
 ├── mng/                   specs, architecture, requirements
 │   ├── architecture/
 │   ├── requirements/      official requirements PDF
-│   └── specs/             features 01–13
+│   └── specs/             features 01–15 + design-system (EPIC-13 deferred)
 ├── CLAUDE.md              guidance for Claude Code (root)
 └── README.md              this file
 ```

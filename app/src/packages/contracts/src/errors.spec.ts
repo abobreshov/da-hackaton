@@ -15,10 +15,11 @@ describe('ErrorCode', () => {
     'TOTP_REQUIRED',
     'TOTP_INVALID',
     'UNAUTHENTICATED',
+    'INTERNAL',
   ] as const;
 
-  it('contains exactly 13 codes', () => {
-    expect(Object.keys(ErrorCode)).toHaveLength(13);
+  it('contains exactly 14 codes', () => {
+    expect(Object.keys(ErrorCode)).toHaveLength(14);
   });
 
   it('contains all expected codes', () => {

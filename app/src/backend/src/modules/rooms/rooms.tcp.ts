@@ -26,6 +26,15 @@ interface ListMyPayload {
   userId: number;
 }
 
+interface MembersOfPayload {
+  roomId: number;
+}
+
+interface EnsureMemberPayload {
+  roomId: number;
+  userId: number;
+}
+
 /**
  * TCP-facing controller mirroring the HTTP surface for BFF → backend RPC.
  * Errors are normalised via `toRpc` so HttpException-kind failures surface
@@ -66,5 +75,15 @@ export class RoomsTcpController {
   @MessagePattern({ cmd: TcpCmd.rooms.catalog })
   catalog() {
     return toRpc(() => this.service.catalog());
+  }
+
+  @MessagePattern({ cmd: TcpCmd.rooms.membersOf })
+  membersOf(@Payload() data: MembersOfPayload) {
+    return toRpc(() => this.service.membersOf(data.roomId));
+  }
+
+  @MessagePattern({ cmd: TcpCmd.rooms.ensureMember })
+  ensureMember(@Payload() data: EnsureMemberPayload) {
+    return toRpc(() => this.service.ensureMember(data));
   }
 }

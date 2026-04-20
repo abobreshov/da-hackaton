@@ -15,8 +15,13 @@ jest.mock('../config/environment', () => ({
   },
 }));
 
+import 'reflect-metadata';
 import { RpcException } from '@nestjs/microservices';
 import { AuthController } from './auth.controller';
+import {
+  THROTTLE_METADATA_KEY,
+  ThrottleOptions,
+} from '../common/decorators/throttle.decorator';
 
 function makeCookieServiceMock() {
   const svc: any = {
@@ -392,6 +397,90 @@ describe('AuthController — new endpoints', () => {
       expect(authSvc.logoutUser).not.toHaveBeenCalled();
       expect(authSvc.logoutAdmin).not.toHaveBeenCalled();
       expect(cookieSvc.clearCookies).toHaveBeenCalledWith(reply);
+    });
+  });
+
+  // EPIC-14 AC-14-05 / AC-14-06 — rate-limit metadata on auth endpoints.
+  // Asserting via Reflect.getMetadata pins the controller surface to the
+  // Throttle decorator contract; the guard itself is covered by its own spec.
+  describe('Throttle metadata (EPIC-14 AC-14-05 / AC-14-06)', () => {
+    const getBuckets = (method: string): ThrottleOptions[] => {
+      const meta = Reflect.getMetadata(
+        THROTTLE_METADATA_KEY,
+        (AuthController.prototype as any)[method],
+      );
+      return Array.isArray(meta) ? meta : meta ? [meta] : [];
+    };
+
+    it('POST /auth/register → 5 per IP per hour, fail-closed', () => {
+      const buckets = getBuckets('register');
+      expect(buckets).toHaveLength(1);
+      expect(buckets[0]).toMatchObject({
+        scope: 'register',
+        limit: 5,
+        windowMs: 3_600_000,
+        failClosed: true,
+      });
+    });
+
+    it('POST /auth/password-reset/request → stacked email (1/min) + IP (5/hr), both fail-closed', () => {
+      const buckets = getBuckets('passwordResetRequest');
+      expect(buckets).toHaveLength(2);
+
+      const byScope = Object.fromEntries(buckets.map((b) => [b.scope, b]));
+      expect(byScope.reset).toMatchObject({
+        scope: 'reset',
+        limit: 1,
+        windowMs: 60_000,
+        failClosed: true,
+      });
+      expect(byScope['reset-ip']).toMatchObject({
+        scope: 'reset-ip',
+        limit: 5,
+        windowMs: 3_600_000,
+        failClosed: true,
+      });
+
+      // email bucket must key off the request body's email (enumeration-safe,
+      // but still prevents one-email-hammering regardless of IP rotation).
+      expect(typeof byScope.reset.keyFn).toBe('function');
+      const emailKey = byScope.reset.keyFn!({
+        body: { email: 'target@example.com' },
+        ip: '1.1.1.1',
+      });
+      expect(emailKey).toContain('target@example.com');
+
+      // IP bucket must key off req.ip, not email.
+      expect(typeof byScope['reset-ip'].keyFn).toBe('function');
+      const ipKey = byScope['reset-ip'].keyFn!({
+        body: { email: 'x@y.z' },
+        ip: '9.9.9.9',
+      });
+      expect(ipKey).toContain('9.9.9.9');
+    });
+
+    it('POST /auth/login → 5 per email per 15 min, fail-closed', () => {
+      const buckets = getBuckets('login');
+      expect(buckets).toHaveLength(1);
+      expect(buckets[0]).toMatchObject({
+        scope: 'login',
+        limit: 5,
+        windowMs: 900_000,
+        failClosed: true,
+      });
+      // Key must be derived from request body email, not session/ip, so
+      // attackers can't dodge the limit by rotating IPs.
+      expect(typeof buckets[0].keyFn).toBe('function');
+      const key = buckets[0].keyFn!({
+        body: { email: 'victim@example.com' },
+        ip: '1.2.3.4',
+      });
+      expect(key).toContain('victim@example.com');
+
+      // Falls back to IP when body.email is absent (e.g. malformed request
+      // still gets counted against an IP bucket rather than bypassing).
+      const fallback = buckets[0].keyFn!({ body: {}, ip: '5.6.7.8' });
+      expect(fallback).toContain('5.6.7.8');
     });
   });
 });

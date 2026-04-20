@@ -1,0 +1,34 @@
+- main [ref=e4]:
+  - region "Ready to jump back in?" [ref=e5]:
+    - generic [ref=e6]:
+      - img [ref=e9]
+      - generic [ref=e11]: ChatChat
+      - heading "Ready to jump back in?" [level=1] [ref=e12]:
+        - text: Ready to jump
+        - text: back in?
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: Email address
+        - generic [ref=e16]:
+          - generic:
+            - img
+          - textbox "Email address" [ref=e17]:
+            - /placeholder: you@example.com
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]: Password
+          - link "Forgot it?" [ref=e21] [cursor=pointer]:
+            - /url: /reset-password
+        - generic [ref=e22]:
+          - generic:
+            - img
+          - textbox "Password" [ref=e23]:
+            - /placeholder: ••••••••
+      - button "Let's Go" [ref=e24] [cursor=pointer]:
+        - generic [ref=e25]: Let's Go
+        - img [ref=e26]
+    - generic [ref=e30]: or
+    - paragraph [ref=e32]:
+      - text: New to the playground?
+      - link "Sign up" [ref=e33] [cursor=pointer]:
+        - /url: /register

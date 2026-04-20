@@ -13,12 +13,16 @@ import { AbuseReportsModule } from './modules/abuse-reports/abuse-reports.module
 import { HealthController } from './modules/health/health.controller';
 import { SystemKeyRpcGuard } from './common/rpc-transport';
 import { WorkersModule } from './workers/workers.module';
+import { TransportModule } from './modules/transport/transport.module';
+import { PresenceModule } from './modules/presence/presence.module';
 
 @Module({
   imports: [
     DatabaseModule,
     AuthClientModule,
     EventsModule,
+    TransportModule,
+    PresenceModule,
     UsersModule,
     RoomsModule,
     FriendsModule,

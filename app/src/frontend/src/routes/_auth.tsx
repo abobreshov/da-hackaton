@@ -1,6 +1,10 @@
+import { useEffect } from 'react';
 import { createFileRoute, redirect, Outlet, Link } from '@tanstack/react-router';
 import { fetchSession, logout } from '@/lib/auth';
 import { useSession } from '@/hooks/useSession';
+import { usePresence } from '@/hooks/usePresence';
+import { usePresenceMap } from '@/hooks/usePresenceMap';
+import { getSocket, disconnect as disconnectSocket } from '@/lib/socket';
 import { Button } from '@/components/ui/button';
 import { AmbientOrbs } from '@/components/layout/ambient-orbs';
 import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
@@ -17,6 +21,30 @@ export const Route = createFileRoute('/_auth')({
   component: AuthLayout,
 });
 
+/**
+ * Mounts the Socket.IO singleton once the user is authenticated, runs the
+ * presence heartbeat, and subscribes to the shared presence map. The socket
+ * is torn down on unmount (logout / nav to a non-auth route).
+ *
+ * Rendered as a child of `AuthLayout` so the hooks live inside a component —
+ * see `usePresence` / `usePresenceMap` (both rely on React lifecycle).
+ */
+function PresenceHeartbeat() {
+  // Touch the socket early so the upgrade request fires before any child
+  // route tries to subscribe; `getSocket()` is idempotent.
+  useEffect(() => {
+    getSocket();
+    return () => {
+      disconnectSocket();
+    };
+  }, []);
+
+  usePresence();
+  usePresenceMap();
+
+  return null;
+}
+
 function AuthLayout() {
   const { session, clearSession } = useSession();
 
@@ -29,6 +57,7 @@ function AuthLayout() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-surface">
       <AmbientOrbs />
+      <PresenceHeartbeat />
 
       <header className="relative z-10 px-8 py-5">
         <nav className="mx-auto flex max-w-6xl items-center justify-between rounded-full bg-surface-container-lowest/80 px-6 py-3 shadow-ambient backdrop-blur-xl">

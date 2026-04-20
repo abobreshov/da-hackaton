@@ -22,7 +22,7 @@ hackathone/
 ├── mng/
 │   ├── README.md
 │   ├── architecture/        C4 diagrams + architecture notes
-│   ├── specs/               feature specs (numbered 01–14; EPIC-13 deferred post-MVP)
+│   ├── specs/               feature specs (01–15 + design-system; EPIC-13 deferred post-MVP)
 │   └── requirements/        official hackathon requirements PDF
 └── app/                     implementation workspace (yarn 4 monorepo root)
     ├── CLAUDE.md            stack + service wiring details

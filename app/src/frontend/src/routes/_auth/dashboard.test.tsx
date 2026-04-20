@@ -38,8 +38,9 @@ describe('<Dashboard />', () => {
     const Dashboard = getComponent();
     render(<Dashboard />);
 
-    expect(screen.getByRole('heading', { name: /hello, alice!/i })).toBeInTheDocument();
-    expect(screen.getByText('alice@x')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /hey, alice/i })).toBeInTheDocument();
+    // Email appears twice — in hero copy and profile Row. Use getAllByText.
+    expect(screen.getAllByText('alice@x').length).toBeGreaterThan(0);
     expect(screen.getByText(/rooms:read/)).toBeInTheDocument();
     expect(screen.getByText(/rooms:write/)).toBeInTheDocument();
     // `type` is displayed via `capitalize` class — the raw text is still 'user'.
@@ -58,7 +59,7 @@ describe('<Dashboard />', () => {
     });
     const Dashboard = getComponent();
     render(<Dashboard />);
-    expect(screen.getByRole('heading', { name: /hello, bob@x!/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /hey, bob@x/i })).toBeInTheDocument();
     expect(screen.getByText(/no scopes assigned/i)).toBeInTheDocument();
   });
 
@@ -75,5 +76,13 @@ describe('<Dashboard />', () => {
     const link = screen.getByRole('link', { name: /browse rooms/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/rooms');
+  });
+
+  it('renders a "Contacts" link that navigates to /contacts', () => {
+    const Dashboard = getComponent();
+    render(<Dashboard />);
+    const link = screen.getByRole('link', { name: /contacts/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/contacts');
   });
 });

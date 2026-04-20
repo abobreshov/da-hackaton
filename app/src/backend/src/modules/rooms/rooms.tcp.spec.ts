@@ -4,7 +4,7 @@
  * consumable by the BFF's RpcErrorInterceptor.
  */
 
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { RoomsTcpController } from './rooms.tcp';
 import { RoomsService } from './rooms.service';
@@ -17,6 +17,8 @@ function makeService(): jest.Mocked<RoomsService> {
     join: jest.fn(),
     leave: jest.fn(),
     invite: jest.fn(),
+    membersOf: jest.fn(),
+    ensureMember: jest.fn(),
   } as unknown as jest.Mocked<RoomsService>;
 }
 
@@ -85,5 +87,55 @@ describe('RoomsTcpController', () => {
     service.listMy.mockResolvedValue([] as any);
     await controller.listMy({ userId: 7 });
     expect(service.listMy).toHaveBeenCalledWith(7);
+  });
+
+  it('rooms.membersOf forwards roomId and returns service result', async () => {
+    const payload = {
+      members: [{ userId: 1, role: 'owner', username: 'alice' }],
+    };
+    service.membersOf.mockResolvedValue(payload as any);
+    await expect(controller.membersOf({ roomId: 42 })).resolves.toEqual(payload);
+    expect(service.membersOf).toHaveBeenCalledWith(42);
+  });
+
+  it('rooms.membersOf wraps NotFoundException as RpcException(404)', async () => {
+    service.membersOf.mockRejectedValue(new NotFoundException('room gone'));
+    try {
+      await controller.membersOf({ roomId: 42 });
+      fail('expected RpcException');
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(RpcException);
+      expect(e.getError()).toMatchObject({ status: 404, message: 'room gone' });
+    }
+  });
+
+  it('rooms.ensureMember forwards payload and returns { ok: true }', async () => {
+    service.ensureMember.mockResolvedValue({ ok: true });
+    await expect(
+      controller.ensureMember({ roomId: 3, userId: 7 }),
+    ).resolves.toEqual({ ok: true });
+    expect(service.ensureMember).toHaveBeenCalledWith({ roomId: 3, userId: 7 });
+  });
+
+  it('rooms.ensureMember wraps ForbiddenException as RpcException(403)', async () => {
+    service.ensureMember.mockRejectedValue(new ForbiddenException('not a member'));
+    try {
+      await controller.ensureMember({ roomId: 3, userId: 7 });
+      fail('expected RpcException');
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(RpcException);
+      expect(e.getError()).toMatchObject({ status: 403, message: 'not a member' });
+    }
+  });
+
+  it('rooms.ensureMember wraps NotFoundException as RpcException(404)', async () => {
+    service.ensureMember.mockRejectedValue(new NotFoundException('room missing'));
+    try {
+      await controller.ensureMember({ roomId: 3, userId: 7 });
+      fail('expected RpcException');
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(RpcException);
+      expect(e.getError()).toMatchObject({ status: 404, message: 'room missing' });
+    }
   });
 });

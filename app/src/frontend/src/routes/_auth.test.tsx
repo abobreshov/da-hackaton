@@ -13,10 +13,34 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (opts: unknown) => ({ options: opts }),
   redirect: ({ to }: { to: string }) => new RedirectSentinel(to),
   Outlet: () => <div data-testid="outlet">child route</div>,
+  Link: ({ children, to, ...rest }: { children: React.ReactNode; to: string }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+// Socket singleton is mounted by `<PresenceHeartbeat />` inside AuthLayout —
+// stub it so tests don't try to open a real WebSocket under jsdom.
+const socketGetMock = vi.fn();
+const socketDisconnectMock = vi.fn();
+const socketOnMock = vi.fn();
+const socketOffMock = vi.fn();
+const socketEmitMock = vi.fn();
+socketGetMock.mockImplementation(() => ({
+  on: socketOnMock,
+  off: socketOffMock,
+  emit: socketEmitMock,
+  connected: true,
+}));
+vi.mock('@/lib/socket', () => ({
+  getSocket: () => socketGetMock(),
+  disconnect: () => socketDisconnectMock(),
 }));
 
 import { Route } from './_auth';
 import { useSession } from '@/hooks/useSession';
+import { presenceMapStore } from '@/hooks/usePresenceMap';
 
 type RouteOpts = {
   beforeLoad: (args: {
@@ -84,6 +108,12 @@ describe('<AuthLayout />', () => {
   beforeEach(() => {
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
+    socketGetMock.mockClear();
+    socketDisconnectMock.mockClear();
+    socketOnMock.mockClear();
+    socketOffMock.mockClear();
+    socketEmitMock.mockClear();
+    presenceMapStore.getState().reset();
     // Provide a writable location stub so logout's href assignment works under jsdom.
     Object.defineProperty(window, 'location', {
       writable: true,
@@ -112,9 +142,9 @@ describe('<AuthLayout />', () => {
   it('renders the nav, current user name, and child Outlet', () => {
     const AuthLayout = getOpts().component;
     render(<AuthLayout />);
-    expect(screen.getByText('App')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /chatchat home/i })).toBeInTheDocument();
     expect(screen.getByText('User One')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /log ?out/i })).toBeInTheDocument();
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
   });
 
@@ -138,7 +168,7 @@ describe('<AuthLayout />', () => {
     render(<AuthLayout />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /logout/i }));
+      fireEvent.click(screen.getByRole('button', { name: /log ?out/i }));
     });
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -150,5 +180,40 @@ describe('<AuthLayout />', () => {
       expect(useSession.getState().session).toBeNull();
       expect(window.location.href).toBe('/login');
     });
+  });
+
+  it('mounts the Socket.IO singleton once when the layout renders', () => {
+    const AuthLayout = getOpts().component;
+    render(<AuthLayout />);
+    expect(socketGetMock).toHaveBeenCalled();
+  });
+
+  it('subscribes to presence.update on mount', () => {
+    const AuthLayout = getOpts().component;
+    render(<AuthLayout />);
+    const events = socketOnMock.mock.calls.map((c) => c[0]);
+    expect(events).toContain('presence.update');
+  });
+
+  it('disconnects the socket on unmount', () => {
+    const AuthLayout = getOpts().component;
+    const { unmount } = render(<AuthLayout />);
+    expect(socketDisconnectMock).not.toHaveBeenCalled();
+    unmount();
+    expect(socketDisconnectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('feeds presence.update events into the shared presenceMap store', () => {
+    const AuthLayout = getOpts().component;
+    render(<AuthLayout />);
+
+    // Find the presence.update listener that the hook registered and fire it.
+    const call = socketOnMock.mock.calls.find((c) => c[0] === 'presence.update');
+    expect(call).toBeDefined();
+    const listener = call![1] as (p: unknown) => void;
+    act(() => {
+      listener({ userId: 11, status: 'online' });
+    });
+    expect(presenceMapStore.getState().map.get(11)).toBe('online');
   });
 });

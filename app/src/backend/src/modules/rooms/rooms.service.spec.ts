@@ -19,6 +19,7 @@ import type {
   MembershipRow,
   InvitationRow,
   RoomsRepositoryPort,
+  MemberWithUsername,
 } from './rooms.types';
 
 /**
@@ -30,6 +31,8 @@ class FakeRoomsRepository implements RoomsRepositoryPort {
   rooms: RoomRow[] = [];
   memberships: MembershipRow[] = [];
   invitations: InvitationRow[] = [];
+  /** Minimal users mirror for `findMembersWithUsernames` join. */
+  users: Array<{ id: number; username: string }> = [];
   private nextRoomId = 1;
   private nextInvId = 1;
 
@@ -126,6 +129,19 @@ class FakeRoomsRepository implements RoomsRepositoryPort {
     };
     this.invitations.push(row);
     return row;
+  }
+
+  async findMembersWithUsernames(roomId: number): Promise<MemberWithUsername[]> {
+    return this.memberships
+      .filter((m) => m.roomId === roomId)
+      .map((m) => {
+        const user = this.users.find((u) => u.id === m.userId);
+        return {
+          userId: m.userId,
+          role: m.role,
+          username: user?.username ?? `user-${m.userId}`,
+        };
+      });
   }
 }
 
@@ -453,6 +469,78 @@ describe('RoomsService', () => {
       await expect(
         service.invite({ inviterId: MEMBER, inviteeId: OUTSIDER, roomId: r.id }),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('membersOf (EPIC-03 AC-03-09, EPIC-15 AC-15-13)', () => {
+    it('returns members joined with usernames', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'hall', visibility: 'public' });
+      await service.join({ userId: MEMBER, roomId: r.id });
+      repo.users.push(
+        { id: OWNER, username: 'alice' },
+        { id: MEMBER, username: 'bob' },
+      );
+
+      const out = await service.membersOf(r.id);
+
+      expect(out).toEqual({
+        members: expect.arrayContaining([
+          { userId: OWNER, role: 'owner', username: 'alice' },
+          { userId: MEMBER, role: 'member', username: 'bob' },
+        ]),
+      });
+      expect(out.members).toHaveLength(2);
+    });
+
+    it('throws NotFoundException when room is deleted (soft-delete)', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'gone', visibility: 'public' });
+      const row = repo.rooms.find((rr) => rr.id === r.id)!;
+      row.deletedAt = new Date();
+      await expect(service.membersOf(r.id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws NotFoundException when room does not exist', async () => {
+      await expect(service.membersOf(9999)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('ensureMember (EPIC-15 AC-15-13)', () => {
+    it('returns { ok: true } when user is a member', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'ok', visibility: 'public' });
+      await service.join({ userId: MEMBER, roomId: r.id });
+
+      await expect(service.ensureMember({ roomId: r.id, userId: MEMBER })).resolves.toEqual({
+        ok: true,
+      });
+    });
+
+    it('returns { ok: true } for the owner', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'ok2', visibility: 'public' });
+      await expect(service.ensureMember({ roomId: r.id, userId: OWNER })).resolves.toEqual({
+        ok: true,
+      });
+    });
+
+    it('throws ForbiddenException when user is not a member (FORBIDDEN WireError)', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'locked', visibility: 'public' });
+      await expect(
+        service.ensureMember({ roomId: r.id, userId: OUTSIDER }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws NotFoundException when room is deleted (NOT_FOUND WireError)', async () => {
+      const r = await service.create({ ownerId: OWNER, name: 'dead', visibility: 'public' });
+      const row = repo.rooms.find((rr) => rr.id === r.id)!;
+      row.deletedAt = new Date();
+      await expect(
+        service.ensureMember({ roomId: r.id, userId: OWNER }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws NotFoundException when room does not exist', async () => {
+      await expect(
+        service.ensureMember({ roomId: 9999, userId: OWNER }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

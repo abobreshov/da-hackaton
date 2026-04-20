@@ -2,12 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
-import { rooms, roomMemberships, roomInvitations } from '../../database/schema';
+import { rooms, roomMemberships, roomInvitations, users } from '../../database/schema';
 import {
   CreateRoomInput,
   InsertInvitationInput,
   InsertMembershipInput,
   InvitationRow,
+  MemberWithUsername,
   MembershipRow,
   RoomRow,
   RoomsRepositoryPort,
@@ -124,5 +125,18 @@ export class DrizzleRoomsRepository implements RoomsRepositoryPort {
       })
       .returning();
     return row as unknown as InvitationRow;
+  }
+
+  async findMembersWithUsernames(roomId: number): Promise<MemberWithUsername[]> {
+    const list = await this.db
+      .select({
+        userId: roomMemberships.userId,
+        role: roomMemberships.role,
+        username: users.name,
+      })
+      .from(roomMemberships)
+      .innerJoin(users, eq(users.id, roomMemberships.userId))
+      .where(eq(roomMemberships.roomId, roomId));
+    return list as unknown as MemberWithUsername[];
   }
 }

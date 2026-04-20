@@ -75,6 +75,7 @@ CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);
 - Email verification
 - Social login
 - MFA beyond TOTP (SMS, WebAuthn)
+- WS session-ticket mint endpoint (cross-origin / native clients) — MVP uses cookie-only WS handshake (EPIC-03 AC-03-10)
 
 ## Dependencies
 EPIC-14 (rate-limits, session security) for reset + login hardening.

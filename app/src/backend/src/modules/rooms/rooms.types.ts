@@ -48,6 +48,17 @@ export interface InsertInvitationInput {
 }
 
 /**
+ * Shape returned from `findMembersWithUsernames` — a join across
+ * `room_memberships` + `users` used to populate the member pane on
+ * `room.join` ack (EPIC-03 AC-03-09) and the BFF fanout fallback.
+ */
+export interface MemberWithUsername {
+  userId: number;
+  role: string;
+  username: string;
+}
+
+/**
  * Port (interface) the service depends on; a Drizzle-backed implementation
  * and an in-memory test fake both satisfy it. Keeping the port in its own
  * file lets unit tests import the types without pulling the Drizzle / env
@@ -65,6 +76,14 @@ export interface RoomsRepositoryPort {
 
   findPendingInvitation(roomId: number, inviteeId: number): Promise<InvitationRow | null>;
   insertInvitation(input: InsertInvitationInput): Promise<InvitationRow>;
+
+  /**
+   * Join `room_memberships` × `users` for the given room. Returns members
+   * with a username column projected from `users.name`. Used by the member
+   * pane on `room.join` ack (EPIC-03 AC-03-09) and BFF fanout (EPIC-15
+   * AC-15-13).
+   */
+  findMembersWithUsernames(roomId: number): Promise<MemberWithUsername[]>;
 }
 
 export const ROOMS_REPOSITORY = 'ROOMS_REPOSITORY';
