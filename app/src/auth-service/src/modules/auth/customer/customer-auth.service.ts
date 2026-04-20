@@ -11,7 +11,7 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { createHash, randomBytes } from 'crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
-import { ErrorCode, WireError } from '@app/contracts';
+import { ErrorCode, WireError, makeSub, parseSub } from '@app/contracts';
 import { DATABASE } from '../../../database/database.module';
 import { Db } from '../../../database/connection';
 import { passwordResets, users } from '../../../database/schema';
@@ -336,9 +336,10 @@ export class CustomerAuthService {
 
     const newRefreshToken = await this.refreshTokenService.validateAndRotate('u', userId, token);
     const accessToken = this.jwtService.signUser({
-      userId: user.id,
+      sub: makeSub('user', user.id),
+      type: 'user',
       email: user.email,
-      role: user.role ?? 'USER',
+      name: user.name,
       scopes: user.scopes ?? [],
     });
 
@@ -363,14 +364,23 @@ export class CustomerAuthService {
     }
   }
 
+  /**
+   * OIDC-shaped introspection. Returns the OAuth-style subject (`u:<id>`),
+   * account type, email, optional name, and scopes. Legacy `userId` is also
+   * returned (derived from `sub`) so back-compat readers in backend
+   * controllers keep working until they migrate to `sub` + `parseSub`.
+   */
   async validateToken(token: string) {
     try {
-      const payload = this.jwtService.verifyUser(token);
+      const claims = this.jwtService.verifyUser(token);
+      const { numericId } = parseSub(claims.sub);
       return {
-        userId: payload.userId,
-        email: payload.email,
-        role: payload.role,
-        scopes: payload.scopes ?? [],
+        sub: claims.sub,
+        type: claims.type,
+        userId: numericId,           // deprecated — use parseSub(sub).numericId
+        email: claims.email,
+        name: claims.name,
+        scopes: claims.scopes ?? [],
       };
     } catch {
       throw new UnauthorizedException('Invalid token');
@@ -381,9 +391,10 @@ export class CustomerAuthService {
 
   private async issueTokens(user: typeof users.$inferSelect) {
     const accessToken = this.jwtService.signUser({
-      userId: user.id,
+      sub: makeSub('user', user.id),
+      type: 'user',
       email: user.email,
-      role: user.role ?? 'USER',
+      name: user.name,
       scopes: user.scopes ?? [],
     });
     const refreshToken = await this.refreshTokenService.create('u', user.id);

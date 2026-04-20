@@ -16,7 +16,8 @@ import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { PasswordChangeDto } from './dto/password-change.dto';
 import { RefreshDto } from '../admin/dto/refresh.dto';
 import { CustomerJwtGuard } from '../shared/customer-jwt.guard';
-import type { UserJwtPayload } from '../shared/jwt.service';
+import type { AccessTokenClaims } from '../shared/jwt.service';
+import { parseSub } from '@app/contracts';
 
 @Controller('auth/customer')
 export class CustomerAuthController {
@@ -66,19 +67,19 @@ export class CustomerAuthController {
   @UseGuards(CustomerJwtGuard)
   async passwordChange(
     @Body() dto: PasswordChangeDto,
-    @Req() req: { user?: UserJwtPayload },
+    @Req() req: { user?: AccessTokenClaims },
   ) {
-    const userId = req.user?.userId;
-    if (!userId) throw new Error('missing user context');
+    if (!req.user?.sub) throw new Error('missing user context');
+    const userId = parseSub(req.user.sub).numericId;
     await this.service.passwordChange({ ...dto, userId });
   }
 
   @Delete('account')
   @HttpCode(204)
   @UseGuards(CustomerJwtGuard)
-  async deleteAccount(@Req() req: { user?: UserJwtPayload }) {
-    const userId = req.user?.userId;
-    if (!userId) throw new Error('missing user context');
+  async deleteAccount(@Req() req: { user?: AccessTokenClaims }) {
+    if (!req.user?.sub) throw new Error('missing user context');
+    const userId = parseSub(req.user.sub).numericId;
     await this.service.deleteAccount({ userId });
   }
 }

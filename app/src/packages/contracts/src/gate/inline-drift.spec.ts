@@ -47,6 +47,7 @@ const ALLOW_LIST: Record<string, string[]> = {
     'auth.customer.refresh',
     'auth.customer.register',
     'auth.customer.validateToken',
+    'auth.customer.verifyEmail',
   ],
   'app/src/backend/src/common/guards/jwt.guard.ts': [
     'auth.customer.validateToken',

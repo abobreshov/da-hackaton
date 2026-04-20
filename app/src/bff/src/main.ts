@@ -6,6 +6,7 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyCsrfProtection from '@fastify/csrf-protection';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyMultipart from '@fastify/multipart';
 import { AppModule } from './app.module';
 import { RpcErrorInterceptor } from './common/interceptors/rpc-error.interceptor';
 import { RedisIoAdapter } from './ws/redis-io.adapter';
@@ -82,6 +83,18 @@ async function bootstrap() {
     max: 300,
     timeWindow: '1 minute',
     allowList: env.NODE_ENV === 'development' ? ['127.0.0.1', '::1'] : [],
+  });
+
+  // Multipart for attachment uploads (EPIC-08). 20 MiB max matches §3.4 —
+  // per-file enforcement + server-side magic-byte sniff happens in the
+  // backend AttachmentsService, so this is just the Fastify-level hard cap.
+  await app.register(fastifyMultipart as any, {
+    limits: {
+      fileSize: 20 * 1024 * 1024,  // 20 MiB ceiling (backend tightens to 3 MiB for images)
+      files: 10,                    // per-request
+      fields: 10,
+      fieldSize: 1024,              // comment field
+    },
   });
 
   await app.register(fastifyCookie as any, { secret: env.COOKIE_SECRET });

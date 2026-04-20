@@ -1,10 +1,13 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsInt,
   IsOptional,
+  IsPositive,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
-  IsPositive,
   ValidateIf,
 } from 'class-validator';
 
@@ -44,4 +47,15 @@ export class CreateMessageDto {
   @IsString()
   @MaxLength(32)
   replyToId?: string;
+
+  /**
+   * Orphan attachment ids to bind on the new message (EPIC-08). Backend
+   * filters to uploader + scope; mismatches silently ignored. Max 10
+   * matches multipart limit.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('4', { each: true })
+  attachmentIds?: string[];
 }

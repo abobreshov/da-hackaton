@@ -13,6 +13,8 @@ export interface CreateMessageInput {
   body: string;
   /** Parent message id, bigint as decimal string. */
   replyToId?: string;
+  /** Orphan attachment UUIDs to bind post-insert (EPIC-08). */
+  attachmentIds?: string[];
 }
 
 export interface ListMessagesInput {

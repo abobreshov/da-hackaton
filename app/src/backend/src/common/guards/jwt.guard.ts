@@ -24,12 +24,10 @@ export class JwtGuard implements CanActivate {
       const user = await firstValueFrom(
         this.auth.send<any>({ cmd: 'auth.customer.validateToken' }, withSys({ token })),
       );
-      // TODO(oidc): auth-service still returns `{ userId, email, role, scopes }`.
-      // When its JWT signer is reshaped to OIDC (`sub: 'u:<id>'`, `type: 'user'`),
-      // project the response back to the same shape here or adopt the new shape
-      // across every backend consumer of `request.user`. Ticket: hand-off with
-      // the auth-service agent — touching `customer-auth.service.ts` is out of
-      // scope for this change.
+      // auth-service.validateToken now returns an OIDC-shaped introspection:
+      //   { sub: 'u:<id>', type: 'user', userId, email, name?, scopes }
+      // `userId` is still present for back-compat readers in older controllers;
+      // new code should prefer `parseSub(user.sub).numericId`.
       request.user = user;
       return true;
     } catch {

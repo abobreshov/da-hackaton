@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
+import { makeSub } from '@app/contracts';
 import { DATABASE } from '../../../database/database.module';
 import { Db } from '../../../database/connection';
 import { admins } from '../../../database/schema';
@@ -55,7 +56,13 @@ export class AdminAuthService {
       }
     }
 
-    const accessToken = this.jwtService.signAdmin({ adminId: admin.id, email: admin.email });
+    const accessToken = this.jwtService.signAdmin({
+      sub: makeSub('admin', admin.id),
+      type: 'admin',
+      email: admin.email,
+      name: admin.name,
+      scopes: [],
+    });
     const refreshToken = await this.refreshTokenService.create('a', admin.id);
 
     return {
@@ -75,7 +82,13 @@ export class AdminAuthService {
     if (!admin || admin.accessStatus !== 'ACTIVE') throw new UnauthorizedException();
 
     const newRefreshToken = await this.refreshTokenService.validateAndRotate('a', adminId, token);
-    const accessToken = this.jwtService.signAdmin({ adminId: admin.id, email: admin.email });
+    const accessToken = this.jwtService.signAdmin({
+      sub: makeSub('admin', admin.id),
+      type: 'admin',
+      email: admin.email,
+      name: admin.name,
+      scopes: [],
+    });
 
     return {
       admin: { id: admin.id, email: admin.email, name: admin.name },

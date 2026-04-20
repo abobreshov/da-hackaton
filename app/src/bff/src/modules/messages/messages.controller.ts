@@ -58,6 +58,7 @@ export class MessagesController {
       dmUserId: dto.dmUserId,
       body: dto.body,
       replyToId: dto.replyToId,
+      attachmentIds: dto.attachmentIds,
     });
   }
 
