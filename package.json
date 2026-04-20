@@ -1,0 +1,12 @@
+{
+  "name": "app",
+  "private": true,
+  "workspaces": [
+    "src/auth-service",
+    "src/backend",
+    "src/bff",
+    "src/frontend",
+    "src/packages/*"
+  ],
+  "packageManager": "yarn@4.9.1"
+}
