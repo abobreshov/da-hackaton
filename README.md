@@ -71,16 +71,31 @@ cd app
 yarn install
 ```
 
+### Inter-service mTLS — first run only
+
+Services talk to each other over TCP with mutual TLS + a shared `SYSTEM_KEY` envelope. Generate a throwaway dev CA + per-service certs before the first `./dev.sh` or `./dev-local.sh`:
+
+```bash
+cd app
+./scripts/gen-certs.sh          # creates ./secrets/internal-ca/{ca,auth-service,backend,bff}.{crt,key}
+./scripts/gen-certs.sh --force  # rotate everything
+./scripts/gen-certs.sh --service-only <name>   # issue one more cert from the existing CA
+```
+
+Output directory is gitignored. Certs are 1-year, IPs 127.0.0.1 + ::1 + DNS `<svc>.internal`/`<svc>`/`localhost`. `dev-local.sh` runs the generator automatically if `ca.crt` is missing.
+
 ### Environment files
 
 Each service reads its config from a gitignored `.env` at the service root. Create them before booting the stack:
 
 | File | Required vars (all secrets ≥ 32 chars) |
 |---|---|
-| `src/auth-service/.env` | `JWT_ADMIN_SECRET`, `JWT_CUSTOMER_SECRET`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` |
-| `src/bff/.env` | `JWT_SECRET`, `SESSION_COOKIE_SECRET`, `COOKIE_SECRET`, `AUTH_TCP_HOST`, `BACKEND_TCP_HOST` |
+| `src/auth-service/.env` | `JWT_ADMIN_SECRET`, `JWT_CUSTOMER_SECRET`, `SYSTEM_KEY`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` |
+| `src/bff/.env` | `JWT_SECRET`, `SESSION_COOKIE_SECRET`, `COOKIE_SECRET`, `SYSTEM_KEY`, `AUTH_TCP_HOST`, `BACKEND_TCP_HOST` |
 | `src/backend/.env` | `SYSTEM_KEY`, `DATABASE_URL`, `AUTH_TCP_HOST` |
 | `src/frontend/.env` | `VITE_BFF_URL=http://localhost:3006` |
+
+`SYSTEM_KEY` must be identical across auth-service, backend, and bff — it authenticates inter-service RPC calls alongside mTLS. `dev-local.sh` also sets `TLS_ENABLED=true`, `TCP_BIND=127.0.0.1`, and the `TLS_*_PATH` env vars automatically from `./secrets/internal-ca/`.
 
 Generate dev secrets quickly:
 
@@ -92,6 +107,8 @@ done
 ```
 
 `dev-local.sh` injects `DATABASE_URL` / `REDIS_HOST` / `REDIS_PORT` itself, so those can be omitted in Option B. `dev.sh` reads inline env from the docker-compose files and ignores service `.env` entirely.
+
+> **Note on `docker compose up`.** Compose files live under `app/` (not repo root). Run `cd app && ./dev.sh` or `cd app && docker compose -f docker-compose.dev.yml up` to bring the stack up. Top-level `docker compose up` will not resolve services.
 
 ### Option A — full stack in Docker (recommended)
 

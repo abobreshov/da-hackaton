@@ -8,6 +8,7 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { AUTH_SERVICE } from '../auth-client.module';
+import { withSys } from '../rpc-transport';
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -21,7 +22,7 @@ export class JwtGuard implements CanActivate {
     const token = auth.slice(7);
     try {
       const user = await firstValueFrom(
-        this.auth.send<any>({ cmd: 'auth.customer.validateToken' }, { token }),
+        this.auth.send<any>({ cmd: 'auth.customer.validateToken' }, withSys({ token })),
       );
       request.user = user;
       return true;

@@ -21,6 +21,7 @@ Friend graph + per-user bans. Enable DM eligibility (§2.3.6). EPIC-04 owns atom
 | AC-04-10 | BanService.banUser atomic: inserts user_bans + deletes friendship rows + sets dm_channels.frozen_at in single DB transaction |
 | AC-04-11 | Unban (DELETE /users/:userId/ban) does NOT restore friendship or unfreeze DM; user must re-request friend |
 | AC-04-12 | Account deletion: cascade (rooms, messages, attachments, friendships, bans) runs as async BullMQ job (consumer per EPIC-11); user sees immediate 204, cleanup completes eventually |
+| AC-04-13 | Friendships indexed for O(log n) lookup by either side; user_bans indexed by banned_id for "who banned me" queries |
 
 ## Data model
 
@@ -34,6 +35,7 @@ CREATE TABLE friendships (
   request_text  TEXT,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   accepted_at   TIMESTAMPTZ,
+  CHECK (requested_by IN (user_a, user_b)),
   UNIQUE (user_a, user_b),
   CHECK (user_a < user_b)
 );
@@ -44,6 +46,11 @@ CREATE TABLE user_bans (
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (banner_id, banned_id)
 );
+
+CREATE INDEX friendships_user_a_accepted_idx ON friendships(user_a) WHERE status = 'accepted';
+CREATE INDEX friendships_user_b_accepted_idx ON friendships(user_b) WHERE status = 'accepted';
+CREATE INDEX friendships_pending_idx ON friendships(user_b) WHERE status = 'pending';
+CREATE INDEX user_bans_banned_idx ON user_bans(banned_id);
 ```
 
 Helper: normalize `(user_a, user_b)` by sorting ids so pair unique in `friendships`.

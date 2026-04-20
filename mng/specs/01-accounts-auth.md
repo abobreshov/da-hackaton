@@ -31,6 +31,8 @@ Self-registration, login, password mgmt, account deletion w/ cascade. Persistent
 | AC-01-09 | Delete account: owned rooms (and their msgs + files) deleted; membership rows elsewhere removed; account row soft-deleted or hard-deleted |
 | AC-01-10 | Password-reset email send rate-limited per EPIC-14 (≤1/min per email, ≤5/hr per IP) |
 | AC-01-11 | TOTP: user can enable (shows QR + backup codes), disable (requires current TOTP code), and login prompts TOTP step only when enabled |
+| AC-01-12 | users.email has UNIQUE constraint; duplicate email insert → 23505 → 409 mapped in service |
+| AC-01-13 | All read paths filter users.deleted_at IS NULL (soft-delete invariant); cascade consumer runs async (see EPIC-11) |
 
 ## Data model (additions)
 
@@ -40,12 +42,17 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS username VARCHAR(64) NOT NULL UNIQUE,
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
+ALTER TABLE users
+  ADD CONSTRAINT IF NOT EXISTS users_email_unique UNIQUE (email);
+
 CREATE TABLE password_resets (
   token_hash      TEXT PRIMARY KEY,
   user_id         INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at      TIMESTAMPTZ NOT NULL,
   used_at         TIMESTAMPTZ
 );
+
+CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);
 ```
 
 ## API (BFF surface)

@@ -22,6 +22,7 @@ Roles (owner / admin / member). Admin actions: delete msgs, remove members, ban,
 | AC-06-11 | Admins see abuse reports queue (list + resolve/dismiss); resolving does NOT auto-act (admin decides kick/ban/delete separately) |
 | AC-06-12 | Every privileged action (ban, kick, unban, role change, message delete by admin, room delete, report resolution) written to audit_log with actor_id, target_type, target_id, action, metadata (jsonb), created_at |
 | AC-06-13 | Audit log retention per AUDIT_LOG_RETENTION_DAYS env (EPIC-11); pruning job runs nightly |
+| AC-06-14 | abuse_reports deduplicated while status='open' (partial UNIQUE); reopen after resolve/dismiss permitted; audit_log.actor_id ON DELETE SET NULL so account deletion cascade does not fail |
 
 ## Data model
 
@@ -46,10 +47,13 @@ CREATE TABLE abuse_reports (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX abuse_reports_status_idx ON abuse_reports(status, created_at DESC);
+CREATE UNIQUE INDEX abuse_reports_open_dedup_idx
+  ON abuse_reports(reporter_id, target_type, target_id) WHERE status = 'open';
+CREATE INDEX abuse_reports_target_idx ON abuse_reports(target_type, target_id);
 
 CREATE TABLE audit_log (
   id            BIGSERIAL PRIMARY KEY,
-  actor_id      INT REFERENCES users(id),
+  actor_id      INT REFERENCES users(id) ON DELETE SET NULL,
   actor_type    TEXT NOT NULL CHECK (actor_type IN ('user','admin','system')),
   action        TEXT NOT NULL,
   target_type   TEXT,
@@ -59,6 +63,7 @@ CREATE TABLE audit_log (
 );
 CREATE INDEX audit_log_created_idx ON audit_log(created_at DESC);
 CREATE INDEX audit_log_actor_idx   ON audit_log(actor_id, created_at DESC);
+CREATE INDEX audit_log_target_idx ON audit_log(target_type, target_id);
 ```
 
 ## API (BFF)
@@ -99,5 +104,5 @@ EPIC-05, EPIC-11 (retention + pruning job).
 
 ## Risks
 Owner self-demote forbidden. Check before every privileged action.
-- `Abuse-report spam: same reporter + same target in short window → deduplicate at insert (unique constraint on (reporter_id, target_type, target_id, DATE(created_at))).`
+- `Abuse-report spam: same reporter + same target while report is 'open' → partial unique index abuse_reports_open_dedup_idx rejects duplicate open row. After resolve/dismiss a new report can be filed.`
 - `Audit log write failure must not block the privileged action; write in same tx when possible, else best-effort log + warn.`

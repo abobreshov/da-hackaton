@@ -34,6 +34,21 @@ command -v corepack >/dev/null 2>&1 || error "corepack not found (Node 16+)"
 corepack enable >/dev/null 2>&1 || true
 command -v yarn     >/dev/null 2>&1 || error "yarn not found (run: corepack prepare yarn@4.9.1 --activate)"
 
+# Internal mTLS certs (inter-service TCP). Generated lazily on first run.
+CERT_DIR="$ROOT/secrets/internal-ca"
+if [ ! -f "$CERT_DIR/ca.crt" ]; then
+  info "Generating internal CA + service certs ($CERT_DIR)"
+  "$ROOT/scripts/gen-certs.sh"
+fi
+export TLS_ENABLED=true
+export TLS_CA_PATH="$CERT_DIR/ca.crt"
+# Each service overrides TLS_CERT_PATH / TLS_KEY_PATH below.
+
+# Shared inter-service key (dev value; production must come from a real secret store)
+export SYSTEM_KEY="${SYSTEM_KEY:-dev-internal-system-key-min-32-chars-ok}"
+# Bind TCP microservices to loopback so the wire is only reachable from this host.
+export TCP_BIND="${TCP_BIND:-127.0.0.1}"
+
 NODE_VER=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
 [ "$NODE_VER" -ge 22 ] || warn "Node 22+ recommended (found $NODE_VER)"
 
@@ -74,12 +89,18 @@ LOGS="$ROOT/.dev-logs"
 mkdir -p "$LOGS"
 
 start_service() {
-  local name="$1" dir="$2" cmd="$3" env_file="$4"
+  local name="$1" dir="$2" cmd="$3" env_file="$4" svc_cert="$5"
   info "Starting $name..."
   (
     # Service-specific env first, then override with host-aware values
     if [ -f "$env_file" ]; then set -a; source "$env_file"; set +a; fi
-    export DATABASE_URL REDIS_HOST REDIS_PORT
+    export DATABASE_URL REDIS_HOST REDIS_PORT SYSTEM_KEY TCP_BIND
+    if [ "$TLS_ENABLED" = "true" ] && [ -n "$svc_cert" ]; then
+      export TLS_ENABLED
+      export TLS_CA_PATH
+      export TLS_CERT_PATH="$CERT_DIR/$svc_cert.crt"
+      export TLS_KEY_PATH="$CERT_DIR/$svc_cert.key"
+    fi
     cd "$dir"
     eval "$cmd" > "$LOGS/$name.log" 2>&1
   ) &
@@ -87,13 +108,13 @@ start_service() {
   echo "  $name  →  $LOGS/$name.log  (pid $!)"
 }
 
-start_service "auth-service" "$ROOT/src/auth-service" "yarn start:dev" "$ROOT/src/auth-service/.env"
+start_service "auth-service" "$ROOT/src/auth-service" "yarn start:dev" "$ROOT/src/auth-service/.env" "auth-service"
 sleep 4
-start_service "backend"      "$ROOT/src/backend"      "yarn start:dev" "$ROOT/src/backend/.env"
+start_service "backend"      "$ROOT/src/backend"      "yarn start:dev" "$ROOT/src/backend/.env"      "backend"
 sleep 3
-start_service "bff"          "$ROOT/src/bff"          "yarn start:dev" "$ROOT/src/bff/.env"
+start_service "bff"          "$ROOT/src/bff"          "yarn start:dev" "$ROOT/src/bff/.env"          "bff"
 sleep 2
-start_service "frontend"     "$ROOT/src/frontend"     "yarn dev"       "$ROOT/src/frontend/.env"
+start_service "frontend"     "$ROOT/src/frontend"     "yarn dev"       "$ROOT/src/frontend/.env"    ""
 
 echo ""
 info "All services started."

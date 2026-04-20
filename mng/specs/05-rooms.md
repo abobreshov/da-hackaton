@@ -20,6 +20,7 @@ Create, list, join, leave rooms. Public catalog with search. Private room invita
 | AC-05-09 | Only owner can delete room |
 | AC-05-10 | Deleting room deletes all messages + attachments permanently |
 | AC-05-11 | User can invite another user to private room |
+| AC-05-12 | Indexes: room_memberships(user_id) for "my rooms"; room_invitations(invitee_id) partial WHERE pending for invite pane |
 
 ## Data model
 
@@ -54,6 +55,11 @@ CREATE TABLE room_invitations (
 );
 
 CREATE INDEX rooms_name_trgm ON rooms USING GIN (name gin_trgm_ops);
+
+CREATE INDEX room_memberships_user_idx ON room_memberships(user_id);
+CREATE INDEX room_invitations_invitee_pending_idx
+  ON room_invitations(invitee_id)
+  WHERE accepted_at IS NULL AND rejected_at IS NULL;
 ```
 
 ## API (BFF)

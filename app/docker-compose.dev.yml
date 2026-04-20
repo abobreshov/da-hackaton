@@ -2,6 +2,10 @@ version: '3.9'
 
 # Dev: services isolated on internal network. Only frontend + BFF exposed to host.
 # auth-service and backend have NO host ports — only reachable from BFF internally.
+#
+# Inter-service TCP (auth-service:4003, backend:4004) is wrapped in mTLS when
+# TLS_ENABLED=true. Certs must exist at ./secrets/internal-ca/ — run
+# `./scripts/gen-certs.sh` once before first `./dev.sh`.
 
 networks:
   app-internal:
@@ -15,7 +19,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - '5432:5432'        # exposed for dev DB tools
+      - '5432:5432'
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     networks: [app-internal]
@@ -28,7 +32,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'        # exposed for dev Redis tools
+      - '6379:6379'
     networks: [app-internal]
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
@@ -42,9 +46,11 @@ services:
       dockerfile: Dockerfile.dev
     volumes:
       - ./src/auth-service/src:/app/src:ro
+      - ./secrets/internal-ca:/certs:ro
     environment:
       PORT: 3003
       TCP_PORT: 4003
+      TCP_BIND: 0.0.0.0
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
       REDIS_HOST: redis
@@ -56,13 +62,17 @@ services:
       SESSION_MAX_DURATION_DAYS: 7
       ALLOWED_ORIGINS: http://localhost:3007
       ALLOW_PASSWORD_ONLY_ADMIN_LOGIN: 'false'
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/auth-service.crt
+      TLS_KEY_PATH: /certs/auth-service.key
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks: [app-internal]
-    # NO host port — only BFF can reach auth-service
     restart: unless-stopped
 
   backend:
@@ -71,9 +81,11 @@ services:
       dockerfile: Dockerfile.dev
     volumes:
       - ./src/backend/src:/app/src:ro
+      - ./secrets/internal-ca:/certs:ro
     environment:
       PORT: 3004
       TCP_PORT: 4004
+      TCP_BIND: 0.0.0.0
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
       AUTH_TCP_HOST: auth-service
@@ -81,13 +93,16 @@ services:
       SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
       ALLOWED_ORIGINS: http://localhost:3006,http://localhost:3007
       LOG_LEVEL: info
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/backend.crt
+      TLS_KEY_PATH: /certs/backend.key
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
         condition: service_started
     networks: [app-internal]
-    # NO host ports — only BFF can reach backend
     restart: unless-stopped
 
   bff:
@@ -96,6 +111,7 @@ services:
       dockerfile: Dockerfile.dev
     volumes:
       - ./src/bff/src:/app/src:ro
+      - ./secrets/internal-ca:/certs:ro
     environment:
       PORT: 3006
       NODE_ENV: development
@@ -110,8 +126,13 @@ services:
       SESSION_COOKIE_TTL: 3600
       REFRESH_COOKIE_TTL: 172800
       ALLOWED_ORIGINS: http://localhost:3007
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/bff.crt
+      TLS_KEY_PATH: /certs/bff.key
     ports:
-      - '3006:3006'        # exposed: API testing + Vite proxy target
+      - '3006:3006'
     depends_on:
       - auth-service
       - backend
@@ -128,7 +149,7 @@ services:
     environment:
       BFF_URL: http://bff:3006
     ports:
-      - '3007:3007'        # exposed: user browser access
+      - '3007:3007'
     depends_on:
       - bff
     networks: [app-internal]

@@ -14,18 +14,22 @@ Track unread per user per room/DM. Visual badges near room + contact names. Low-
 | AC-09-03 | Indicator distinguishes count (or "1+" for many) |
 | AC-09-04 | Presence state changes appear within ≤2s |
 | AC-09-05 | Presence events observed from `user:{userId}` channel (EPIC-03); EPIC-09 never writes presence state |
+| AC-09-06 | user_last_read scoped UNIQUE via functional index (user_id + COALESCE'd room_id/dm_id); XOR CHECK enforces exactly one of room_id / dm_id set |
 
 ## Data model
 
 ```sql
 CREATE TABLE user_last_read (
-  user_id        INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  room_id        INT REFERENCES rooms(id) ON DELETE CASCADE,
-  dm_id          INT REFERENCES dm_channels(id) ON DELETE CASCADE,
-  last_message_id BIGINT,
-  updated_at     TIMESTAMPTZ DEFAULT NOW(),
-  PRIMARY KEY (user_id, COALESCE(room_id,0), COALESCE(dm_id,0))
+  user_id       INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  room_id       INT REFERENCES rooms(id) ON DELETE CASCADE,
+  dm_id         INT REFERENCES dm_channels(id) ON DELETE CASCADE,
+  last_read_id  BIGINT,
+  last_read_at  TIMESTAMPTZ DEFAULT NOW(),
+  CHECK ((room_id IS NOT NULL) <> (dm_id IS NOT NULL))
 );
+
+CREATE UNIQUE INDEX user_last_read_scope_idx
+  ON user_last_read (user_id, COALESCE(room_id, 0), COALESCE(dm_id, 0));
 ```
 
 ## API

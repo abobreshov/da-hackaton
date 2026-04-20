@@ -21,14 +21,17 @@ Room + DM messaging. Text/emoji/reply/edit/delete, infinite history, offline del
 | AC-07-10 | Offline user receives unread messages on next login |
 | AC-07-11 | Room with 10k messages remains usable |
 | AC-07-12 | Global rate-limit 30 msg / 5s per user (sliding window); exceed → 429 REST / `error {code:'RATE_LIMITED', retryAfterMs}` WS (per EPIC-14) |
+| AC-07-13 | dm_channels has FK to users(id) ON DELETE CASCADE on both sides → account delete removes orphan DM rows |
+| AC-07-14 | messages.reply_to ON DELETE SET NULL → retention prune of parent message leaves orphan replies intact (body preserved, "replying to deleted message" in UI) |
+| AC-07-15 | Indexed: reply_to (partial), (author_id, created_at DESC), (created_at) WHERE deleted_at IS NULL — retention sweeps avoid seq scans |
 
 ## Data model
 
 ```sql
 CREATE TABLE dm_channels (
   id           SERIAL PRIMARY KEY,
-  user_low     INT NOT NULL,
-  user_high    INT NOT NULL,
+  user_low     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_high    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at   TIMESTAMPTZ DEFAULT NOW(),
   frozen_at    TIMESTAMPTZ,                        -- set when user_bans exist either direction
   UNIQUE (user_low, user_high),
@@ -41,7 +44,7 @@ CREATE TABLE messages (
   dm_id        INT REFERENCES dm_channels(id) ON DELETE CASCADE,
   author_id    INT NOT NULL REFERENCES users(id),
   body         TEXT NOT NULL,
-  reply_to     BIGINT REFERENCES messages(id),
+  reply_to     BIGINT REFERENCES messages(id) ON DELETE SET NULL,
   edited_at    TIMESTAMPTZ,
   deleted_at   TIMESTAMPTZ,
   created_at   TIMESTAMPTZ DEFAULT NOW(),
@@ -50,6 +53,9 @@ CREATE TABLE messages (
 
 CREATE INDEX messages_room_created_idx ON messages(room_id, created_at DESC) WHERE deleted_at IS NULL;
 CREATE INDEX messages_dm_created_idx   ON messages(dm_id, created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX messages_reply_to_idx ON messages(reply_to) WHERE reply_to IS NOT NULL;
+CREATE INDEX messages_author_idx ON messages(author_id, created_at DESC);
+CREATE INDEX messages_created_prune_idx ON messages(created_at) WHERE deleted_at IS NULL;
 ```
 
 Soft delete (`deleted_at`) for audit. UI treat `deleted_at IS NOT NULL` as gone.

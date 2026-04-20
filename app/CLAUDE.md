@@ -83,6 +83,19 @@ E2E tests (`e2e-tests/` — Playwright + POM): page objects in `pages/`, fixture
 
 Plugin code lives here (`app/claude-memory-plugin/`) but `.claude/settings.json`, `.openviking/`, `data/`, and `ov.conf` all live at the **project root** (`..`). Hook paths use `$CLAUDE_PROJECT_DIR/app/claude-memory-plugin/hooks/*.sh` so Claude must be launched from the project root. Skills `memory-recall`, `ov-search`, `ov-ingest`, `review`, `grill-me` are in `../.claude/skills/`. Python bridge via `~/.openviking-venv`. `ov.conf` holds the OpenAI key — gitignored along with `data/` and `.openviking/`. Storage is per-project (`../data/viking`).
 
+## Inter-service security (auth-service ↔ backend ↔ bff)
+
+Two independent defenses on every RPC:
+
+1. **Shared-secret envelope.** Every client `.send(pattern, payload)` wraps the payload with `withSys({...})` (see `src/*/src/common/rpc-transport.ts`). The server-side `SystemKeyRpcGuard` runs as `APP_GUARD` on auth-service and backend, validates `payload._sys === env.SYSTEM_KEY`, and throws `RpcException({ status: 401 })` otherwise. HTTP controllers are exempt via `ctx.getType() !== 'rpc'` early return.
+2. **Mutual TLS.** When `TLS_ENABLED=true`, `buildTcpMicroserviceOptions` / `buildTcpClientOptions` pass `tlsOptions` with `ca`, `cert`, `key`, `requestCert: true`, `rejectUnauthorized: true`. Certs are issued by a throwaway internal CA under `./secrets/internal-ca/` (gitignored). Regenerate via `./scripts/gen-certs.sh` (`--force` to rotate, `--service-only` to add one).
+
+Listeners bind to `127.0.0.1` by default via `TCP_BIND` — nothing on the LAN can reach 4003/4004. Docker sets `TCP_BIND=0.0.0.0` because containers talk over the internal network.
+
+**Important side effect:** auth-service's `ValidationPipe` uses `{ whitelist: true, transform: true }` (no `forbidNonWhitelisted`) so the `_sys` key is silently stripped after the guard reads it. Do not re-enable `forbidNonWhitelisted` there or every RPC call will fail validation.
+
+Why not just CSP/rate-limit/OriginGuard at the BFF? Those only protect the browser-facing boundary. An attacker who lands on the host (prod bastion, developer laptop, LAN) could otherwise call `auth.customer.validateToken` or `auth.admin.login` directly on port 4003 and bypass the BFF entirely — that's what this layer closes.
+
 ## Gotchas
 
 - NestJS services run `tsc --watch`. When adding a package, also install it inside the running container (or rebuild) — `docker-compose.dev.yml` mounts only `src/` ro, so `node_modules` baked into the image is what actually runs. `@nestjs/microservices` is required in auth-service (not just bff/backend).

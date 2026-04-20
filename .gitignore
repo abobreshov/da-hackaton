@@ -48,3 +48,4 @@ data/
 .openviking/
 
 .claude/scheduled_tasks.lock
+secrets/

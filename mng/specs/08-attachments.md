@@ -18,6 +18,7 @@ Upload images + files up to size limits, attach to messages, access-control by r
 | AC-08-07 | User losing room access loses attachment download |
 | AC-08-08 | File persists after uploader leaves room, deleted only when room deleted |
 | AC-08-09 | Stored on local FS (`/data/attachments/<yyyy>/<mm>/<uuid>_<name>`) |
+| AC-08-10 | attachments indexed on (message_id), (room_id, created_at), (dm_id, created_at), (created_at) — covers download ACL check, listing per-thread, and retention sweep |
 
 ## Data model
 
@@ -37,6 +38,11 @@ CREATE TABLE attachments (
   created_at   TIMESTAMPTZ DEFAULT NOW(),
   CHECK ((room_id IS NOT NULL) <> (dm_id IS NOT NULL))
 );
+
+CREATE INDEX attachments_message_idx ON attachments(message_id) WHERE message_id IS NOT NULL;
+CREATE INDEX attachments_room_created_idx ON attachments(room_id, created_at) WHERE room_id IS NOT NULL;
+CREATE INDEX attachments_dm_created_idx ON attachments(dm_id, created_at) WHERE dm_id IS NOT NULL;
+CREATE INDEX attachments_created_prune_idx ON attachments(created_at);
 ```
 
 ## API

@@ -3,18 +3,18 @@
 **Req refs:** cross-cutting (§2.1, §3.5, §3.6, §5)
 
 ## Goal
-Non-functional security baseline. Rate-limit abuse vectors (login, password-reset email, messaging). TLS, CSRF, WS origin, XSS/input-sanitization. Apply all EPICs.
+Non-functional security baseline. Rate-limit abuse vectors (login, password-reset email, messaging). TLS, CSRF, WS origin, XSS/input-sanitization. Applies to all EPICs.
 
 ## Scope
 - TLS termination at edge (reverse proxy / load balancer; MVP: self-signed or behind tunnel)
-- CSRF protection on cookie-auth endpoints (SameSite=Lax default; double-submit token for state-changing non-WS endpoints)
+- CSRF protection on cookie-authenticated endpoints (SameSite=Lax default; double-submit token for state-changing non-WS endpoints)
 - WebSocket origin check at handshake (reject non-allowed origins)
 - Global per-user messaging rate-limit: 30 msg / 5s sliding window. Exceed → WS error + 429 on REST fallback.
-- Password-reset email rate-limit: 1/min per email AND 5/hr per client IP
-- Login attempt rate-limit: 5 failed / 15min per email (per existing code if any; else add)
-- Input sanitization: server-side. Store raw text, reject control chars (except \n, \t). UTF-8 validated.
-- Output encoding: frontend escape message body; no innerHTML of untrusted content
-- Password hashing: bcrypt ≥12 rounds (existing, restated as invariant)
+- Password-reset email rate-limit: 1 per minute per email address AND 5 per hour per client IP
+- Login attempt rate-limit: 5 failed attempts / 15min per email (per existing code if any; else add)
+- Input sanitization: server-side. Store raw text but reject control chars (except \n, \t). UTF-8 validated.
+- Output encoding: frontend escapes message body; no innerHTML of untrusted content
+- Password hashing: bcrypt ≥12 rounds (existing, restated here as invariant)
 - Session cookies: HttpOnly, Secure (prod), SameSite=Lax, signed + encrypted (existing two-layer per app/CLAUDE.md)
 - JWT refresh rotation: single-use refresh tokens, Redis-backed (existing)
 - SMTP credentials via env, never committed
@@ -56,5 +56,5 @@ All EPICs (cross-cutting). Rate-limit wiring consumed by EPIC-01 (login + reset)
 
 ## Risks
 - Rate-limit store Redis outage → fail-open (log + allow) vs fail-closed. MVP: fail-open for messaging, fail-closed for login/reset.
-- CSRF for WS not applicable (upgrade request); origin check is defense.
-- Same IP NAT → many users share IP. Per-email limit primary; per-IP blunt guard.
+- CSRF for WS not applicable (upgrade request); origin check is the defense.
+- Same IP NAT → many users share IP. Per-email limit is primary; per-IP is a blunt guard.
