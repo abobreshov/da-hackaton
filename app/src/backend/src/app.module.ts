@@ -16,6 +16,7 @@ import { SystemKeyRpcGuard } from './common/rpc-transport';
 import { WorkersModule } from './workers/workers.module';
 import { TransportModule } from './modules/transport/transport.module';
 import { PresenceModule } from './modules/presence/presence.module';
+import { env } from './config/environment';
 
 @Module({
   imports: [
@@ -32,7 +33,11 @@ import { PresenceModule } from './modules/presence/presence.module';
     ModerationModule,
     AbuseReportsModule,
     MessagesModule,
-    WorkersModule,
+    // Gated on WORKERS_ENABLED — the main HTTP/TCP backend runs with this
+    // `false` so BullMQ workers don't share its event loop. A separate
+    // `backend-worker` process (src/worker.ts) boots AppModule with
+    // WORKERS_ENABLED=true to run the queue hosts.
+    WorkersModule.forRoot({ enabled: env.WORKERS_ENABLED }),
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: SystemKeyRpcGuard }],

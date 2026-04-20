@@ -1,13 +1,18 @@
 import { Module } from '@nestjs/common';
-import { AuditModule } from '../audit/audit.module';
+import { EventsModule } from '../../common/events/events.module';
 import { ModerationService } from './moderation.service';
 import { ModerationController } from './moderation.controller';
 import { ModerationTcpController } from './moderation.tcp';
+import { DrizzleModerationRepository } from './moderation.repository';
+import { MODERATION_REPOSITORY } from './moderation.types';
 
 @Module({
-  imports: [AuditModule],
+  imports: [EventsModule],
   controllers: [ModerationController, ModerationTcpController],
-  providers: [ModerationService],
+  providers: [
+    ModerationService,
+    { provide: MODERATION_REPOSITORY, useClass: DrizzleModerationRepository },
+  ],
   exports: [ModerationService],
 })
 export class ModerationModule {}

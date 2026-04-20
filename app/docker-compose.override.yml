@@ -9,6 +9,9 @@ services:
   backend:
     volumes:
       - ./tsconfig.base.json:/tsconfig.base.json:ro
+  backend-worker:
+    volumes:
+      - ./tsconfig.base.json:/tsconfig.base.json:ro
   bff:
     volumes:
       - ./tsconfig.base.json:/tsconfig.base.json:ro

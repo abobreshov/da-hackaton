@@ -1,9 +1,11 @@
 import {
+  DynamicModule,
   Global,
   Inject,
   Logger,
   Module,
   OnModuleDestroy,
+  Optional,
   type Provider,
 } from '@nestjs/common';
 import IORedis from 'ioredis';
@@ -99,49 +101,70 @@ const queueProviders: Provider[] = [
   ),
 ];
 
+export interface WorkersModuleOptions {
+  /**
+   * When `true`, wire up BullMQ redis connection, queues, workers, scheduler,
+   * and `QueueProducer` — the full worker host. When `false`, the module
+   * provides nothing and imports nothing, so the process never opens a redis
+   * connection or registers worker event loops. Use `true` only in a
+   * dedicated worker process (see `src/worker.ts`); HTTP/TCP processes must
+   * keep this `false` so queue jobs don't starve request handlers.
+   */
+  enabled: boolean;
+}
+
 /**
- * `WorkersModule` — single-process BullMQ worker host for the backend.
+ * `WorkersModule` — BullMQ worker host for the backend.
  *
- * Responsibilities:
- *   - Owns a shared ioredis connection pointed at REDIS_HOST/REDIS_PORT.
- *   - Instantiates a `Queue` + `Worker` pair for each of the four named
- *     queues from `@app/contracts` `QueueName`.
- *   - Schedules the nightly retention prune via BullMQ repeat (no
- *     extra scheduler lib).
- *   - Exposes `QueueProducer` for producers to enqueue work.
- *   - Closes workers / queues / redis on shutdown.
- *
- * HTTP + TCP microservice bootstraps both import `AppModule`, which
- * imports this module, so workers come up alongside either transport.
- * If you ever want workers-only, bootstrap `AppModule` with no HTTP
- * adapter and no TCP microservice.
+ * Gate with `WorkersModule.forRoot({ enabled: env.WORKERS_ENABLED })`.
+ * When disabled, returns an empty global module (no providers, no exports,
+ * no redis client) — queue work only runs in the dedicated `backend-worker`
+ * process (`src/worker.ts`) so long-running retention / cascade jobs can't
+ * block the HTTP/TCP event loop of the main backend service.
  */
 @Global()
-@Module({
-  providers: [
-    registryProvider,
-    redisConnectionProvider,
-    ...queueProviders,
-    RetentionScheduler,
-    QueueProducer,
-  ],
-  exports: [
-    QueueProducer,
-    USER_CASCADE_DELETE_QUEUE,
-    RETENTION_PRUNE_QUEUE,
-    ATTACHMENTS_CLEANUP_QUEUE,
-    ABUSE_REPORT_NOTIFY_QUEUE,
-  ],
-})
+@Module({})
 export class WorkersModule implements OnModuleDestroy {
   private readonly logger = new Logger(WorkersModule.name);
 
   constructor(
-    @Inject(WORKERS_REGISTRY) private readonly registry: WorkersRegistry,
-    @Inject(WORKERS_REDIS_CONNECTION) private readonly redis: IORedis,
+    @Optional() @Inject(WORKERS_REGISTRY) private readonly registry: WorkersRegistry | null = null,
+    @Optional() @Inject(WORKERS_REDIS_CONNECTION) private readonly redis: IORedis | null = null,
   ) {}
 
+  static forRoot(options: WorkersModuleOptions): DynamicModule {
+    if (!options.enabled) {
+      // Disabled host: nothing wired. The module still exists so `AppModule`
+      // can import it unconditionally, but it contributes no providers,
+      // no redis connection, and no worker event loops.
+      return {
+        module: WorkersModule,
+        providers: [],
+        exports: [],
+      };
+    }
+
+    return {
+      module: WorkersModule,
+      providers: [
+        registryProvider,
+        redisConnectionProvider,
+        ...queueProviders,
+        RetentionScheduler,
+        QueueProducer,
+      ],
+      exports: [
+        QueueProducer,
+        USER_CASCADE_DELETE_QUEUE,
+        RETENTION_PRUNE_QUEUE,
+        ATTACHMENTS_CLEANUP_QUEUE,
+        ABUSE_REPORT_NOTIFY_QUEUE,
+      ],
+    };
+  }
+
   async onModuleDestroy(): Promise<void> {
+    if (!this.registry || !this.redis) return;
     this.logger.log('Shutting down BullMQ workers...');
     // Close workers first so they stop accepting jobs, then queues +
     // event listeners, then drop the shared redis connection.

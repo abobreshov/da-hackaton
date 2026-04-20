@@ -75,8 +75,7 @@ services:
       TLS_CA_PATH: /certs/ca.crt
       TLS_CERT_PATH: /certs/auth-service.crt
       TLS_KEY_PATH: /certs/auth-service.key
-    ports:
-      - '3003:3003'
+    # Internal service — no host port; reachable only via BFF TCP
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,13 +106,47 @@ services:
       TLS_CA_PATH: /certs/ca.crt
       TLS_CERT_PATH: /certs/backend.crt
       TLS_KEY_PATH: /certs/backend.key
-    ports:
-      - '3004:3004'
-      - '4004:4004'
+      WORKERS_ENABLED: 'false'
+    # Internal service — no host port; reachable only via BFF TCP
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
+        condition: service_started
+    restart: unless-stopped
+
+  backend-worker:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    command: ['yarn', 'start:worker']
+    volumes:
+      - ./secrets/internal-ca:/certs:ro
+    environment:
+      PORT: 3004
+      TCP_PORT: 4004
+      TCP_BIND: 0.0.0.0
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_TCP_HOST: auth-service
+      AUTH_TCP_PORT: 4003
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      ALLOWED_ORIGINS: http://localhost:3006,http://localhost:3007
+      LOG_LEVEL: info
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/backend.crt
+      TLS_KEY_PATH: /certs/backend.key
+      WORKERS_ENABLED: 'true'
+    # Internal worker — no HTTP/TCP listener, no host port
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
         condition: service_started
     restart: unless-stopped
 

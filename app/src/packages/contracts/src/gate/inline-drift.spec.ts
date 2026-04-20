@@ -48,10 +48,6 @@ const ALLOW_LIST: Record<string, string[]> = {
     'auth.customer.register',
     'auth.customer.validateToken',
   ],
-  'app/src/bff/src/modules/users/users.service.ts': [
-    'users.findById',
-    'users.list',
-  ],
   'app/src/backend/src/common/guards/jwt.guard.ts': [
     'auth.customer.validateToken',
   ],
@@ -69,6 +65,7 @@ const ALLOW_LIST: Record<string, string[]> = {
   ],
   'app/src/backend/src/modules/users/users.tcp.ts': [
     'users.findById',
+    'users.findByUsername',
     'users.list',
   ],
   'app/src/backend/src/workers/queue.producer.ts': [

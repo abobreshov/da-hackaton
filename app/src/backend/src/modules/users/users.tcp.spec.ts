@@ -23,6 +23,7 @@ describe('UsersTcpController', () => {
     service = {
       findAll: jest.fn(),
       findById: jest.fn(),
+      findByUsername: jest.fn(),
     } as unknown as jest.Mocked<UsersService>;
     controller = new UsersTcpController(service);
   });
@@ -39,5 +40,18 @@ describe('UsersTcpController', () => {
     const out = await controller.findById({ id: 7 });
     expect(service.findById).toHaveBeenCalledWith(7);
     expect(out).toEqual({ id: 7 });
+  });
+
+  it('users.findByUsername -> service.findByUsername(data.username)', async () => {
+    service.findByUsername.mockResolvedValue({ id: 4, name: 'Alice' } as any);
+    const out = await controller.findByUsername({ username: 'alice' });
+    expect(service.findByUsername).toHaveBeenCalledWith('alice');
+    expect(out).toEqual({ id: 4, name: 'Alice' });
+  });
+
+  it('users.findByUsername -> returns null when service returns null (enumeration-safe)', async () => {
+    service.findByUsername.mockResolvedValue(null as any);
+    const out = await controller.findByUsername({ username: 'ghost' });
+    expect(out).toBeNull();
   });
 });

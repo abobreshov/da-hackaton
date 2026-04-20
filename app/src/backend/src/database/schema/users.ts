@@ -6,17 +6,28 @@
 // CREATE TABLE users during generation, strip it from the resulting .sql file
 // before committing. Auth-service manages the authoritative schema.
 
-import { pgTable, serial, varchar, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, serial, varchar, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 
 export const roleEnum = pgEnum('role', ['ADMIN', 'USER']);
 export const accessStatusEnum = pgEnum('access_status', ['ACTIVE', 'INACTIVE']);
 
-export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  name: varchar('name', { length: 255 }).notNull(),
-  role: roleEnum('role').default('USER'),
-  accessStatus: accessStatusEnum('access_status').default('ACTIVE'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: serial('id').primaryKey(),
+    email: varchar('email', { length: 255 }).notNull().unique(),
+    name: varchar('name', { length: 255 }).notNull(),
+    role: roleEnum('role').default('USER'),
+    accessStatus: accessStatusEnum('access_status').default('ACTIVE'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (t) => ({
+    // Functional index powers the case-insensitive username lookup used by
+    // `UsersService.findByUsername` (BFF invite flow). Keeps the query off a
+    // sequential scan as the users table grows past seed size. Migration:
+    // `drizzle/0010_*.sql`.
+    nameLowerIdx: index('users_name_lower_idx').on(sql`lower(${t.name})`),
+  }),
+);

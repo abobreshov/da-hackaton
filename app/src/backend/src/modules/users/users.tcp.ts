@@ -15,4 +15,9 @@ export class UsersTcpController {
   findById(@Payload() data: { id: number }) {
     return this.service.findById(data.id);
   }
+
+  @MessagePattern({ cmd: 'users.findByUsername' })
+  findByUsername(@Payload() data: { username: string }) {
+    return this.service.findByUsername(data.username);
+  }
 }

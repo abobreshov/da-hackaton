@@ -1,292 +1,130 @@
-jest.mock('../../config/environment', () => ({
-  env: { DATABASE_URL: 'postgres://test', SYSTEM_KEY: 'x'.repeat(32), TLS_ENABLED: false },
-}));
-jest.mock('../../database/connection', () => ({
-  db: {},
-  pool: { end: () => Promise.resolve() },
-}));
-
-import { ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
-import { ModerationService } from './moderation.service';
-
 /**
- * In-memory fake Drizzle. Models just the subset of behavior we need:
- *   - `roomMemberships` rows keyed by (roomId, userId) with role
- *   - `room_bans` rows keyed by (roomId, userId)
- *   - `rooms.deletedAt`
+ * Unit tests for ModerationService (EPIC-06).
  *
- * The service uses `db.transaction(async (tx) => ...)` for multi-row
- * atomic flows; the fake runs the body inline against a shared state
- * object so we can assert row-level side effects deterministically.
+ * The service depends on `ModerationRepositoryPort` + `IEventPublisher`. The
+ * spec drives a fully in-memory fake repository so the business rules
+ * (owner / admin / member matrix, idempotent role transitions, conflict
+ * mapping) are exercised without Postgres. The publisher is a `jest.fn()`
+ * — assertions confirm the service emits the right domain event with the
+ * right payload (audit append is an `AuditSubscriber` concern, not the
+ * service's).
  */
-interface FakeState {
-  memberships: Map<string, { roomId: number; userId: number; role: 'owner' | 'admin' | 'member'; joinedAt: Date }>;
-  bans: Map<string, { roomId: number; userId: number; bannedBy: number; bannedAt: Date }>;
-  rooms: Map<number, { id: number; ownerId: number; deletedAt: Date | null }>;
-  auditCalls: any[];
+
+import {
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+} from '@nestjs/common';
+import { ModerationService } from './moderation.service';
+import type {
+  BanMemberRepoInput,
+  ModerationRepositoryPort,
+  Role,
+  RoomBanRow,
+} from './moderation.types';
+import type { IEventPublisher } from '../../common/events/event-publisher.interface';
+
+interface MembershipRow {
+  roomId: number;
+  userId: number;
+  role: Role;
 }
 
-function key(roomId: number, userId: number): string {
-  return `${roomId}:${userId}`;
-}
+class FakeModerationRepository implements ModerationRepositoryPort {
+  memberships = new Map<string, MembershipRow>();
+  bans = new Map<string, RoomBanRow>();
+  rooms = new Map<number, { id: number; deletedAt: Date | null }>();
 
-function makeDb(state: FakeState) {
-  // Trivial chainable query builder that dispatches on intent via tagged calls.
-  // For unit tests we only use it to read roomMemberships + bans + rooms.
-  const select = jest.fn((columns?: any) => {
-    let currentTable: 'room_memberships' | 'room_bans' | 'rooms' | null = null;
-    let whereClause: { kind: string; roomId?: number; userId?: number } | null = null;
-    const chain: any = {
-      from: jest.fn((table: any) => {
-        const name: string = table?._sym ?? table?.name ?? String(table);
-        if (name.includes('room_memberships') || name === 'roomMemberships') currentTable = 'room_memberships';
-        else if (name.includes('room_bans') || name === 'roomBans') currentTable = 'room_bans';
-        else if (name.includes('rooms') || name === 'rooms') currentTable = 'rooms';
-        return chain;
-      }),
-      where: jest.fn((clause: any) => {
-        whereClause = clause;
-        return chain;
-      }),
-      limit: jest.fn(async (_n: number) => {
-        return resolveQuery(state, currentTable, whereClause, columns);
-      }),
-      orderBy: jest.fn(() => awaitable),
-      then: undefined,
-    };
-    chain[Symbol.asyncIterator] = undefined;
-    const awaitable: any = new Proxy(chain, {
-      get(target, prop) {
-        if (prop === 'then') {
-          return (onFulfilled: any, onRejected: any) => {
-            try {
-              const rows = resolveQuery(state, currentTable, whereClause, columns);
-              return Promise.resolve(rows).then(onFulfilled, onRejected);
-            } catch (e) {
-              return Promise.reject(e).then(onFulfilled, onRejected);
-            }
-          };
-        }
-        return (target as any)[prop];
-      },
+  static key(roomId: number, userId: number): string {
+    return `${roomId}:${userId}`;
+  }
+
+  async roleOf(roomId: number, userId: number): Promise<Role | null> {
+    return this.memberships.get(FakeModerationRepository.key(roomId, userId))?.role ?? null;
+  }
+
+  async banMember(input: BanMemberRepoInput): Promise<void> {
+    const k = FakeModerationRepository.key(input.roomId, input.userId);
+    if (this.bans.has(k)) {
+      const err: any = new Error('duplicate key value violates unique constraint "room_bans_pkey"');
+      err.code = '23505';
+      throw err;
+    }
+    this.bans.set(k, {
+      roomId: input.roomId,
+      userId: input.userId,
+      bannedBy: input.bannedBy,
+      bannedAt: new Date(),
     });
-    return awaitable;
-  });
+    this.memberships.delete(k);
+  }
 
-  const insert = jest.fn((table: any) => {
-    const name: string = table?._sym ?? table?.name ?? String(table);
-    return {
-      values: jest.fn(async (row: any) => {
-        if (name.includes('room_bans') || name === 'roomBans') {
-          const k = key(row.roomId, row.userId);
-          if (state.bans.has(k)) {
-            const err: any = new Error('duplicate key value violates unique constraint "room_bans_pkey"');
-            err.code = '23505';
-            throw err;
-          }
-          state.bans.set(k, { ...row, bannedAt: row.bannedAt ?? new Date() });
-        } else if (name.includes('audit_log') || name === 'auditLog') {
-          state.auditCalls.push({ via: 'tx', ...row });
-        }
-        return [{}];
-      }),
-    };
-  });
+  async unbanMember(roomId: number, userId: number): Promise<void> {
+    this.bans.delete(FakeModerationRepository.key(roomId, userId));
+  }
 
-  const del = jest.fn((table: any) => {
-    const name: string = table?._sym ?? table?.name ?? String(table);
-    return {
-      where: jest.fn(async (clause: any) => {
-        // clause shape is { kind: 'and', roomId, userId } via our fake and()
-        const { roomId, userId } = clause ?? {};
-        if (name.includes('room_bans') || name === 'roomBans') {
-          const k = key(roomId!, userId!);
-          const existed = state.bans.delete(k);
-          return [{ deleted: existed ? 1 : 0 }];
-        }
-        if (name.includes('room_memberships') || name === 'roomMemberships') {
-          const k = key(roomId!, userId!);
-          state.memberships.delete(k);
-          return [{}];
-        }
-        return [{}];
-      }),
-    };
-  });
+  async listBans(roomId: number): Promise<RoomBanRow[]> {
+    return [...this.bans.values()].filter((r) => r.roomId === roomId);
+  }
 
-  const update = jest.fn((table: any) => {
-    const name: string = table?._sym ?? table?.name ?? String(table);
-    return {
-      set: jest.fn((vals: any) => ({
-        where: jest.fn(async (clause: any) => {
-          if (name.includes('room_memberships') || name === 'roomMemberships') {
-            const { roomId, userId } = clause ?? {};
-            const k = key(roomId!, userId!);
-            const m = state.memberships.get(k);
-            if (m && vals.role) m.role = vals.role;
-          } else if (name.includes('rooms') || name === 'rooms') {
-            const { roomId } = clause ?? {};
-            const r = state.rooms.get(roomId!);
-            if (r && 'deletedAt' in vals) r.deletedAt = vals.deletedAt;
-          }
-          return [{}];
-        }),
-      })),
-    };
-  });
+  async promoteMember(roomId: number, userId: number): Promise<void> {
+    const m = this.memberships.get(FakeModerationRepository.key(roomId, userId));
+    if (m) m.role = 'admin';
+  }
 
-  const db: any = {
-    select,
-    insert,
-    delete: del,
-    update,
-    transaction: jest.fn(async (cb: (tx: any) => Promise<any>) => {
-      // tx uses the same implementations so side-effects apply to shared state
-      return cb(db);
-    }),
-  };
-  return db;
+  async demoteMember(roomId: number, userId: number): Promise<void> {
+    const m = this.memberships.get(FakeModerationRepository.key(roomId, userId));
+    if (m) m.role = 'member';
+  }
+
+  async deleteRoom(roomId: number, deletedAt: Date): Promise<void> {
+    const r = this.rooms.get(roomId);
+    if (r) r.deletedAt = deletedAt;
+  }
 }
 
-// Helper: resolve a query against fake state using structured where clause.
-function resolveQuery(
-  state: FakeState,
-  table: 'room_memberships' | 'room_bans' | 'rooms' | null,
-  where: any,
-  columns: any,
-): any[] {
-  if (!table) return [];
-  if (table === 'room_memberships') {
-    const arr = [...state.memberships.values()];
-    if (where?.roomId !== undefined && where?.userId !== undefined) {
-      return arr.filter((r) => r.roomId === where.roomId && r.userId === where.userId);
-    }
-    if (where?.roomId !== undefined) {
-      return arr.filter((r) => r.roomId === where.roomId);
-    }
-    return arr;
-  }
-  if (table === 'room_bans') {
-    const arr = [...state.bans.values()];
-    if (where?.roomId !== undefined && where?.userId !== undefined) {
-      return arr.filter((r) => r.roomId === where.roomId && r.userId === where.userId);
-    }
-    if (where?.roomId !== undefined) {
-      return arr.filter((r) => r.roomId === where.roomId);
-    }
-    return arr;
-  }
-  if (table === 'rooms') {
-    const arr = [...state.rooms.values()];
-    if (where?.roomId !== undefined) {
-      return arr.filter((r) => r.id === where.roomId);
-    }
-    return arr;
-  }
-  return [];
+function seed(): FakeModerationRepository {
+  const repo = new FakeModerationRepository();
+  const seedMembership = (roomId: number, userId: number, role: Role): void => {
+    repo.memberships.set(FakeModerationRepository.key(roomId, userId), {
+      roomId,
+      userId,
+      role,
+    });
+  };
+  seedMembership(1, 10, 'owner');
+  seedMembership(1, 20, 'admin');
+  seedMembership(1, 30, 'member');
+  seedMembership(1, 40, 'member');
+  repo.rooms.set(1, { id: 1, deletedAt: null });
+  return repo;
 }
 
-// ---- Mock drizzle-orm helpers + schema to capture structured clauses ----
-jest.mock('drizzle-orm', () => {
-  return {
-    and: (...parts: any[]) => {
-      const merged: any = { kind: 'and' };
-      for (const p of parts) {
-        if (p && typeof p === 'object') Object.assign(merged, p);
-      }
-      return merged;
-    },
-    eq: (col: any, val: any) => {
-      const colName: string = col?._name ?? String(col);
-      if (colName.includes('room_id') || colName === 'roomId') return { roomId: val };
-      if (colName.includes('user_id') || colName === 'userId') return { userId: val };
-      if (colName === 'id' || colName.endsWith('.id')) return { roomId: val };
-      return { [colName]: val };
-    },
-    sql: Object.assign((..._args: any[]) => ({}), { raw: () => ({}) }),
-    desc: (x: any) => x,
-    asc: (x: any) => x,
-  };
-});
-
-jest.mock('../../database/schema', () => {
-  const mkCol = (name: string) => ({ _name: name });
-  return {
-    roomMemberships: {
-      _sym: 'room_memberships',
-      name: 'room_memberships',
-      roomId: mkCol('room_id'),
-      userId: mkCol('user_id'),
-      role: mkCol('role'),
-      joinedAt: mkCol('joined_at'),
-    },
-    roomBans: {
-      _sym: 'room_bans',
-      name: 'room_bans',
-      roomId: mkCol('room_id'),
-      userId: mkCol('user_id'),
-      bannedBy: mkCol('banned_by'),
-      bannedAt: mkCol('banned_at'),
-    },
-    rooms: {
-      _sym: 'rooms',
-      name: 'rooms',
-      id: mkCol('id'),
-      ownerId: mkCol('owner_id'),
-      deletedAt: mkCol('deleted_at'),
-    },
-    auditLog: {
-      _sym: 'audit_log',
-      name: 'audit_log',
-    },
-    users: {
-      _sym: 'users',
-      name: 'users',
-      id: mkCol('id'),
-      name_col: mkCol('name'),
-    },
-  };
-});
-
-function seed(): FakeState {
-  return {
-    memberships: new Map([
-      [key(1, 10), { roomId: 1, userId: 10, role: 'owner',  joinedAt: new Date() }],
-      [key(1, 20), { roomId: 1, userId: 20, role: 'admin',  joinedAt: new Date() }],
-      [key(1, 30), { roomId: 1, userId: 30, role: 'member', joinedAt: new Date() }],
-      [key(1, 40), { roomId: 1, userId: 40, role: 'member', joinedAt: new Date() }],
-    ]),
-    bans: new Map(),
-    rooms: new Map([[1, { id: 1, ownerId: 10, deletedAt: null }]]),
-    auditCalls: [],
-  };
+function makeEvents(): jest.Mocked<IEventPublisher> {
+  return { emit: jest.fn(), on: jest.fn() } as unknown as jest.Mocked<IEventPublisher>;
 }
 
 describe('ModerationService', () => {
   describe('banMember()', () => {
-    it('admin bans a member: inserts room_bans + audit_log in same transaction + removes membership', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new ModerationService(db, audit as any);
+    it('admin bans a member: writes ban + removes membership + emits room.ban', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
 
       await svc.banMember({ roomId: 1, adminId: 20, userId: 30 });
 
-      expect(state.bans.has(key(1, 30))).toBe(true);
-      expect(state.memberships.has(key(1, 30))).toBe(false);
-      // audit row written inside the tx (state.auditCalls) OR via
-      // auditService.append(...) post-commit — service must do one.
-      const appendedInTx = state.auditCalls.some((c) => c.action === 'room.ban');
-      const appendedAfter = (audit.append as jest.Mock).mock.calls.some(
-        ([p]: any[]) => p?.action === 'room.ban',
-      );
-      expect(appendedInTx || appendedAfter).toBe(true);
+      expect(repo.bans.has(FakeModerationRepository.key(1, 30))).toBe(true);
+      expect(repo.memberships.has(FakeModerationRepository.key(1, 30))).toBe(false);
+      expect(events.emit).toHaveBeenCalledWith('room.ban', {
+        actorId: 20,
+        roomId: 1,
+        userId: 30,
+      });
     });
 
     it('member cannot ban (FORBIDDEN)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.banMember({ roomId: 1, adminId: 30, userId: 40 }),
@@ -294,9 +132,8 @@ describe('ModerationService', () => {
     });
 
     it('cannot ban the owner', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.banMember({ roomId: 1, adminId: 20, userId: 10 }),
@@ -304,33 +141,27 @@ describe('ModerationService', () => {
     });
 
     it('refuses to ban a non-member (NOT_FOUND)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.banMember({ roomId: 1, adminId: 20, userId: 99 }),
-      ).rejects.toThrow(HttpException);
+      ).rejects.toThrow(NotFoundException);
     });
 
-    it('maps 23505 from ban insert to 409 CONFLICT via wire() (lines 16-18, 114-117)', async () => {
-      const state = seed();
-      // Pre-populate a ban so the transactional insert re-collides.
-      state.bans.set(
-        `1:30`,
-        { roomId: 1, userId: 30, bannedBy: 20, bannedAt: new Date() },
-      );
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
-
-      await expect(
-        svc.banMember({ roomId: 1, adminId: 20, userId: 30 }),
-      ).rejects.toMatchObject({
-        getStatus: expect.any(Function),
+    it('maps repo unique-violation (23505) to wire CONFLICT (409)', async () => {
+      const repo = seed();
+      repo.bans.set(FakeModerationRepository.key(1, 30), {
+        roomId: 1,
+        userId: 30,
+        bannedBy: 20,
+        bannedAt: new Date(),
       });
-      // Double-check by inspecting the thrown HttpException body.
+      const svc = new ModerationService(repo, makeEvents());
+
       try {
         await svc.banMember({ roomId: 1, adminId: 20, userId: 30 });
+        fail('expected HttpException');
       } catch (e: any) {
         expect(e).toBeInstanceOf(HttpException);
         expect(e.getStatus()).toBe(409);
@@ -342,42 +173,44 @@ describe('ModerationService', () => {
       }
     });
 
-    it('re-throws non-23505 errors from the ban transaction', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      // Monkey-patch db.transaction to throw a non-unique error.
-      db.transaction = jest.fn(async () => {
-        const err: any = new Error('pg down');
-        throw err;
-      });
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+    it('re-throws non-23505 errors from the repo and does not emit', async () => {
+      const repo = seed();
+      jest.spyOn(repo, 'banMember').mockRejectedValueOnce(new Error('pg down'));
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
+
       await expect(
         svc.banMember({ roomId: 1, adminId: 20, userId: 30 }),
       ).rejects.toThrow('pg down');
+      expect(events.emit).not.toHaveBeenCalled();
     });
   });
 
   describe('unbanMember()', () => {
-    it('admin unbans a previously banned user + writes audit', async () => {
-      const state = seed();
-      state.bans.set(key(1, 30), { roomId: 1, userId: 30, bannedBy: 20, bannedAt: new Date() });
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new ModerationService(db, audit as any);
+    it('admin unbans a previously banned user + emits room.unban', async () => {
+      const repo = seed();
+      repo.bans.set(FakeModerationRepository.key(1, 30), {
+        roomId: 1,
+        userId: 30,
+        bannedBy: 20,
+        bannedAt: new Date(),
+      });
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
 
       await svc.unbanMember({ roomId: 1, adminId: 20, userId: 30 });
 
-      expect(state.bans.has(key(1, 30))).toBe(false);
-      expect(audit.append).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'room.unban', actorId: 20 }),
-      );
+      expect(repo.bans.has(FakeModerationRepository.key(1, 30))).toBe(false);
+      expect(events.emit).toHaveBeenCalledWith('room.unban', {
+        actorId: 20,
+        roomId: 1,
+        userId: 30,
+      });
     });
 
     it('member cannot unban', async () => {
-      const state = seed();
-      state.bans.set(key(1, 30), { roomId: 1, userId: 30, bannedBy: 20, bannedAt: new Date() });
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.unbanMember({ roomId: 1, adminId: 40, userId: 30 }),
@@ -387,22 +220,23 @@ describe('ModerationService', () => {
 
   describe('listBans()', () => {
     it('returns bans for a room (admin access)', async () => {
-      const state = seed();
-      state.bans.set(key(1, 30), { roomId: 1, userId: 30, bannedBy: 20, bannedAt: new Date('2026-04-20T00:00:00Z') });
-      state.bans.set(key(1, 40), { roomId: 1, userId: 40, bannedBy: 20, bannedAt: new Date('2026-04-20T01:00:00Z') });
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      repo.bans.set(FakeModerationRepository.key(1, 30), {
+        roomId: 1, userId: 30, bannedBy: 20, bannedAt: new Date(),
+      });
+      repo.bans.set(FakeModerationRepository.key(1, 40), {
+        roomId: 1, userId: 40, bannedBy: 20, bannedAt: new Date(),
+      });
+      const svc = new ModerationService(repo, makeEvents());
 
       const bans = await svc.listBans({ roomId: 1, viewerId: 20 });
-
       expect(bans).toHaveLength(2);
-      expect(bans.every((b: any) => b.roomId === 1)).toBe(true);
+      expect(bans.every((b) => b.roomId === 1)).toBe(true);
     });
 
     it('non-member cannot view ban list', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.listBans({ roomId: 1, viewerId: 999 }),
@@ -411,111 +245,106 @@ describe('ModerationService', () => {
   });
 
   describe('promote() / demote()', () => {
-    it('owner promotes a member to admin + writes audit', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new ModerationService(db, audit as any);
+    it('owner promotes a member to admin + emits room.role.promote', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
 
       await svc.promote({ roomId: 1, actorId: 10, userId: 30 });
 
-      expect(state.memberships.get(key(1, 30))?.role).toBe('admin');
-      expect(audit.append).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'room.role.promote' }),
-      );
+      expect(repo.memberships.get(FakeModerationRepository.key(1, 30))?.role).toBe('admin');
+      expect(events.emit).toHaveBeenCalledWith('room.role.promote', {
+        actorId: 10,
+        roomId: 1,
+        userId: 30,
+        newRole: 'admin',
+      });
     });
 
     it('non-owner cannot promote', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.promote({ roomId: 1, actorId: 20, userId: 30 }),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('owner demotes an admin to member + writes audit', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new ModerationService(db, audit as any);
+    it('owner demotes an admin to member + emits room.role.demote', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
 
       await svc.demote({ roomId: 1, actorId: 10, userId: 20 });
 
-      expect(state.memberships.get(key(1, 20))?.role).toBe('member');
-      expect(audit.append).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'room.role.demote' }),
-      );
+      expect(repo.memberships.get(FakeModerationRepository.key(1, 20))?.role).toBe('member');
+      expect(events.emit).toHaveBeenCalledWith('room.role.demote', {
+        actorId: 10,
+        roomId: 1,
+        userId: 20,
+        newRole: 'member',
+      });
     });
 
     it('owner cannot demote themself (AC-06-02)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.demote({ roomId: 1, actorId: 10, userId: 10 }),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('promote is idempotent when target is already admin (line 166)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new ModerationService(db, audit as any);
+    it('promote is idempotent when target is already admin (no event)', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
 
-      // userId=20 is already admin; promoting should be a no-op.
       await svc.promote({ roomId: 1, actorId: 10, userId: 20 });
-      expect(state.memberships.get(`1:20`)?.role).toBe('admin');
-      expect(audit.append).not.toHaveBeenCalled();
+      expect(repo.memberships.get(FakeModerationRepository.key(1, 20))?.role).toBe('admin');
+      expect(events.emit).not.toHaveBeenCalled();
     });
 
-    it('promote refuses to promote non-member (NotFound line 164)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+    it('promote refuses to promote non-member (NotFound)', async () => {
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
       await expect(
         svc.promote({ roomId: 1, actorId: 10, userId: 999 }),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('promote forbidden when target is the owner (line 165)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+    it('promote forbidden when target is the owner', async () => {
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
       await expect(
         svc.promote({ roomId: 1, actorId: 10, userId: 10 }),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('demote is idempotent when target is already member (line 194)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new ModerationService(db, audit as any);
+    it('demote is idempotent when target is already member (no event)', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
 
-      // userId=30 is a member; demoting should be a no-op.
       await svc.demote({ roomId: 1, actorId: 10, userId: 30 });
-      expect(state.memberships.get(`1:30`)?.role).toBe('member');
-      expect(audit.append).not.toHaveBeenCalled();
+      expect(repo.memberships.get(FakeModerationRepository.key(1, 30))?.role).toBe('member');
+      expect(events.emit).not.toHaveBeenCalled();
     });
 
-    it('demote refuses to demote non-member (NotFound line 192)', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+    it('demote refuses to demote non-member (NotFound)', async () => {
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
       await expect(
         svc.demote({ roomId: 1, actorId: 10, userId: 999 }),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('demote forbidden when target is the owner (line 193)', async () => {
-      const state = seed();
-      // Second owner (shouldn't exist at SQL level, but the guard exists)
-      state.memberships.set(`1:50`, { roomId: 1, userId: 50, role: 'owner', joinedAt: new Date() });
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+    it('demote forbidden when target is the owner', async () => {
+      const repo = seed();
+      repo.memberships.set(FakeModerationRepository.key(1, 50), {
+        roomId: 1, userId: 50, role: 'owner',
+      });
+      const svc = new ModerationService(repo, makeEvents());
       await expect(
         svc.demote({ roomId: 1, actorId: 10, userId: 50 }),
       ).rejects.toThrow(ForbiddenException);
@@ -523,24 +352,23 @@ describe('ModerationService', () => {
   });
 
   describe('deleteRoom()', () => {
-    it('owner soft-deletes room + writes audit', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const audit = { append: jest.fn() };
-      const svc = new ModerationService(db, audit as any);
+    it('owner soft-deletes room + emits room.delete', async () => {
+      const repo = seed();
+      const events = makeEvents();
+      const svc = new ModerationService(repo, events);
 
       await svc.deleteRoom({ roomId: 1, actorId: 10 });
 
-      expect(state.rooms.get(1)?.deletedAt).not.toBeNull();
-      expect(audit.append).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'room.delete', actorId: 10 }),
-      );
+      expect(repo.rooms.get(1)?.deletedAt).not.toBeNull();
+      expect(events.emit).toHaveBeenCalledWith('room.delete', {
+        actorId: 10,
+        roomId: 1,
+      });
     });
 
     it('admin (not owner) cannot delete room', async () => {
-      const state = seed();
-      const db = makeDb(state);
-      const svc = new ModerationService(db, { append: jest.fn() } as any);
+      const repo = seed();
+      const svc = new ModerationService(repo, makeEvents());
 
       await expect(
         svc.deleteRoom({ roomId: 1, actorId: 20 }),

@@ -43,12 +43,14 @@ hackathone/
 
 | Service | HTTP | TCP |
 |---|---|---|
-| auth-service | 3003 | 4003 |
-| backend | 3004 | 4004 |
+| auth-service | 3003 (dev-local only) | 4003 |
+| backend | 3004 (dev-local only) | 4004 |
 | bff | 3006 | — |
 | frontend | 3007 | — |
 | postgres | 5433 (dev-local) / 5432 | — |
 | redis | 6380 (dev-local) / 6379 | — |
+
+> `dev.sh` (Option A) keeps `auth-service` and `backend` internal — no host port. Only BFF and frontend are exposed. TCP ports stay internal on the compose network for inter-service mTLS.
 
 ## Run locally
 

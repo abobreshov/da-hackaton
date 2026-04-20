@@ -2,26 +2,22 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  HttpException,
-  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { ErrorCode, WireError } from '@app/contracts';
-import { DATABASE } from '../../database/database.module';
-import { Db } from '../../database/connection';
-import { abuseReports, users } from '../../database/schema';
-import { AuditService } from '../audit/audit.service';
-
-function wire(status: HttpStatus, code: ErrorCode, message: string): HttpException {
-  const body: WireError = { code, message };
-  return new HttpException(body, status);
-}
-
-type TargetType = 'message' | 'user';
-type Status = 'open' | 'resolved' | 'dismissed';
+import {
+  EVENT_PUBLISHER,
+  IEventPublisher,
+} from '../../common/events/event-publisher.interface';
+import {
+  ABUSE_REPORTS_REPOSITORY,
+  AbuseReportRow,
+  AbuseReportsRepositoryPort,
+  ReportStatus,
+  TargetType,
+} from './abuse-reports.types';
 
 export interface CreateReportInput {
   reporterId: number;
@@ -58,30 +54,29 @@ const VALID_TARGETS: readonly TargetType[] = ['message', 'user'] as const;
  * - `create()` enforces reason length + valid targetType before DB hit, then
  *   maps the partial-UNIQUE violation (status='open' dedup) to CONFLICT (409).
  * - `listOpen()` / `resolve()` / `dismiss()` are admin-only; the admin gate
- *   reads users.role.
- * - Every successful state transition writes an audit_log row via
- *   AuditService.append (best-effort, post-commit).
+ *   reads `users.role` via the repository.
+ * - Every successful state transition emits a domain event via
+ *   `IEventPublisher`. The `AuditSubscriber` (registered in EventsModule)
+ *   translates those events into `AuditService.append(...)` calls — this
+ *   service is intentionally unaware of audit concerns.
  */
 @Injectable()
 export class AbuseReportsService {
   constructor(
-    @Inject(DATABASE) private readonly db: Db,
-    private readonly audit: AuditService,
+    @Inject(ABUSE_REPORTS_REPOSITORY)
+    private readonly repo: AbuseReportsRepositoryPort,
+    @Inject(EVENT_PUBLISHER)
+    private readonly events: IEventPublisher,
   ) {}
 
   private async assertAdmin(adminId: number): Promise<void> {
-    const rows = await (this.db as any)
-      .select()
-      .from(users)
-      .where(eq(users.id, adminId))
-      .limit(1);
-    const user = rows[0];
+    const user = await this.repo.findUserById(adminId);
     if (!user || user.role !== 'ADMIN') {
       throw new ForbiddenException('admin required');
     }
   }
 
-  async create(input: CreateReportInput): Promise<any> {
+  async create(input: CreateReportInput): Promise<AbuseReportRow> {
     if (!input.reason || input.reason.length === 0) {
       throw new BadRequestException('reason is required');
     }
@@ -95,17 +90,14 @@ export class AbuseReportsService {
       throw new BadRequestException('targetType must be "message" or "user"');
     }
 
+    let row: AbuseReportRow;
     try {
-      const rows = await (this.db as any)
-        .insert(abuseReports)
-        .values({
-          reporterId: input.reporterId,
-          targetType: input.targetType,
-          targetId: input.targetId,
-          reason: input.reason,
-        })
-        .returning();
-      return rows[0];
+      row = await this.repo.insert({
+        reporterId: input.reporterId,
+        targetType: input.targetType,
+        targetId: input.targetId,
+        reason: input.reason,
+      });
     } catch (err: any) {
       if (err?.code === '23505') {
         throw new ConflictException({
@@ -115,77 +107,50 @@ export class AbuseReportsService {
       }
       throw err;
     }
+
+    this.events.emit('report.create', {
+      actorId: input.reporterId,
+      reportId: row.id,
+      targetType: input.targetType,
+      targetId: input.targetId,
+    });
+
+    return row;
   }
 
-  async listOpen(input: ListOpenInput): Promise<any[]> {
+  async listOpen(input: ListOpenInput): Promise<AbuseReportRow[]> {
     await this.assertAdmin(input.adminId);
     const limit = Math.min(Math.max(1, input.limit), MAX_LIMIT);
-
-    const filters: any[] = [eq(abuseReports.status, 'open')];
-    if (input.before) {
-      filters.push(
-        or(
-          lt(abuseReports.createdAt, input.before.createdAt),
-          and(
-            eq(abuseReports.createdAt, input.before.createdAt),
-            lt(abuseReports.id, input.before.id),
-          ),
-        ),
-      );
-    }
-
-    const rows = await (this.db as any)
-      .select()
-      .from(abuseReports)
-      .where(and(...filters))
-      .orderBy(desc(abuseReports.createdAt), desc(abuseReports.id))
-      .limit(limit);
-    return rows;
+    return this.repo.listOpen({ limit, before: input.before });
   }
 
   async resolve(input: ResolveInput): Promise<void> {
     await this.assertAdmin(input.adminId);
     await this.transitionStatus(input.id, 'resolved', input.adminId);
-    await this.audit.append({
+    this.events.emit('report.resolve', {
       actorId: input.adminId,
-      actorType: 'admin',
-      action: 'report.resolve',
-      targetType: 'abuse_report',
-      targetId: input.id,
-      metadata: input.note ? { note: input.note } : undefined,
+      reportId: input.id,
+      note: input.note,
     });
   }
 
   async dismiss(input: DismissInput): Promise<void> {
     await this.assertAdmin(input.adminId);
     await this.transitionStatus(input.id, 'dismissed', input.adminId);
-    await this.audit.append({
+    this.events.emit('report.dismiss', {
       actorId: input.adminId,
-      actorType: 'admin',
-      action: 'report.dismiss',
-      targetType: 'abuse_report',
-      targetId: input.id,
-      metadata: input.note ? { note: input.note } : undefined,
+      reportId: input.id,
+      note: input.note,
     });
   }
 
   private async transitionStatus(
     id: bigint,
-    to: Exclude<Status, 'open'>,
+    to: Exclude<ReportStatus, 'open'>,
     adminId: number,
   ): Promise<void> {
-    const rows = await (this.db as any)
-      .select()
-      .from(abuseReports)
-      .where(eq(abuseReports.id, id))
-      .limit(1);
-    const existing = rows[0];
+    const existing = await this.repo.findById(id);
     if (!existing) throw new NotFoundException('report not found');
-
-    const now = new Date();
-    await (this.db as any)
-      .update(abuseReports)
-      .set({ status: to, resolvedBy: adminId, resolvedAt: now })
-      .where(eq(abuseReports.id, id));
+    await this.repo.updateStatus(id, to, adminId, new Date());
   }
 }

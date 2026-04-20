@@ -6,19 +6,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
 import { ErrorCode, WireError } from '@app/contracts';
-import { DATABASE } from '../../database/database.module';
-import { Db } from '../../database/connection';
-import { roomBans, roomMemberships, rooms } from '../../database/schema';
-import { AuditService } from '../audit/audit.service';
+import {
+  EVENT_PUBLISHER,
+  IEventPublisher,
+} from '../../common/events/event-publisher.interface';
+import {
+  MODERATION_REPOSITORY,
+  ModerationRepositoryPort,
+  Role,
+  RoomBanRow,
+} from './moderation.types';
 
 function wire(status: HttpStatus, code: ErrorCode, message: string): HttpException {
   const body: WireError = { code, message };
   return new HttpException(body, status);
 }
-
-type Role = 'owner' | 'admin' | 'member';
 
 interface BanMemberInput {
   roomId: number;
@@ -45,31 +48,26 @@ interface DeleteRoomInput {
  *   - promote/demote:      owner only (owner self-demote forbidden, AC-06-02)
  *   - delete room:         owner only
  *
- * `banMember` + `unbanMember` include the ban list write AND the
- * corresponding membership delete inside the same transaction so the
- * table snapshot never contains both rows (AC-06-05/06/09). Audit append
- * is best-effort and runs post-commit.
+ * Persistence is delegated to `ModerationRepositoryPort` so the service is
+ * Drizzle-free + unit-testable. Audit-log writes are NOT done here: each
+ * privileged action emits a domain event via `IEventPublisher` and the
+ * `AuditSubscriber` (registered in `EventsModule`) translates the event
+ * into an `AuditService.append(...)` call. This keeps the moderation
+ * service ignorant of the audit module entirely.
  */
 @Injectable()
 export class ModerationService {
   constructor(
-    @Inject(DATABASE) private readonly db: Db,
-    private readonly audit: AuditService,
+    @Inject(MODERATION_REPOSITORY)
+    private readonly repo: ModerationRepositoryPort,
+    @Inject(EVENT_PUBLISHER)
+    private readonly events: IEventPublisher,
   ) {}
 
   // ---------------------------------------------------------------------------
 
-  private async roleOf(roomId: number, userId: number): Promise<Role | null> {
-    const rows = await (this.db as any)
-      .select()
-      .from(roomMemberships)
-      .where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId)))
-      .limit(1);
-    return rows[0]?.role ?? null;
-  }
-
   private async assertAdminOrOwner(roomId: number, actorId: number): Promise<Role> {
-    const role = await this.roleOf(roomId, actorId);
+    const role = await this.repo.roleOf(roomId, actorId);
     if (role !== 'owner' && role !== 'admin') {
       throw new ForbiddenException('admin or owner required');
     }
@@ -77,7 +75,7 @@ export class ModerationService {
   }
 
   private async assertOwner(roomId: number, actorId: number): Promise<void> {
-    const role = await this.roleOf(roomId, actorId);
+    const role = await this.repo.roleOf(roomId, actorId);
     if (role !== 'owner') throw new ForbiddenException('owner required');
   }
 
@@ -86,7 +84,7 @@ export class ModerationService {
   async banMember(input: BanMemberInput): Promise<void> {
     await this.assertAdminOrOwner(input.roomId, input.adminId);
 
-    const targetRole = await this.roleOf(input.roomId, input.userId);
+    const targetRole = await this.repo.roleOf(input.roomId, input.userId);
     if (!targetRole) {
       throw new NotFoundException('target user is not a member of this room');
     }
@@ -95,64 +93,44 @@ export class ModerationService {
     }
 
     try {
-      await (this.db as any).transaction(async (tx: any) => {
-        await tx.insert(roomBans).values({
-          roomId: input.roomId,
-          userId: input.userId,
-          bannedBy: input.adminId,
-        });
-        await tx
-          .delete(roomMemberships)
-          .where(
-            and(
-              eq(roomMemberships.roomId, input.roomId),
-              eq(roomMemberships.userId, input.userId),
-            ),
-          );
+      await this.repo.banMember({
+        roomId: input.roomId,
+        userId: input.userId,
+        bannedBy: input.adminId,
       });
     } catch (err: any) {
       if (err?.code === '23505') {
-        throw wire(HttpStatus.CONFLICT, ErrorCode.CONFLICT, 'user is already banned from this room');
+        throw wire(
+          HttpStatus.CONFLICT,
+          ErrorCode.CONFLICT,
+          'user is already banned from this room',
+        );
       }
       throw err;
     }
 
-    await this.audit.append({
+    this.events.emit('room.ban', {
       actorId: input.adminId,
-      actorType: 'admin',
-      action: 'room.ban',
-      targetType: 'user',
-      targetId: BigInt(input.userId),
-      metadata: { roomId: input.roomId },
+      roomId: input.roomId,
+      userId: input.userId,
     });
   }
 
   async unbanMember(input: BanMemberInput): Promise<void> {
     await this.assertAdminOrOwner(input.roomId, input.adminId);
 
-    await (this.db as any)
-      .delete(roomBans)
-      .where(and(eq(roomBans.roomId, input.roomId), eq(roomBans.userId, input.userId)));
+    await this.repo.unbanMember(input.roomId, input.userId);
 
-    await this.audit.append({
+    this.events.emit('room.unban', {
       actorId: input.adminId,
-      actorType: 'admin',
-      action: 'room.unban',
-      targetType: 'user',
-      targetId: BigInt(input.userId),
-      metadata: { roomId: input.roomId },
+      roomId: input.roomId,
+      userId: input.userId,
     });
   }
 
-  async listBans(input: { roomId: number; viewerId: number }): Promise<any[]> {
+  async listBans(input: { roomId: number; viewerId: number }): Promise<RoomBanRow[]> {
     await this.assertAdminOrOwner(input.roomId, input.viewerId);
-
-    const rows = await (this.db as any)
-      .select()
-      .from(roomBans)
-      .where(eq(roomBans.roomId, input.roomId))
-      .orderBy(desc(roomBans.bannedAt));
-    return rows;
+    return this.repo.listBans(input.roomId);
   }
 
   // ---------------------------------------------------------------------------
@@ -160,23 +138,18 @@ export class ModerationService {
   async promote(input: RoleChangeInput): Promise<void> {
     await this.assertOwner(input.roomId, input.actorId);
 
-    const targetRole = await this.roleOf(input.roomId, input.userId);
+    const targetRole = await this.repo.roleOf(input.roomId, input.userId);
     if (!targetRole) throw new NotFoundException('target user is not a member');
     if (targetRole === 'owner') throw new ForbiddenException('cannot promote the owner');
     if (targetRole === 'admin') return; // idempotent
 
-    await (this.db as any)
-      .update(roomMemberships)
-      .set({ role: 'admin' })
-      .where(and(eq(roomMemberships.roomId, input.roomId), eq(roomMemberships.userId, input.userId)));
+    await this.repo.promoteMember(input.roomId, input.userId);
 
-    await this.audit.append({
+    this.events.emit('room.role.promote', {
       actorId: input.actorId,
-      actorType: 'admin',
-      action: 'room.role.promote',
-      targetType: 'user',
-      targetId: BigInt(input.userId),
-      metadata: { roomId: input.roomId, newRole: 'admin' },
+      roomId: input.roomId,
+      userId: input.userId,
+      newRole: 'admin',
     });
   }
 
@@ -188,23 +161,18 @@ export class ModerationService {
 
     await this.assertOwner(input.roomId, input.actorId);
 
-    const targetRole = await this.roleOf(input.roomId, input.userId);
+    const targetRole = await this.repo.roleOf(input.roomId, input.userId);
     if (!targetRole) throw new NotFoundException('target user is not a member');
     if (targetRole === 'owner') throw new ForbiddenException('cannot demote the owner');
     if (targetRole === 'member') return; // idempotent
 
-    await (this.db as any)
-      .update(roomMemberships)
-      .set({ role: 'member' })
-      .where(and(eq(roomMemberships.roomId, input.roomId), eq(roomMemberships.userId, input.userId)));
+    await this.repo.demoteMember(input.roomId, input.userId);
 
-    await this.audit.append({
+    this.events.emit('room.role.demote', {
       actorId: input.actorId,
-      actorType: 'admin',
-      action: 'room.role.demote',
-      targetType: 'user',
-      targetId: BigInt(input.userId),
-      metadata: { roomId: input.roomId, newRole: 'member' },
+      roomId: input.roomId,
+      userId: input.userId,
+      newRole: 'member',
     });
   }
 
@@ -214,18 +182,11 @@ export class ModerationService {
     await this.assertOwner(input.roomId, input.actorId);
 
     const now = new Date();
-    await (this.db as any)
-      .update(rooms)
-      .set({ deletedAt: now })
-      .where(eq(rooms.id, input.roomId));
+    await this.repo.deleteRoom(input.roomId, now);
 
-    await this.audit.append({
+    this.events.emit('room.delete', {
       actorId: input.actorId,
-      actorType: 'admin',
-      action: 'room.delete',
-      targetType: 'room',
-      targetId: BigInt(input.roomId),
-      metadata: { roomId: input.roomId },
+      roomId: input.roomId,
     });
   }
 }

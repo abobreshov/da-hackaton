@@ -104,10 +104,54 @@ services:
       TLS_CA_PATH: /certs/ca.crt
       TLS_CERT_PATH: /certs/backend.crt
       TLS_KEY_PATH: /certs/backend.key
+      WORKERS_ENABLED: 'false'
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
+        condition: service_started
+    networks: [app-internal]
+    restart: unless-stopped
+
+  backend-worker:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.dev
+    command: ['yarn', 'dev:worker']
+    volumes:
+      - ./src/backend/src:/app/src:ro
+      - ./secrets/internal-ca:/certs:ro
+      - attachments:/data/attachments
+    environment:
+      PORT: 3004
+      TCP_PORT: 4004
+      TCP_BIND: 0.0.0.0
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_TCP_HOST: auth-service
+      AUTH_TCP_PORT: 4003
+      SYSTEM_KEY: dev-internal-system-key-min-32-chars-ok
+      ALLOWED_ORIGINS: http://localhost:3006,http://localhost:3007
+      LOG_LEVEL: info
+      ATTACHMENTS_DIR: /data/attachments
+      MESSAGE_RETENTION_DAYS: 30
+      ATTACHMENT_RETENTION_DAYS: 30
+      AUDIT_LOG_RETENTION_DAYS: 30
+      ABUSE_REPORT_RETENTION_DAYS: 30
+      TLS_ENABLED: 'true'
+      TLS_CA_PATH: /certs/ca.crt
+      TLS_CERT_PATH: /certs/backend.crt
+      TLS_KEY_PATH: /certs/backend.key
+      WORKERS_ENABLED: 'true'
+    # Internal worker — no HTTP/TCP listener, no host port
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
         condition: service_started
     networks: [app-internal]
     restart: unless-stopped
