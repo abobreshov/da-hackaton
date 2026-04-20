@@ -43,6 +43,11 @@ export class CustomerAuthTcpController {
     return this.service.register(dto);
   }
 
+  @MessagePattern({ cmd: TcpCmd.auth.customer.verifyEmail })
+  verifyEmail(@Payload() data: { token: string }) {
+    return this.service.verifyEmail(data.token);
+  }
+
   @MessagePattern({ cmd: TcpCmd.auth.customer.passwordResetRequest })
   async passwordResetRequest(@Payload() dto: PasswordResetRequestDto) {
     await this.service.passwordResetRequest(dto);

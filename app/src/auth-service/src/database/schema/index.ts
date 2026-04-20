@@ -38,6 +38,12 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  // OWASP V3.1.1 — email verification (register enumeration defence).
+  // Users are created with `emailVerified=false` + a SHA-256-hashed opaque
+  // token (24h TTL). `verifyEmail` clears token columns and flips the flag.
+  emailVerified: boolean('email_verified').default(false).notNull(),
+  verifyTokenHash: text('verify_token_hash'),
+  verifyTokenExpiresAt: timestamp('verify_token_expires_at', { withTimezone: true }),
 });
 
 // Password-reset table is owned by the backend migration

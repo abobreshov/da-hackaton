@@ -5,6 +5,7 @@ export const TcpCmd = {
       refresh: 'auth.customer.refresh',
       logout: 'auth.customer.logout',
       register: 'auth.customer.register',
+      verifyEmail: 'auth.customer.verifyEmail',
       validateToken: 'auth.customer.validateToken',
       passwordResetRequest: 'auth.customer.passwordReset.request',
       passwordResetConfirm: 'auth.customer.passwordReset.confirm',

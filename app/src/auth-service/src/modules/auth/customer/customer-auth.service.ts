@@ -38,6 +38,7 @@ function wire(status: HttpStatus, code: ErrorCode, message: string): HttpExcepti
 export class CustomerAuthService {
   private readonly logger = new Logger(CustomerAuthService.name);
   private readonly RESET_TTL_MS = 60 * 60 * 1000; // 1h
+  private readonly VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
   constructor(
     @Inject(DATABASE) private readonly db: Db,
@@ -77,31 +78,139 @@ export class CustomerAuthService {
     return this.issueTokens(user);
   }
 
-  async register(dto: RegisterDto) {
+  /**
+   * OWASP V3.1.1 — register must not leak whether an email or username is
+   * already in use. Returns `{ ok: true }` in every branch; side-effects are:
+   *
+   *   A. new email + new username → insert user (emailVerified=false) and
+   *      email the verification link.
+   *   B. email already in use → no insert; email a "someone tried to sign up"
+   *      notice with a real password-reset link.
+   *   C. username collides but email is new → silently do nothing (no insert,
+   *      no email). Logged at warn for analyst debugging. Same 202 response.
+   */
+  async register(dto: RegisterDto): Promise<{ ok: true }> {
+    const [existingByEmail] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, dto.email))
+      .limit(1);
+
+    // Case B — email already in use. Do not reveal; send an account-exists
+    // email carrying a real password-reset token.
+    if (existingByEmail && !existingByEmail.deletedAt) {
+      const resetToken = randomBytes(32).toString('hex');
+      const tokenHash = createHash('sha256').update(resetToken).digest('hex');
+      const expiresAt = new Date(Date.now() + this.RESET_TTL_MS);
+      await this.db
+        .insert(passwordResets)
+        .values({ tokenHash, userId: existingByEmail.id, expiresAt })
+        .onConflictDoNothing();
+      await this.mailer.sendAccountExistsEmail(existingByEmail.email, resetToken);
+      return { ok: true };
+    }
+
+    // Case C — username collision but email is fresh. Silent no-op.
+    // Indistinguishable client response; warn-log for internal debugging.
+    const [existingByName] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.name, dto.username))
+      .limit(1);
+    if (existingByName && !existingByName.deletedAt) {
+      this.logger.warn(
+        `register username collision — email=${dto.email} username=${dto.username}`,
+      );
+      return { ok: true };
+    }
+
+    // Case A — wholly new. Insert + verification email inside one logical
+    // unit: on postgres-level unique-violation (race with concurrent
+    // registrations for the same email/username) fall through silently with
+    // the same {ok:true} shape. No partial user rows left behind.
     const passwordHash = await this.passwordService.hash(dto.password);
+    const verifyToken = randomBytes(32).toString('hex');
+    const verifyTokenHash = createHash('sha256').update(verifyToken).digest('hex');
+    const verifyTokenExpiresAt = new Date(Date.now() + this.VERIFY_TTL_MS);
     const defaultScopes = ['read:profile', 'write:profile', 'read:dashboard'];
+
     try {
-      const [inserted] = await this.db
-        .insert(users)
-        .values({
-          email: dto.email,
-          name: dto.username,
-          passwordHash,
-          role: 'USER',
-          scopes: defaultScopes,
-        })
-        .returning();
-      if (!inserted) {
-        throw wire(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.VALIDATION_FAILED, 'register failed');
-      }
-      return this.issueTokens(inserted);
+      await this.db.transaction(async (tx) => {
+        const [inserted] = await tx
+          .insert(users)
+          .values({
+            email: dto.email,
+            name: dto.username,
+            passwordHash,
+            role: 'USER',
+            scopes: defaultScopes,
+            emailVerified: false,
+            verifyTokenHash,
+            verifyTokenExpiresAt,
+          })
+          .returning();
+        if (!inserted) {
+          throw wire(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            ErrorCode.INTERNAL,
+            'register failed',
+          );
+        }
+      });
+      await this.mailer.sendVerificationEmail(dto.email, verifyToken);
+      return { ok: true };
     } catch (err) {
-      // postgres unique-violation
+      // Race-loser on unique violation — treat as silent collision (indistinguishable).
       if ((err as { code?: string })?.code === '23505') {
-        throw wire(HttpStatus.CONFLICT, ErrorCode.CONFLICT, 'email or username taken');
+        this.logger.warn(
+          `register race collision — email=${dto.email} username=${dto.username}`,
+        );
+        return { ok: true };
       }
       throw err;
     }
+  }
+
+  /**
+   * Consume a verification token: mark the user verified, clear the token
+   * columns, and mint a fresh session. Fails with NOT_FOUND on unknown or
+   * expired tokens — same response either way so attackers can't probe
+   * whether a given token value existed.
+   */
+  async verifyEmail(token: string) {
+    const now = new Date();
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.verifyTokenHash, tokenHash),
+          gt(users.verifyTokenExpiresAt, now),
+        ),
+      )
+      .limit(1);
+
+    if (!user || user.deletedAt) {
+      throw wire(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Verification token invalid or expired',
+      );
+    }
+
+    await this.db
+      .update(users)
+      .set({
+        emailVerified: true,
+        verifyTokenHash: null,
+        verifyTokenExpiresAt: null,
+        updatedAt: now,
+      })
+      .where(eq(users.id, user.id));
+
+    return this.issueTokens({ ...user, emailVerified: true });
   }
 
   async passwordResetRequest(dto: PasswordResetRequestDto): Promise<void> {

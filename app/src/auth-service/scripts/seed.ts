@@ -66,6 +66,18 @@ async function seed(): Promise<void> {
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
     `);
+    // OWASP V3.1.1 — email-verification columns. Seeded users are treated as
+    // verified so existing dev creds keep working.
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+    `);
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_hash TEXT;
+    `);
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_expires_at TIMESTAMP WITH TIME ZONE;
+    `);
+    await client.query(`UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE;`);
 
     await client.query(
       `INSERT INTO admins (email, name, password_hash, two_factor_enabled, two_factor_secret)
