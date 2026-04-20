@@ -104,7 +104,7 @@ function LoginPage() {
       <main className="relative z-10 flex min-h-screen items-center justify-center px-6 py-16">
         <section
           aria-labelledby="login-heading"
-          className="w-full max-w-md animate-fade-up rounded-[2.5rem] bg-surface-container-lowest/80 p-10 shadow-ambient-xl backdrop-blur-xl"
+          className="w-full max-w-md animate-fade-up rounded-[2.5rem] bg-surface-container-lowest/80 p-10 shadow-ambient-xl ring-1 ring-inset ring-outline-variant/30 backdrop-blur-xl"
         >
           {/* Hero — logo disc + wordmark + "Ready to jump back in?" */}
           <header className="flex flex-col items-center">

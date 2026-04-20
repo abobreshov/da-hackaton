@@ -35,7 +35,11 @@ export function ChatChatLogo({
       <svg
         width={iconSize}
         height={iconSize}
-        viewBox="0 0 24 24"
+        // Tight viewBox around the single speech-bubble path so it
+        // lands optically centred inside the gradient disc. Adding ~1
+        // unit of padding above/below keeps the tail from kissing the
+        // bottom edge.
+        viewBox="2.75 3.5 15.5 15.5"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="relative drop-shadow-[0_2px_6px_rgba(34,0,77,0.35)]"
@@ -44,12 +48,6 @@ export function ChatChatLogo({
           d="M3.5 7.5A3 3 0 0 1 6.5 4.5H14a3 3 0 0 1 3 3v3.75a3 3 0 0 1-3 3h-3.8l-3.2 2.6a.6.6 0 0 1-.98-.47v-2.13h-.02A3 3 0 0 1 3.5 11.25Z"
           fill="currentColor"
           className="text-on-primary"
-        />
-        <path
-          d="M9.75 13.25h6.6A3 3 0 0 1 19.35 16.25v2A3 3 0 0 1 16.35 21.25h-1.9l-2.55 2.15a.45.45 0 0 1-.74-.35v-1.8H10.9a3 3 0 0 1-1.15-.23 4 4 0 0 0 1.75-3.27v-4.5Z"
-          fill="currentColor"
-          className="text-primary-container"
-          fillOpacity="0.92"
         />
       </svg>
     </div>

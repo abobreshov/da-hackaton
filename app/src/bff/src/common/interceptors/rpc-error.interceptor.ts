@@ -34,6 +34,7 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CONFLICT]: 409,
   [ErrorCode.RATE_LIMITED]: 429,
   [ErrorCode.UPSTREAM_UNAVAILABLE]: 502,
+  [ErrorCode.INTERNAL]: 500,
 };
 
 function inferCode(status: number): ErrorCode {

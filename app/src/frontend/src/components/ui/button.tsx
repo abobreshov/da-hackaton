@@ -28,7 +28,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: [
-          'text-on-primary rounded-full',
+          '!text-white rounded-full',
           'bg-gradient-to-br from-primary to-primary-dim',
           'shadow-ambient hover:shadow-glow-primary',
           'hover:scale-[1.02] active:scale-[0.99]',
