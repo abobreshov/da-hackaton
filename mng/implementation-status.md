@@ -3,15 +3,15 @@
 Live progress tracker for MVP build-out. Updated as milestones land.
 See `mng/specs/` for specifications + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-20 (M2 split).
+**Last updated:** 2026-04-20 (M2 shipped).
 
 ## Milestone map
 
 | Milestone | Demo state | Status |
 |---|---|---|
-| **M1 — Auth loop** | Register → login → 2FA → /dashboard → browse empty /rooms catalog → logout. MailPit observable. | **DONE** (2026-04-20) |
-| **M2a — WS + presence pipeline** | Internal integration target: WS gateway mounted, session-cookie handshake, PresenceService + eager publish + scheduler, 2-browser presence demo in devtools. | NOT STARTED |
-| **M2b — Rooms & membership UI** | Demo-able: create/browse/join/leave rooms; presence online/AFK/offline dots in members pane; friends pane; rate-limit decorators applied on register/reset. | NOT STARTED |
+| **M1 — Auth loop** | Register → login → 2FA → /dashboard → browse empty /rooms catalog → logout. Mailpit observable. | **DONE** (2026-04-20) |
+| **M2a — WS + presence pipeline** | Internal integration: WS gateway mounted, cookie handshake, PresenceService + eager publish + scheduler, 2-browser presence demo in devtools. | **DONE** (2026-04-20) |
+| **M2b — Rooms & membership UI** | Demo-able: browse/join/leave rooms; presence online/AFK/offline dots in members pane; friends pane; rate-limit decorators on register/login/reset. | **DONE** (2026-04-20) |
 | **M3 — Messaging core** | Room + DM messaging, admin delete, friend → DM flow, moderation basics. | NOT STARTED |
 | **M4 — Attachments & unread** | Upload image/file; unread badges; offline delivery. | NOT STARTED |
 | **M5 — Reviewer-ready** | Top-5 reviewer journeys green; rate-limits + CSRF + OriginGuard tightened; retention tested. | NOT STARTED |
@@ -23,68 +23,65 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | EPIC | Backend | BFF | Frontend | Tests | Notes |
 |---|---|---|---|---|---|
 | 01 accounts-auth | ✅ | ✅ | ✅ | ✅ | register, reset (email-token via Mailpit), change, delete w/ async cascade; JWT + TOTP 2FA; refresh rotation |
-| 02 sessions-presence | 🟡 schema | ⏳ | ⏳ | — | migration + schema; presence service + scheduler still TODO |
-| 03 realtime-transport | ⏳ | 🟡 skeleton | ⏳ | 🟡 | WS OriginGuard + Redis IoAdapter ready; gateway + session-ticket still TODO |
-| 04 contacts-friends | ✅ friends+bans | ⏳ proxy | ⏳ | ✅ | atomic ban-tx, post-commit events; BFF proxy + UI pending |
-| 05 rooms | ✅ | ✅ proxy | ✅ empty catalog | ✅ | CRUD + catalog + join/leave/invite; empty-state view live |
-| 06 moderation | ✅ moderation + reports + audit | ⏳ proxy | ⏳ admin modal | ✅ | server-side complete; BFF/FE surfaces pending |
-| 07 messaging | 🟡 schema | ⏳ | ⏳ | — | FKs + indexes; service + WS wiring pending |
-| 08 attachments | 🟡 schema | ⏳ | ⏳ | — | schema + indexes; service + FS storage pending |
-| 09 notifications-unread | 🟡 schema | ⏳ | ⏳ | — | `user_last_read` UNIQUE functional index; observer logic pending |
-| 10 ui-shell | — | — | 🟡 partial | ✅ | login, register, reset, verify-2fa, dashboard, rooms-empty; chat viewport + admin modal + responsive pending |
-| 11 scale-reliability | ✅ workers + scheduler | ✅ rate-limiter | ⏳ | ✅ | BullMQ 4 queues + nightly retention.prune; Redis sliding-window throttle guard |
+| 02 sessions-presence | ✅ | ✅ WS-driven | ✅ hooks + PresenceDot | ✅ | PresenceService eager-publish + scheduler; `presence:sessions:{id}` + `presence:state:{id}` Redis layout; AFK_THRESHOLD_SECONDS env |
+| 03 realtime-transport | ✅ PresencePublisher | ✅ gateway + subscriber | ✅ Socket.IO client | ✅ | WS gateway on `/ws`, Redis IoAdapter mounted, cookie handshake, interest-graph fan-out via `presence:global` coalesced 500ms |
+| 04 contacts-friends | ✅ | ✅ proxy + list endpoints | ✅ contacts route | ✅ | atomic ban-tx, friends.list + listPending wired end-to-end |
+| 05 rooms | ✅ + membersOf/ensureMember | ✅ proxy | ✅ catalog + detail | ✅ | rooms detail renders members w/ live PresenceDot |
+| 06 moderation | ✅ moderation + reports + audit | ✅ proxy + admin-gated | ⏳ admin modal | ✅ | ModerationTcpController added; AdminGuard in BFF; FE admin modal pending |
+| 07 messaging | 🟡 schema | ⏳ | ⏳ | — | FKs + indexes; service + WS wiring pending (M3) |
+| 08 attachments | 🟡 schema | ⏳ | ⏳ | — | schema + indexes; service + FS storage pending (M4) |
+| 09 notifications-unread | 🟡 schema | ⏳ | ⏳ | — | `user_last_read` functional unique index; observer logic pending (M4) |
+| 10 ui-shell | — | — | 🟡 partial | ✅ | login, register, reset, verify-2fa, dashboard, rooms catalog + detail, contacts; chat composer + admin modal + responsive pending |
+| 11 scale-reliability | ✅ workers + scheduler | ✅ rate-limiter + throttle-mounted | ⏳ | ✅ | BullMQ 4 queues + nightly retention.prune; Redis sliding-window throttle on register/login/reset |
 | 12 deployment | ✅ compose | — | — | — | Postgres, Redis, Mailpit, Dozzle, attachments volume; mTLS certs |
 | 13 xmpp-federation | ⏸ DEFERRED | ⏸ | ⏸ | ⏸ | post-MVP per product decision |
-| 14 security-nfrs | — | ✅ | ✅ partial | ✅ | CSRF double-submit, WS OriginGuard, WireError envelope, mTLS, throttle decorator |
-| 15 contracts | ✅ | ✅ | ✅ | ✅ | `@app/contracts` wired across 4 services; 29 unit tests |
-| design-system | — | — | 🟡 spec only | — | binding spec landed; Tailwind tokens + UI primitives refactor pending |
+| 14 security-nfrs | — | ✅ | ✅ partial | ✅ | CSRF double-submit, WS OriginGuard mounted, WireError envelope, mTLS, throttle decorator; AC-14-12/13 spam limits pending |
+| 15 contracts | ✅ | ✅ | ✅ | ✅ + grep-gate | `@app/contracts` wired; inline-drift CI gate w/ 76-literal allow-list |
+| design-system | — | — | 🟡 spec only + partial retheme | — | Kinetic Playground tokens partially landed in login/auth shell; full UI primitives refactor pending |
 
-## Test coverage
+## Test coverage (post-M2)
 
-| Workspace | Tests | Stmt | Branch |
-|---|---|---|---|
-| `@app/auth-service` | 137 | 99.8% | 92.8% |
-| `@app/backend` | 203 | 92.5% | 98.0% |
-| `@app/bff` | 142 | 99.4% | 87.2% |
-| `@app/frontend` | 94 | 89.8% | — |
-| `@app/contracts` | 29 | — | — |
-| **Unit total** | **605** | | |
-| E2E (Playwright) | 13 | | |
-| Integration (testcontainers) | 1 | | |
+| Workspace | Tests | Notes |
+|---|---|---|
+| `@app/auth-service` | 137 | Coverage 99.8% stmt |
+| `@app/backend` | 286 | +83 since M1 |
+| `@app/bff` | 226 | +84 since M1 |
+| `@app/frontend` | 143 | +49 since M1; 3 pre-existing copy-drift failures |
+| `@app/contracts` | 32 | +3 grep-gate |
+| **Unit total** | **824** | |
+| E2E (Playwright) | 16 | +3 M2 specs (red until live stack) |
+| Integration (testcontainers) | 1 | |
 
-## Post-M1 debt
+## Deferred / debt (post-M2)
 
-1. **Design-system refactor** — `tailwind.config.ts` still default shadcn; UI primitives + routes built during M1 violate "The Kinetic Playground" non-negotiables (no-border, surface tiers, Plus Jakarta Sans + Be Vietnam Pro, gradient CTAs, asymmetric chat bubbles).
-2. **Frontend `ErrorCode.INTERNAL` typo** — not in enum; existing test files reference it; should be `UPSTREAM_UNAVAILABLE`.
-3. **Doc count stale** — root `CLAUDE.md` + `README.md` say specs "01-14"; actual = 15 feature specs + design-system.
-4. **E2E suite** — covers auth loop; registration, rooms-empty, admin-ban, attachments, messaging journeys pending.
-5. **Backend schema index.ts** — Drizzle barrel accessors uncovered (40-66%); acceptable, exercised by integration tests only.
-6. **Rate-limit decorators not mounted** on `/auth/register` and `/auth/password-reset/*` endpoints. Guard + decorator exist; wire-up pending.
+1. **Design-system refactor** — `tailwind.config.ts` default shadcn; login/auth shell partially themed to Kinetic Playground. Full UI primitives retheme + route audit pending. Applies to rooms-detail + contacts + admin modal when built.
+2. **M1 contracts drift backfill** — 76 inline wire-string literals across 9 files allow-listed in grep-gate:
+   - `bff/src/auth/auth.service.ts` — 12 `auth.*`
+   - `bff/src/modules/users/users.service.ts` — `users.list`, `users.findById`
+   - `backend/src/common/guards/jwt.guard.ts` — `auth.customer.validateToken`
+   - `backend/src/modules/audit/audit.controller.ts` — `auth.customer.validateToken`
+   - `backend/src/modules/bans/bans.service.ts` — `dm.frozen`, `friend.removed`
+   - `backend/src/modules/friends/friends.service.ts` — `friend.removed`, `friend.request.accepted`, `friend.request.new`
+   - `backend/src/modules/users/users.tcp.ts` — `users.list`, `users.findById`
+   - `backend/src/workers/queue.producer.ts` — 4 `QueueName` values
+   - `auth-service/src/modules/auth/admin/admin-auth.tcp.ts` — 3 `auth.admin.*`
+3. **WS connect rate-limit (AC-14-12)** — decorator + guard exist; not mounted on WS gateway handshake.
+4. **Spam rate-limits (AC-14-13)** — friend-request 20/hr, room-create 10/hr, report-create 10/hr — ACs defined, not applied.
+5. **seed:demo real rooms** — stub only. Needs `#general`, `#random`, `#demo` w/ sample messages once EPIC-07 lands.
+6. **E2E M2 specs red** — live-stack dependent; bring up stack + re-run for green.
+7. **Dashboard copy-drift tests** — 3 pre-existing failures in `dashboard.test.tsx` asserting old `scopes:read/write` / `no scopes assigned` / `user` type copy removed in Kinetic Playground redesign.
+8. **Admin FE modal** — `/admin/reports` + `/admin/audit-log` viewers beyond raw REST endpoints.
+9. **Backend schema index.ts coverage** — Drizzle barrel accessors uncovered (40-66%); covered by integration tests only.
+10. **EPIC-02 session DB row** — `user_sessions` table migration exists; backend service still writes only to Redis. Durable session record + active-sessions UI (§2.2.4) pending.
 
-## M2 candidates (ordered by critical path)
+## M3 candidates (ordered by critical path)
 
-**M2a (ordered)**
-1. **M2a** — OOP blockers: add `ModerationTcpController`; consolidate `toRpc` to `common/rpc-transport.ts` and delete per-module copies; extract `IEventPublisher` interface + DI token.
-2. **M2a** — Dep install: `socket.io-client` in frontend; verify `@nestjs/websockets` + `@nestjs/platform-socket.io` as direct BFF deps (promote if transitive).
-3. **M2a** — EPIC-02 PresenceService + PresenceModule + scheduler (eager publish, AFK_THRESHOLD_SECONDS env, default 60).
-4. **M2a** — EPIC-03 PresencePublisher + TransportModule in backend.
-5. **M2a** — BFF WS gateway + WsModule + RedisSubscriberService + mount RedisIoAdapter + WsOriginGuard in main.ts.
-6. **M2a** — Backend TCP additions: `presence.stateOf`, `presence.disconnect`, `rooms.membersOf`, `rooms.ensureMember`.
-7. **M2a** — Frontend: Socket.IO client singleton (`lib/socket.ts`), `usePresence` ping loop, typed `useSocket` hook, `PresenceDot` component.
-8. **M2a** — Contracts drift consolidation — 25 inline wire-string literals found by M1 grep-gate; all should import from `@app/contracts`:
-   - `app/src/bff/src/auth/auth.service.ts` — 12 `auth.*` TCP cmd strings
-   - `app/src/backend/src/common/guards/jwt.guard.ts` — `auth.customer.validateToken`
-   - `app/src/backend/src/modules/audit/audit.controller.ts` — `auth.customer.validateToken`
-   - `app/src/backend/src/modules/moderation/moderation.service.ts` — 5 audit `action` strings
-   - `app/src/backend/src/modules/bans/bans.service.ts` — 3 `events.emit()` names
-   - `app/src/backend/src/modules/friends/friends.service.ts` — 3 `events.emit()` names
-
-**M2b**
-1. **M2b** — BFF proxies for friends, bans, moderation, reports, audit (after extracting generic `RpcProxyService` helper per devils-advocate).
-2. **M2b** — Frontend: rooms detail shell (`_auth/rooms/$roomId.tsx`), contacts pane (`_auth/contacts.tsx`), admin modal skeleton.
-3. **M2b** — EPIC-14 rate-limit decorator mount on `/auth/register` + `/auth/password-reset/*` endpoints + new AC-14-12/13 buckets.
-4. **M2b** — Seed-demo real impl.
-5. **M2b** — Contracts grep-gate CI.
+1. **EPIC-07 messaging** — schema live; add MessagesService + TCP + BFF proxy + FE composer + WS fan-out on `room:{id}` channel.
+2. **EPIC-04 user-ban UX** — block/report UI in `/contacts`; DM eligibility check on message-send.
+3. **EPIC-06 admin modal** — `/admin/reports` + moderation actions on room detail.
+4. **seed:demo** — populate `#general`/`#random`/`#demo` once messages table writeable.
+5. **Chat history pagination** — infinite-scroll spec per AC-07-11.
+6. **Design-system retheme** — apply tokens to rooms-detail + contacts + chat viewport at M3 build time.
 
 ## ADR index
 
