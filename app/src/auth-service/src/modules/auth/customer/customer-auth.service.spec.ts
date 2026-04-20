@@ -468,9 +468,10 @@ describe('CustomerAuthService', () => {
       expect(refresh.revokeAll).not.toHaveBeenCalled();
     });
 
-    it('re-hashes the password and revokes all refresh tokens on success', async () => {
-      deps.selectBuilder.__setTerminal('limit', [baseUser()]);
-      await svc.passwordChange({
+    it('re-hashes the password, revokes all refresh tokens, and issues a fresh session on success', async () => {
+      const user = baseUser({ id: 7 });
+      deps.selectBuilder.__setTerminal('limit', [user]);
+      const result = await svc.passwordChange({
         userId: 7,
         currentPassword: 'old',
         newPassword: 'NewPass123',
@@ -480,6 +481,44 @@ describe('CustomerAuthService', () => {
         expect.objectContaining({ passwordHash: 'hashed-password' }),
       );
       expect(refresh.revokeAll).toHaveBeenCalledWith('u', 7);
+      // Fresh tokens must be minted so the BFF can rotate both cookies.
+      expect(jwt.signUser).toHaveBeenCalledWith({
+        userId: user.id,
+        email: user.email,
+        role: 'USER',
+        scopes: user.scopes,
+      });
+      expect(refresh.create).toHaveBeenCalledWith('u', 7);
+      expect(result).toMatchObject({
+        user: { id: 7, email: user.email, name: user.name, role: 'USER' },
+        accessToken: 'user.jwt',
+        refreshToken: 'u:1:abcd',
+      });
+    });
+
+    it('revokes existing tokens BEFORE minting the replacement so the new token starts a fresh family', async () => {
+      deps.selectBuilder.__setTerminal('limit', [baseUser({ id: 11 })]);
+
+      const callOrder: string[] = [];
+      refresh.revokeAll.mockImplementation(async () => {
+        callOrder.push('revokeAll');
+      });
+      refresh.create.mockImplementation(async () => {
+        callOrder.push('create');
+        return 'u:11:fresh';
+      });
+
+      const result = await svc.passwordChange({
+        userId: 11,
+        currentPassword: 'old',
+        newPassword: 'NewPass123',
+      });
+
+      // Order matters: revokeAll flips the old family to revoked; only after
+      // that do we call create() which allocates a brand-new familyId. If
+      // these were reversed the new token could inherit a revoked lineage.
+      expect(callOrder).toEqual(['revokeAll', 'create']);
+      expect(result.refreshToken).toBe('u:11:fresh');
     });
   });
 

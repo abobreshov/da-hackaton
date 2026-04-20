@@ -108,10 +108,15 @@ describe('CustomerAuthTcpController', () => {
   });
 
   describe('passwordChange', () => {
-    it('delegates with userId from payload and returns { ok: true }', async () => {
-      svc.passwordChange.mockResolvedValue(undefined);
+    it('delegates with userId from payload and forwards the service response (user + tokens)', async () => {
+      const response = {
+        user: { id: 5, email: 'u@x', name: 'u', role: 'USER' as const, scopes: [] as string[] },
+        accessToken: 'at',
+        refreshToken: 'u:5:rt',
+      };
+      svc.passwordChange.mockResolvedValue(response as any);
       const payload = { currentPassword: 'old', newPassword: 'NewPass123', userId: 5 };
-      await expect(ctrl.passwordChange(payload as any)).resolves.toEqual({ ok: true });
+      await expect(ctrl.passwordChange(payload as any)).resolves.toBe(response);
       expect(svc.passwordChange).toHaveBeenCalledWith(payload);
     });
   });

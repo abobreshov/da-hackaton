@@ -56,9 +56,12 @@ export class CustomerAuthTcpController {
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.passwordChange })
-  async passwordChange(@Payload() data: PasswordChangeDto & { userId: number }) {
-    await this.service.passwordChange(data);
-    return { ok: true };
+  passwordChange(@Payload() data: PasswordChangeDto & { userId: number }) {
+    // Returns { user, accessToken, refreshToken } — same shape as login/refresh
+    // so the BFF can drive `cookieService.issueAuthCookies` with zero new
+    // branches. Cookie rotation on password change closes the window where
+    // the previously issued 1h session JWT would still verify.
+    return this.service.passwordChange(data);
   }
 
   @MessagePattern({ cmd: TcpCmd.auth.customer.delete })

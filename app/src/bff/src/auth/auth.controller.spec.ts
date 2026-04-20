@@ -161,27 +161,65 @@ describe('AuthController — new endpoints', () => {
   });
 
   describe('POST /auth/password-change (session-guarded)', () => {
-    it('proxies {userId,currentPassword,newPassword} and returns void (204)', async () => {
-      authSvc.passwordChange.mockResolvedValue(undefined);
+    it('proxies {userId,currentPassword,newPassword} and rotates BOTH cookies on success', async () => {
+      const user = { id: 7, email: 'a@b.com', name: 'alice', scopes: ['chat'] };
+      const refreshToken = 'u:7:rotated';
+      authSvc.passwordChange.mockResolvedValue({ user, refreshToken, accessToken: 'jwt' });
       const req: any = { session: { sub: 'u:7', type: 'user' } };
-      const res = await controller.passwordChange(
+      const reply = makeReply();
+
+      const body = await controller.passwordChange(
         { currentPassword: 'old12345', newPassword: 'new12345' } as any,
         req,
+        reply as any,
       );
+
       expect(authSvc.passwordChange).toHaveBeenCalledWith(7, 'old12345', 'new12345');
-      expect(res).toBeUndefined();
+      // Both cookies get re-issued — session JWT AND refresh — otherwise the
+      // stale 1h session cookie would still verify after password change.
+      expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
+        sub: 'u:7',
+        email: 'a@b.com',
+        name: 'alice',
+        type: 'user',
+        scopes: ['chat'],
+      });
+      expect(cookieSvc.setRefreshCookie).toHaveBeenCalledWith(reply, refreshToken);
+      expect(body).toEqual({ user });
     });
 
-    it('propagates wrong-current-password as RpcException', async () => {
+    it('defaults scopes to [] in rewritten session cookie when upstream omits them', async () => {
+      authSvc.passwordChange.mockResolvedValue({
+        user: { id: 7, email: 'a@b', name: 'a' },
+        refreshToken: 'u:7:r',
+      });
+      const req: any = { session: { sub: 'u:7', type: 'user' } };
+      const reply = makeReply();
+      await controller.passwordChange(
+        { currentPassword: 'old12345', newPassword: 'new12345' } as any,
+        req,
+        reply as any,
+      );
+      expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(
+        reply,
+        expect.objectContaining({ scopes: [] }),
+      );
+    });
+
+    it('propagates wrong-current-password as RpcException and does NOT rewrite cookies', async () => {
       const rpc = new RpcException({ status: 401, message: 'current password invalid' });
       authSvc.passwordChange.mockRejectedValue(rpc);
       const req: any = { session: { sub: 'u:7', type: 'user' } };
+      const reply = makeReply();
       await expect(
         controller.passwordChange(
           { currentPassword: 'wrong123', newPassword: 'new12345' } as any,
           req,
+          reply as any,
         ),
       ).rejects.toBe(rpc);
+      expect(cookieSvc.setSessionCookie).not.toHaveBeenCalled();
+      expect(cookieSvc.setRefreshCookie).not.toHaveBeenCalled();
     });
   });
 

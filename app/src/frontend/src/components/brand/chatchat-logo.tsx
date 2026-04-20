@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils';
+
 /**
  * ChatChat brand mark — two stacked speech bubbles inside a softly-floating
  * gradient disc. Used on the auth screens' hero area and the app header.
@@ -15,23 +17,22 @@ export function ChatChatLogo({
   const iconSize = Math.round(size * 0.48);
   return (
     <div
-      className={['relative grid place-items-center rounded-full shadow-ambient-lg', className]
-        .filter(Boolean)
-        .join(' ')}
+      className={cn(
+        'relative grid place-items-center rounded-full shadow-ambient-lg',
+        className,
+      )}
       style={{
         width: size,
         height: size,
+        // Multi-stop gradient of design tokens — Tailwind can't express
+        // this cleanly as utilities, so we keep the inline `style.background`
+        // here rather than inventing a one-off utility class.
         background:
           'linear-gradient(135deg, var(--primary-container) 0%, var(--primary) 60%, var(--primary-dim) 100%)',
       }}
       aria-hidden="true"
     >
-      <span
-        className="absolute inset-0 rounded-full opacity-80"
-        style={{
-          boxShadow: 'inset 0 -10px 30px rgba(34, 0, 77, 0.35), inset 0 10px 20px rgba(255,255,255,0.15)',
-        }}
-      />
+      <span className="chatchat-disc-inset absolute inset-0 rounded-full opacity-80" />
       <svg
         width={iconSize}
         height={iconSize}
@@ -61,9 +62,10 @@ export function ChatChatLogo({
 export function ChatChatWordmark({ className }: { className?: string }): React.ReactElement {
   return (
     <span
-      className={['wordmark-gradient font-display text-title-lg font-extrabold italic', className]
-        .filter(Boolean)
-        .join(' ')}
+      className={cn(
+        'wordmark-gradient font-display text-title-lg font-extrabold italic',
+        className,
+      )}
     >
       ChatChat
     </span>

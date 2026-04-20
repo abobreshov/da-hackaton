@@ -19,6 +19,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 import { AppHeader } from './app-header';
+import { AppShell } from './app-shell';
 
 describe('<AppHeader />', () => {
   it('renders a <nav> landmark wrapping the pill', () => {
@@ -95,5 +96,21 @@ describe('<AppHeader />', () => {
     const { container } = render(<AppHeader user={{ name: 'Ada' }} />);
     // GlassCard with radius="pill" → rounded-full somewhere inside the nav.
     expect(container.querySelector('.rounded-full')).not.toBeNull();
+  });
+
+  it('inherits the surrounding AppShell maxWidth on the nav container', () => {
+    render(
+      <AppShell maxWidth="lg" header={<AppHeader user={{ name: 'Ada' }} />}>
+        <p>body</p>
+      </AppShell>,
+    );
+    const nav = screen.getByRole('navigation', { name: /primary/i });
+    expect(nav.className).toContain('max-w-lg');
+  });
+
+  it('falls back to max-w-6xl when rendered outside any AppShell', () => {
+    render(<AppHeader user={{ name: 'Ada' }} />);
+    const nav = screen.getByRole('navigation', { name: /primary/i });
+    expect(nav.className).toContain('max-w-6xl');
   });
 });

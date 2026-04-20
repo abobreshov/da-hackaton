@@ -110,7 +110,14 @@ describe('CustomerAuthController', () => {
 
   describe('passwordChange', () => {
     it('injects userId from req.user and delegates', async () => {
-      service.passwordChange.mockResolvedValue(undefined);
+      // HTTP controller is 204-typed — BFF consumes the richer shape over TCP,
+      // so we don't surface tokens on the direct-HTTP route. Mock the fat
+      // response shape anyway so types line up with the service signature.
+      service.passwordChange.mockResolvedValue({
+        user: { id: 7, email: 'u@x.com', name: 'u', role: 'USER', scopes: [] },
+        accessToken: 'at',
+        refreshToken: 'u:7:rt',
+      } as any);
       const dto = { currentPassword: 'old', newPassword: 'NewPass123' };
       const req = { user: { userId: 7, email: 'u@x.com', role: 'USER', scopes: [] } };
       await controller.passwordChange(dto as any, req as any);

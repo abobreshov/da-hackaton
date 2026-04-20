@@ -159,7 +159,7 @@ export class CustomerAuthService {
     await this.refreshTokenService.revokeAll('u', row.userId);
   }
 
-  async passwordChange(dto: PasswordChangeDto & { userId: number }): Promise<void> {
+  async passwordChange(dto: PasswordChangeDto & { userId: number }) {
     const [user] = await this.db.select().from(users).where(eq(users.id, dto.userId)).limit(1);
     if (!user || user.deletedAt) throw new NotFoundException('user not found');
 
@@ -174,7 +174,15 @@ export class CustomerAuthService {
       .set({ passwordHash: newHash, updatedAt: new Date() })
       .where(eq(users.id, dto.userId));
 
+    // Kill every existing refresh token (revokes the old family wholesale),
+    // then mint a fresh one — `refreshTokenService.create()` generates a new
+    // `familyId`, so the replacement session is not inheriting a revoked
+    // lineage. The BFF will then rewrite both the session + refresh cookies
+    // (session JWT `iat` re-minted here → downstream consumers that check
+    // against password-change timestamps won't serve a stale token).
     await this.refreshTokenService.revokeAll('u', dto.userId);
+
+    return this.issueTokens(user);
   }
 
   async deleteAccount({ userId }: { userId: number }): Promise<void> {

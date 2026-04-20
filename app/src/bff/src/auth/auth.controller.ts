@@ -134,14 +134,33 @@ export class AuthController {
   }
 
   @Post('password-change')
-  @HttpCode(204)
   @UseGuards(SessionGuard)
   async passwordChange(
     @Body() dto: PasswordChangeDto,
     @Req() req: any,
-  ): Promise<void> {
+    @Res({ passthrough: true }) reply: any,
+  ) {
     const userId = getUserIdFromSession(req.session);
-    await this.authService.passwordChange(userId, dto.currentPassword, dto.newPassword);
+    // Upstream now returns { user, refreshToken, accessToken } on success so
+    // we can rotate BOTH cookies. Previously we only revoked refresh tokens;
+    // the already-issued session JWT (1h TTL) survived until natural expiry,
+    // which defeats the point of forcing re-auth on password change.
+    const { user, refreshToken } = await this.authService.passwordChange(
+      userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+    this.cookieService.issueAuthCookies(reply, {
+      session: {
+        sub: makeSub('user', user.id),
+        email: user.email,
+        name: user.name,
+        type: 'user',
+        scopes: user.scopes ?? [],
+      },
+      refreshToken,
+    });
+    return { user };
   }
 
   @Delete('account')

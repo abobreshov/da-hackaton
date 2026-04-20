@@ -7,6 +7,7 @@ import { useMessages } from '@/hooks/useMessages';
 import { useSession } from '@/hooks/useSession';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageComposer } from '@/components/chat/message-composer';
+import { GlassCard } from '@/components/ui/surface';
 import { listFriends, type FriendSummary } from '@/lib/friends';
 
 export const Route = createFileRoute('/_auth/dm/$userId')({
@@ -89,8 +90,11 @@ export function DmRoute() {
       className="animate-fade-up flex min-h-[32rem] flex-col gap-6"
       data-testid="dm-route"
     >
-      <header
-        className="flex items-center gap-4 rounded-[2rem] bg-surface-container-lowest/80 px-8 py-6 shadow-ambient backdrop-blur-xl"
+      <GlassCard
+        as="header"
+        radius="lg"
+        padding="none"
+        className="flex items-center gap-4 px-8 py-6"
         aria-labelledby="dm-heading"
       >
         <PresenceDot state={presenceState} />
@@ -105,7 +109,7 @@ export function DmRoute() {
             {username}
           </h1>
         </div>
-      </header>
+      </GlassCard>
 
       {frozen && (
         <div
@@ -124,7 +128,12 @@ export function DmRoute() {
         </div>
       )}
 
-      <section className="flex flex-1 flex-col overflow-hidden rounded-[2rem] bg-surface-container-lowest/80 shadow-ambient backdrop-blur-xl">
+      <GlassCard
+        as="section"
+        radius="lg"
+        padding="none"
+        className="flex flex-1 flex-col overflow-hidden"
+      >
         <div className="flex-1 overflow-hidden">
           <MessageList
             messages={messages}
@@ -153,7 +162,7 @@ export function DmRoute() {
             }}
           />
         </div>
-      </section>
+      </GlassCard>
     </div>
   );
 }

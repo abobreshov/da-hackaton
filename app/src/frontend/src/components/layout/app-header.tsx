@@ -5,6 +5,7 @@ import { GlassCard } from '@/components/ui/surface';
 import { AvatarDisc } from '@/components/ui/avatar-disc';
 import { Button } from '@/components/ui/button';
 import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
+import { maxWidthClass, useAppShellLayout } from '@/components/layout/app-shell';
 
 /**
  * Kinetic Playground top navigation — a single glass pill that carries
@@ -56,9 +57,14 @@ export function AppHeader({
   className,
 }: AppHeaderProps): React.ReactElement {
   const displayName = user?.name ?? user?.email ?? null;
+  // Inherit the surrounding `<AppShell>`'s `maxWidth` so the nav pill stays
+  // aligned with the `<main>` content column. When rendered standalone
+  // (no shell), fall back to the original `max-w-6xl` default.
+  const layout = useAppShellLayout();
+  const navMaxWidth = layout ? maxWidthClass(layout.maxWidth) : 'max-w-6xl';
 
   return (
-    <nav aria-label="Primary" className="mx-auto max-w-6xl">
+    <nav aria-label="Primary" className={cn('mx-auto', navMaxWidth)}>
       <GlassCard
         radius="pill"
         padding="none"
