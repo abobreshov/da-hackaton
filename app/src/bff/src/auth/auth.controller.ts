@@ -34,9 +34,20 @@ export class AuthController {
   })
   async login(@Body() dto: LoginDto, @Req() req: any, @Res({ passthrough: true }) reply: any) {
     const isAdmin = dto.type === 'admin';
+    // M5 MED #4/#5 — userAgent + ip MUST come from the request, never the
+    // body. Persisting body-controlled strings into user_sessions enables
+    // stored XSS via the active-sessions UI and IP spoofing for authz
+    // heuristics. Cap lengths to avoid log/DB bloat from a hostile client.
+    const { userAgent, ip } = extractClientFingerprint(req);
 
     if (isAdmin) {
-      const result = await this.authService.loginAdmin(dto.email, dto.password, dto.totpCode);
+      const result = await this.authService.loginAdmin(
+        dto.email,
+        dto.password,
+        dto.totpCode,
+        userAgent,
+        ip,
+      );
       if (result?.requires2fa) return { requires2fa: true };
       const { admin, refreshToken } = result;
       this.cookieService.issueAuthCookies(reply, {
@@ -51,7 +62,13 @@ export class AuthController {
       });
       return { admin };
     } else {
-      const result = await this.authService.loginUser(dto.email, dto.password, dto.totpCode);
+      const result = await this.authService.loginUser(
+        dto.email,
+        dto.password,
+        dto.totpCode,
+        userAgent,
+        ip,
+      );
       if (result?.requires2fa) return { requires2fa: true };
       const { user, refreshToken } = result;
       this.cookieService.issueAuthCookies(reply, {
@@ -215,6 +232,26 @@ export class AuthController {
  * them is a misconfigured route guard. We still fail closed on a bad
  * prefix rather than trusting the `type` field alone.
  */
+/**
+ * Pull the client User-Agent + IP from the Fastify request, capping each
+ * to a sane length before forwarding. Headers are server-controlled (set
+ * by the proxy / Fastify) and cannot be overridden by the JSON body, so
+ * this is the only path through which these fields reach auth-service.
+ *
+ * Fastify quirk: `req.ip` is a getter that already considers
+ * `trustProxy`. We fall back to `req.socket.remoteAddress` only when the
+ * getter returns falsy (e.g. unit tests, raw Node http injection).
+ */
+const UA_MAX = 1024;
+const IP_MAX = 64;
+function extractClientFingerprint(req: any): { userAgent?: string; ip?: string } {
+  const rawUa = req?.headers?.['user-agent'];
+  const rawIp = req?.ip ?? req?.socket?.remoteAddress;
+  const userAgent = typeof rawUa === 'string' && rawUa.length > 0 ? rawUa.slice(0, UA_MAX) : undefined;
+  const ip = typeof rawIp === 'string' && rawIp.length > 0 ? rawIp.slice(0, IP_MAX) : undefined;
+  return { userAgent, ip };
+}
+
 function getUserIdFromSession(session: Partial<SessionPayload> | undefined): number {
   if (!session?.sub) throw new Error('no session sub');
   const { type, numericId } = parseSub(session.sub);

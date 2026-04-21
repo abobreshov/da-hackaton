@@ -277,11 +277,17 @@ describe('AuthController — new endpoints', () => {
       const reply = makeReply();
       const body = await controller.login(
         { email: 'a@b.com', password: 'pw12345678', type: 'user' } as any,
-        {} as any,
+        { headers: { 'user-agent': 'Mozilla/5.0' }, ip: '1.2.3.4' } as any,
         reply as any,
       );
 
-      expect(authSvc.loginUser).toHaveBeenCalledWith('a@b.com', 'pw12345678', undefined);
+      expect(authSvc.loginUser).toHaveBeenCalledWith(
+        'a@b.com',
+        'pw12345678',
+        undefined,
+        'Mozilla/5.0',
+        '1.2.3.4',
+      );
       expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
         sub: 'u:7',
         email: 'a@b.com',
@@ -331,10 +337,89 @@ describe('AuthController — new endpoints', () => {
       const reply = makeReply();
       await controller.login(
         { email: 'a@b', password: 'pw', type: 'user', totpCode: '123456' } as any,
-        {} as any,
+        { headers: {}, ip: undefined } as any,
         reply as any,
       );
-      expect(authSvc.loginUser).toHaveBeenCalledWith('a@b', 'pw', '123456');
+      expect(authSvc.loginUser).toHaveBeenCalledWith(
+        'a@b',
+        'pw',
+        '123456',
+        undefined,
+        undefined,
+      );
+    });
+
+    // M5 MED #4/#5 — userAgent + ip MUST come from request headers, not the
+    // body. A malicious client could otherwise inject `<script>` or a forged
+    // IP into user_sessions, which is rendered by the active-sessions UI
+    // (stored XSS surface) and used for authz heuristics.
+    it('strips body-supplied userAgent / ip and uses request headers + req.ip instead', async () => {
+      authSvc.loginUser.mockResolvedValue({
+        user: { id: 1, email: 'x', name: 'x', scopes: [] },
+        refreshToken: 'u:r',
+      });
+      const reply = makeReply();
+      await controller.login(
+        {
+          email: 'a@b',
+          password: 'pw12345678',
+          type: 'user',
+          // FE attempts to spoof — must be ignored.
+          userAgent: '<script>alert(1)</script>',
+          ip: '0.0.0.0',
+        } as any,
+        { headers: { 'user-agent': 'RealUA/1.0' }, ip: '203.0.113.7' } as any,
+        reply as any,
+      );
+      expect(authSvc.loginUser).toHaveBeenCalledWith(
+        'a@b',
+        'pw12345678',
+        undefined,
+        'RealUA/1.0',
+        '203.0.113.7',
+      );
+      // The forwarded payload must NOT contain the spoofed XSS string anywhere.
+      const call = authSvc.loginUser.mock.calls[0];
+      expect(call.some((arg: any) => String(arg).includes('<script>'))).toBe(false);
+      expect(call.some((arg: any) => String(arg) === '0.0.0.0')).toBe(false);
+    });
+
+    it('caps userAgent at 1024 chars and ip at 64 chars', async () => {
+      authSvc.loginUser.mockResolvedValue({
+        user: { id: 1, email: 'x', name: 'x', scopes: [] },
+        refreshToken: 'u:r',
+      });
+      const longUa = 'A'.repeat(2048);
+      const longIp = 'B'.repeat(200);
+      const reply = makeReply();
+      await controller.login(
+        { email: 'a@b', password: 'pw12345678', type: 'user' } as any,
+        { headers: { 'user-agent': longUa }, ip: longIp } as any,
+        reply as any,
+      );
+      const [, , , ua, ip] = authSvc.loginUser.mock.calls[0];
+      expect(ua).toHaveLength(1024);
+      expect(ip).toHaveLength(64);
+    });
+
+    it('falls back to socket.remoteAddress when req.ip is absent (fastify quirk)', async () => {
+      authSvc.loginUser.mockResolvedValue({
+        user: { id: 1, email: 'x', name: 'x', scopes: [] },
+        refreshToken: 'u:r',
+      });
+      const reply = makeReply();
+      await controller.login(
+        { email: 'a@b', password: 'pw12345678', type: 'user' } as any,
+        { headers: { 'user-agent': 'UA' }, socket: { remoteAddress: '127.0.0.1' } } as any,
+        reply as any,
+      );
+      expect(authSvc.loginUser).toHaveBeenCalledWith(
+        'a@b',
+        'pw12345678',
+        undefined,
+        'UA',
+        '127.0.0.1',
+      );
     });
 
     it('admin login success → issues cookies with sub=a:<id> and empty scopes', async () => {
@@ -348,7 +433,13 @@ describe('AuthController — new endpoints', () => {
         {} as any,
         reply as any,
       );
-      expect(authSvc.loginAdmin).toHaveBeenCalledWith('ad@x', 'pw', undefined);
+      expect(authSvc.loginAdmin).toHaveBeenCalledWith(
+        'ad@x',
+        'pw',
+        undefined,
+        undefined,
+        undefined,
+      );
       expect(cookieSvc.setSessionCookie).toHaveBeenCalledWith(reply, {
         sub: 'a:11',
         email: 'ad@x',

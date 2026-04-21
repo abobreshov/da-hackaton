@@ -111,13 +111,22 @@ describe('AuthService — new proxy methods', () => {
   });
 
   describe('login proxies', () => {
-    it('loginUser → auth.customer.login with {email,password,totpCode}', async () => {
+    it('loginUser → auth.customer.login with {email,password,totpCode,userAgent,ip}', async () => {
       const expected = { user: { id: 1 }, refreshToken: 'r' };
       client.send.mockReturnValue(of(expected));
-      await expect(svc.loginUser('a@b', 'pw', '123456')).resolves.toEqual(expected);
+      await expect(
+        svc.loginUser('a@b', 'pw', '123456', 'Mozilla/5.0', '1.2.3.4'),
+      ).resolves.toEqual(expected);
       expect(client.send).toHaveBeenCalledWith(
         { cmd: 'auth.customer.login' },
-        { email: 'a@b', password: 'pw', totpCode: '123456', _sys: 'test-sys-key' },
+        {
+          email: 'a@b',
+          password: 'pw',
+          totpCode: '123456',
+          userAgent: 'Mozilla/5.0',
+          ip: '1.2.3.4',
+          _sys: 'test-sys-key',
+        },
       );
     });
 
@@ -126,16 +135,30 @@ describe('AuthService — new proxy methods', () => {
       await svc.loginUser('a@b', 'pw');
       expect(client.send).toHaveBeenCalledWith(
         { cmd: 'auth.customer.login' },
-        { email: 'a@b', password: 'pw', totpCode: undefined, _sys: 'test-sys-key' },
+        {
+          email: 'a@b',
+          password: 'pw',
+          totpCode: undefined,
+          userAgent: undefined,
+          ip: undefined,
+          _sys: 'test-sys-key',
+        },
       );
     });
 
-    it('loginAdmin → auth.admin.login', async () => {
+    it('loginAdmin → auth.admin.login forwards userAgent+ip', async () => {
       client.send.mockReturnValue(of({ admin: { id: 1 }, refreshToken: 'a:r' }));
-      await svc.loginAdmin('ad@x', 'pw');
+      await svc.loginAdmin('ad@x', 'pw', undefined, 'curl/8', '10.0.0.1');
       expect(client.send).toHaveBeenCalledWith(
         { cmd: 'auth.admin.login' },
-        { email: 'ad@x', password: 'pw', totpCode: undefined, _sys: 'test-sys-key' },
+        {
+          email: 'ad@x',
+          password: 'pw',
+          totpCode: undefined,
+          userAgent: 'curl/8',
+          ip: '10.0.0.1',
+          _sys: 'test-sys-key',
+        },
       );
     });
 

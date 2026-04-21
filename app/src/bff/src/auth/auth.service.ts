@@ -8,15 +8,33 @@ import { withSys } from '../common/rpc-transport';
 export class AuthService {
   constructor(@Inject(AUTH_SERVICE) private readonly client: ClientProxy) {}
 
-  loginAdmin(email: string, password: string, totpCode?: string) {
+  loginAdmin(
+    email: string,
+    password: string,
+    totpCode?: string,
+    userAgent?: string,
+    ip?: string,
+  ) {
     return firstValueFrom(
-      this.client.send<any>({ cmd: 'auth.admin.login' }, withSys({ email, password, totpCode })),
+      this.client.send<any>(
+        { cmd: 'auth.admin.login' },
+        withSys({ email, password, totpCode, userAgent, ip }),
+      ),
     );
   }
 
-  loginUser(email: string, password: string, totpCode?: string) {
+  loginUser(
+    email: string,
+    password: string,
+    totpCode?: string,
+    userAgent?: string,
+    ip?: string,
+  ) {
     return firstValueFrom(
-      this.client.send<any>({ cmd: 'auth.customer.login' }, withSys({ email, password, totpCode })),
+      this.client.send<any>(
+        { cmd: 'auth.customer.login' },
+        withSys({ email, password, totpCode, userAgent, ip }),
+      ),
     );
   }
 
