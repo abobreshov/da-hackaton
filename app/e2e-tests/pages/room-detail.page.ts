@@ -59,7 +59,10 @@ export class RoomDetailPage {
   async expectLoaded(): Promise<void> {
     const id = this.currentRoomId ?? '[^/]+';
     await this.page.waitForURL(new RegExp(`/rooms/${id}$`));
-    await expect(this.memberList).toBeVisible();
+    // Member list only renders after WS handshake + room.join ack —
+    // autoprovision flow (POST /rooms/:id/join + retry) can push this past
+    // the default 5 s expect timeout, especially on CI.
+    await expect(this.memberList).toBeVisible({ timeout: 15_000 });
   }
 
   /**

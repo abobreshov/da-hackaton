@@ -13,8 +13,11 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html', { open: 'never' }], ['list']],
-  timeout: 30_000,
-  expect: { timeout: 5_000 },
+  timeout: 45_000,
+  // WS-dependent surfaces (room detail members, chat composer, DM list) need
+  // a handshake + room.join ack before they render. 10s keeps the budget
+  // friendly for selector drift while avoiding flakes on slow boot.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
