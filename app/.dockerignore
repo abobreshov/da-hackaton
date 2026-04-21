@@ -1,0 +1,36 @@
+# Trim docker build context — only what's needed to install + run.
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.turbo
+**/.nyc_output
+**/.next
+**/.vite
+**/.cache
+
+# Dev/test artefacts.
+.dev-logs
+.dev-data
+demo-reports
+load-tests/.artifacts
+e2e-tests/test-results
+e2e-tests/playwright-report
+
+# Local secrets + env.
+.env
+.env.*
+secrets/
+.seed-admin-totp.txt
+
+# Git + CI noise.
+.git
+.gitignore
+.github
+
+# Editor.
+.vscode
+.idea
+
+# Docs that don't affect build output (save bandwidth).
+*.md

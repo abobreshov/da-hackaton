@@ -40,10 +40,11 @@ services:
 
   auth-service:
     build:
-      context: ./src/auth-service
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: src/auth-service/Dockerfile.dev
     volumes:
-      - ./src/auth-service/src:/app/src:ro
+      - ./src/auth-service/src:/app/src/auth-service/src:ro
+      - ./src/packages/contracts/src:/app/src/packages/contracts/src:ro
       - ./secrets/internal-ca:/certs:ro
     environment:
       PORT: 3003
@@ -78,10 +79,11 @@ services:
 
   backend:
     build:
-      context: ./src/backend
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: src/backend/Dockerfile.dev
     volumes:
-      - ./src/backend/src:/app/src:ro
+      - ./src/backend/src:/app/src/backend/src:ro
+      - ./src/packages/contracts/src:/app/src/packages/contracts/src:ro
       - ./secrets/internal-ca:/certs:ro
       - attachments:/data/attachments
     environment:
@@ -119,11 +121,12 @@ services:
 
   backend-worker:
     build:
-      context: ./src/backend
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: src/backend/Dockerfile.dev
     command: ['yarn', 'dev:worker']
     volumes:
-      - ./src/backend/src:/app/src:ro
+      - ./src/backend/src:/app/src/backend/src:ro
+      - ./src/packages/contracts/src:/app/src/packages/contracts/src:ro
       - ./secrets/internal-ca:/certs:ro
       - attachments:/data/attachments
     environment:
@@ -162,10 +165,11 @@ services:
 
   bff:
     build:
-      context: ./src/bff
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: src/bff/Dockerfile.dev
     volumes:
-      - ./src/bff/src:/app/src:ro
+      - ./src/bff/src:/app/src/bff/src:ro
+      - ./src/packages/contracts/src:/app/src/packages/contracts/src:ro
       - ./secrets/internal-ca:/certs:ro
     environment:
       PORT: 3006
@@ -199,11 +203,12 @@ services:
 
   frontend:
     build:
-      context: ./src/frontend
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: src/frontend/Dockerfile.dev
     volumes:
-      - ./src/frontend/src:/app/src:ro
-      - ./src/frontend/index.html:/app/index.html:ro
+      - ./src/frontend/src:/app/src/frontend/src:ro
+      - ./src/frontend/index.html:/app/src/frontend/index.html:ro
+      - ./src/packages/contracts/src:/app/src/packages/contracts/src:ro
     environment:
       BFF_URL: http://bff:3006
     ports:

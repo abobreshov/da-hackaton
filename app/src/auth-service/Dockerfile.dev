@@ -1,7 +1,10 @@
 FROM node:22-alpine
 RUN corepack enable && corepack prepare yarn@4.9.1 --activate
 WORKDIR /app
-COPY package.json ./
-RUN yarn install --no-immutable
+# Build context is the yarn workspace root (see docker-compose.dev.yml). Copy
+# the whole tree so workspace: protocol deps (@app/contracts) resolve on
+# install. Bind mounts in compose overlay `src/**/src` for hot-reload.
 COPY . .
+RUN yarn install --no-immutable
+WORKDIR /app/src/auth-service
 CMD ["yarn", "nest", "start", "--watch"]

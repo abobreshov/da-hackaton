@@ -1,7 +1,7 @@
 FROM node:22-alpine
 RUN corepack enable && corepack prepare yarn@4.9.1 --activate
 WORKDIR /app
-COPY package.json ./
-RUN yarn install --no-immutable
 COPY . .
+RUN yarn install --no-immutable
+WORKDIR /app/src/backend
 CMD ["yarn", "nest", "start", "--watch"]

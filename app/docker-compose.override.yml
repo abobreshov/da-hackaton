@@ -3,15 +3,19 @@ services:
     ports: !reset []
   redis:
     ports: !reset []
+  # Live-mount the workspace tsconfig so edits to compiler options are
+  # reflected inside the container without a rebuild. New layout has the
+  # workspace root at /app, so the path is /app/tsconfig.base.json — each
+  # service tsconfig extends ../../tsconfig.base.json from /app/src/<svc>.
   auth-service:
     volumes:
-      - ./tsconfig.base.json:/tsconfig.base.json:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
   backend:
     volumes:
-      - ./tsconfig.base.json:/tsconfig.base.json:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
   backend-worker:
     volumes:
-      - ./tsconfig.base.json:/tsconfig.base.json:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
   bff:
     volumes:
-      - ./tsconfig.base.json:/tsconfig.base.json:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
