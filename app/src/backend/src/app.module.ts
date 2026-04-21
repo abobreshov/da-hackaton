@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { DatabaseModule } from './database/database.module';
 import { AuthClientModule } from './common/auth-client.module';
 import { EventsModule } from './common/events/events.module';
@@ -23,6 +24,11 @@ import { env } from './config/environment';
 
 @Module({
   imports: [
+    // /metrics endpoint — default path (`/metrics`) + default Node + process
+    // metrics enabled out of the box. main.ts excludes /metrics from the
+    // global `api/v1` prefix so Prometheus can scrape at the root path
+    // declared in app/observability/prometheus.yml.
+    PrometheusModule.register({ defaultMetrics: { enabled: true } }),
     DatabaseModule,
     AuthClientModule,
     EventsModule,

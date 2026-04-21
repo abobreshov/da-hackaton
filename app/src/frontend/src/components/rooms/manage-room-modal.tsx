@@ -243,7 +243,9 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
                     variant="secondary"
                     size="sm"
                     disabled={busyId === m.userId}
-                    data-testid={`member-action-promote-${m.userId}`}
+                    data-testid="manage-room-member-promote-btn"
+                    data-action="promote"
+                    data-member-id={m.userId}
                     onClick={() => run(m.userId, () => promoteMember(roomId, m.userId))}
                   >
                     Make admin
@@ -255,7 +257,9 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
                     variant="secondary"
                     size="sm"
                     disabled={busyId === m.userId}
-                    data-testid={`member-action-demote-${m.userId}`}
+                    data-testid="manage-room-member-demote-btn"
+                    data-action="demote"
+                    data-member-id={m.userId}
                     onClick={() => run(m.userId, () => demoteMember(roomId, m.userId))}
                   >
                     Remove admin
@@ -267,7 +271,9 @@ function MembersTab({ roomId, ownerId, currentUser, members }: MembersTabProps) 
                     variant="danger"
                     size="sm"
                     disabled={busyId === m.userId}
-                    data-testid={`member-action-ban-${m.userId}`}
+                    data-testid="manage-room-member-ban-btn"
+                    data-action="ban"
+                    data-member-id={m.userId}
                     onClick={() => run(m.userId, () => removeMember(roomId, m.userId))}
                   >
                     Ban
@@ -336,7 +342,9 @@ function AdminsTab({ roomId, ownerId, isOwner, members }: AdminsTabProps) {
                   variant="secondary"
                   size="sm"
                   disabled={busyId === m.userId}
-                  data-testid={`member-action-demote-${m.userId}`}
+                  data-testid="manage-room-admin-demote-btn"
+                  data-action="demote"
+                  data-member-id={m.userId}
                   onClick={() => onDemote(m.userId)}
                 >
                   Remove admin
@@ -440,7 +448,9 @@ function BannedTab({ roomId }: BannedTabProps) {
             variant="secondary"
             size="sm"
             disabled={busyId === b.userId}
-            data-testid={`member-action-unban-${b.userId}`}
+            data-testid="manage-room-banned-unban-btn"
+            data-action="unban"
+            data-member-id={b.userId}
             onClick={() => onUnban(b.userId)}
           >
             Unban

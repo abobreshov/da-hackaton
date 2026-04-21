@@ -4,6 +4,22 @@ import { ManageRoomModal, type ManageRoomMember } from './manage-room-modal';
 import * as moderation from '@/lib/moderation';
 
 /**
+ * Button-scope helpers: since buttons now carry a shared
+ * `data-testid="<scope>-<action>-btn"` plus per-row `data-member-id`,
+ * tests look them up by both attributes together.
+ */
+function findActionBtn(testid: string, memberId: number): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `[data-testid="${testid}"][data-member-id="${memberId}"]`,
+  );
+}
+function getActionBtn(testid: string, memberId: number): HTMLElement {
+  const el = findActionBtn(testid, memberId);
+  if (!el) throw new Error(`button ${testid} for member ${memberId} not found`);
+  return el;
+}
+
+/**
  * Tests for `<ManageRoomModal />` per EPIC-10 AC-10-16.
  *
  * Strategy: we stub the module-level `lib/moderation` exports with vitest
@@ -99,17 +115,17 @@ describe('<ManageRoomModal />', () => {
 
   it('owner sees "Make admin" for a plain member on the Members tab', () => {
     renderOwner();
-    expect(screen.getByTestId('member-action-promote-3')).toBeInTheDocument();
+    expect(findActionBtn('manage-room-member-promote-btn', 3)).not.toBeNull();
   });
 
   it('non-owner admin does NOT see promote action (owner-only)', () => {
     renderNonOwnerAdmin();
-    expect(screen.queryByTestId('member-action-promote-3')).not.toBeInTheDocument();
+    expect(findActionBtn('manage-room-member-promote-btn', 3)).toBeNull();
   });
 
   it('Ban action on Members tab calls removeMember(roomId, userId)', async () => {
     renderOwner();
-    fireEvent.click(screen.getByTestId('member-action-ban-3'));
+    fireEvent.click(getActionBtn('manage-room-member-ban-btn', 3));
     await waitFor(() => {
       expect(moderation.removeMember).toHaveBeenCalledWith(7, 3);
     });
@@ -121,16 +137,16 @@ describe('<ManageRoomModal />', () => {
     expect(screen.getByText('owner-1')).toBeInTheDocument();
     expect(screen.getByText('admin-2')).toBeInTheDocument();
     // owner CANNOT be demoted — no demote button for id=1
-    expect(screen.queryByTestId('member-action-demote-1')).not.toBeInTheDocument();
+    expect(findActionBtn('manage-room-admin-demote-btn', 1)).toBeNull();
     // non-owner admin CAN be demoted by owner
-    expect(screen.getByTestId('member-action-demote-2')).toBeInTheDocument();
+    expect(findActionBtn('manage-room-admin-demote-btn', 2)).not.toBeNull();
   });
 
   it('non-owner admin cannot see any demote action on Admins tab', () => {
     renderNonOwnerAdmin();
     fireEvent.click(screen.getByTestId('manage-room-tab-admins'));
-    expect(screen.queryByTestId('member-action-demote-1')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('member-action-demote-2')).not.toBeInTheDocument();
+    expect(findActionBtn('manage-room-admin-demote-btn', 1)).toBeNull();
+    expect(findActionBtn('manage-room-admin-demote-btn', 2)).toBeNull();
   });
 
   it('Banned tab fetches + renders the ban list', async () => {
@@ -151,7 +167,7 @@ describe('<ManageRoomModal />', () => {
       expect(screen.getByText('troublemaker')).toBeInTheDocument();
     });
     expect(moderation.listRoomBans).toHaveBeenCalledWith(7);
-    expect(screen.getByTestId('member-action-unban-99')).toBeInTheDocument();
+    expect(findActionBtn('manage-room-banned-unban-btn', 99)).not.toBeNull();
   });
 
   it('Unban button on Banned tab calls unbanMember(roomId, userId)', async () => {
@@ -169,9 +185,9 @@ describe('<ManageRoomModal />', () => {
     renderOwner();
     fireEvent.click(screen.getByTestId('manage-room-tab-banned'));
     await waitFor(() => {
-      expect(screen.getByTestId('member-action-unban-99')).toBeInTheDocument();
+      expect(findActionBtn('manage-room-banned-unban-btn', 99)).not.toBeNull();
     });
-    fireEvent.click(screen.getByTestId('member-action-unban-99'));
+    fireEvent.click(getActionBtn('manage-room-banned-unban-btn', 99));
     await waitFor(() => {
       expect(moderation.unbanMember).toHaveBeenCalledWith(7, 99);
     });

@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, expect } from '../fixtures/test';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import { LoginPage } from '../pages/login.page';
 import { DashboardPage } from '../pages/dashboard.page';
 import { DmChatPage } from '../pages/dm-chat.page';

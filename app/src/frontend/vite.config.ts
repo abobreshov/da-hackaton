@@ -19,6 +19,11 @@ export default defineConfig({
         target: process.env.BFF_URL ?? process.env.VITE_BFF_URL ?? 'http://localhost:3006',
         changeOrigin: true,
       },
+      '/socket.io': {
+        target: process.env.BFF_URL ?? process.env.VITE_BFF_URL ?? 'http://localhost:3006',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 });

@@ -28,7 +28,10 @@ import { RoomDetailPage } from '../pages/room-detail.page';
 
 const USER = { email: 'user@example.com', password: 'User1234!', username: 'user' };
 const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'admin' };
-const ROOM_ID = 'general';
+// Rooms are addressed by numeric primary key, not slug. The seed inserts
+// general=1, random=2, demo=3 in that order — see
+// `app/src/backend/scripts/seed-demo.ts`.
+const ROOM_ID = '1';
 
 // Allow a generous envelope for the AFK branch — 15s covers a 5s threshold
 // plus the 10s scheduler tick from EPIC-02 §Logic step 5.

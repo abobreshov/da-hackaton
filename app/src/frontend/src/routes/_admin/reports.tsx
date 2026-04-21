@@ -230,6 +230,8 @@ export function AdminReportsRoute() {
                           size="sm"
                           disabled={isActing || r.status !== 'open'}
                           onClick={() => void runAction(r, 'resolve')}
+                          data-testid="admin-report-resolve-btn"
+                          data-action="resolve"
                         >
                           Resolve
                         </Button>
@@ -238,6 +240,8 @@ export function AdminReportsRoute() {
                           size="sm"
                           disabled={isActing || r.status !== 'open'}
                           onClick={() => void runAction(r, 'dismiss')}
+                          data-testid="admin-report-dismiss-btn"
+                          data-action="dismiss"
                         >
                           Dismiss
                         </Button>
