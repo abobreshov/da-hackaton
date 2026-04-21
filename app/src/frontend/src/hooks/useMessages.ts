@@ -384,14 +384,76 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
       }
     };
 
+    // ----------------------------------- reconnect resync (devils #3)
+    // Socket.IO emits a fresh `connect` on every reconnect after a drop.
+    // We use that as the trigger to ask the gateway for anything we missed
+    // since the highest message id currently in the store. The initial
+    // mount path is HTTP-fetch based, so when the store is empty we skip —
+    // the `useEffect` above (or a freshly-resolved fetch) will hydrate
+    // first; if a reconnect lands before the initial fetch resolves, we
+    // simply wait for the next `connect` (or rely on the fetch).
+    const handleConnect = (): void => {
+      const state = store.getState();
+      // Highest id is the tail of `order` because `insertSorted` keeps it
+      // ascending by (createdAt, id). Empty store → bail.
+      const tail = state.order[state.order.length - 1];
+      if (tail === undefined || tail === null) return;
+      const lastSeenId = tail.toString();
+      const current = argsRef.current;
+      const payload: Record<string, unknown> = { lastSeenId };
+      if (current.roomId !== undefined) payload.roomId = current.roomId;
+      else if (current.dmUserId !== undefined) payload.dmUserId = current.dmUserId;
+      else return;
+
+      socket.emit(
+        WsEvent.client.syncSince,
+        payload,
+        (ack: {
+          ok?: boolean;
+          messages?: unknown;
+          error?: unknown;
+        }) => {
+          if (!ack || ack.ok === false || ack.error) return;
+          // Backend returns `{messages, attachmentsByMessageId}`; the BFF
+          // forwards that whole object into `ack.messages`. Tolerate both
+          // shapes (raw array, or wrapper object) so a future BFF
+          // unwrap-and-flatten doesn't silently break this path.
+          let list: unknown[] = [];
+          let attsMap: Record<string, AttachmentDto[]> | undefined;
+          if (Array.isArray(ack.messages)) {
+            list = ack.messages;
+          } else if (ack.messages && typeof ack.messages === 'object') {
+            const wrap = ack.messages as {
+              messages?: unknown;
+              attachmentsByMessageId?: Record<string, AttachmentDto[]>;
+            };
+            if (Array.isArray(wrap.messages)) list = wrap.messages;
+            attsMap = wrap.attachmentsByMessageId;
+          }
+          const state2 = store.getState();
+          for (const wire of list) {
+            try {
+              const msg = normaliseMessage(wire as never);
+              state2.upsert(msg);
+            } catch {
+              /* malformed entry — skip */
+            }
+          }
+          applyHistoryAttachments(state2, attsMap);
+        },
+      );
+    };
+
     sock.on(WsEvent.server.messageNew, handleNew);
     sock.on(WsEvent.server.messageEdited, handleEdited);
     sock.on(WsEvent.server.messageDeleted, handleDeleted);
+    sock.on('connect', handleConnect);
 
     return () => {
       sock.off(WsEvent.server.messageNew, handleNew);
       sock.off(WsEvent.server.messageEdited, handleEdited);
       sock.off(WsEvent.server.messageDeleted, handleDeleted);
+      sock.off('connect', handleConnect);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.roomId, args.dmUserId]);

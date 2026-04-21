@@ -360,4 +360,151 @@ describe('useMessages', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error?.message).toBe('boom');
   });
+
+  // ------------------------------------------------------- reconnect resync
+  // Devils BLOCKER #3: when Socket.IO reconnects (network blip, server
+  // restart, browser wake), the FE must replay anything it missed via the
+  // gateway's `sync.since` shim. Initial mount fetch already hydrates from
+  // HTTP, so the resync only kicks in once we have at least one message in
+  // the store.
+
+  it('on socket reconnect with messages in store, emits sync.since with the highest id', async () => {
+    listRoomMessagesMock.mockResolvedValue({
+      messages: [
+        seedMessage(1n, 'a', '2026-04-20T10:00:00.000Z'),
+        seedMessage(7n, 'b', '2026-04-20T10:01:00.000Z'),
+      ],
+      nextCursor: null,
+    });
+    const { result } = renderHook(() => useMessages({ roomId: 42 }));
+    await waitFor(() => expect(result.current.messages.length).toBe(2));
+
+    emitMock.mockClear();
+    act(() => {
+      fireServerEvent('connect', undefined);
+    });
+
+    const call = emitMock.mock.calls.find((c) => c[0] === 'sync.since');
+    expect(call).toBeDefined();
+    expect(call![1]).toMatchObject({ roomId: 42, lastSeenId: '7' });
+    expect(typeof call![call!.length - 1]).toBe('function');
+  });
+
+  it('upserts ack messages from sync.since into the store', async () => {
+    listRoomMessagesMock.mockResolvedValue({
+      messages: [seedMessage(7n, 'b', '2026-04-20T10:01:00.000Z')],
+      nextCursor: null,
+    });
+    const { result } = renderHook(() => useMessages({ roomId: 42 }));
+    await waitFor(() => expect(result.current.messages.length).toBe(1));
+
+    emitMock.mockClear();
+    act(() => {
+      fireServerEvent('connect', undefined);
+    });
+    const ack = takeAck('sync.since');
+    act(() => {
+      ack({
+        ok: true,
+        messages: [
+          wireMessage(8n, 'missed-1', '2026-04-20T10:02:00.000Z'),
+          wireMessage(9n, 'missed-2', '2026-04-20T10:03:00.000Z'),
+        ],
+      });
+    });
+
+    expect(result.current.messages.map((m) => m.id)).toEqual([7n, 8n, 9n]);
+    expect(result.current.messages[2].body).toBe('missed-2');
+  });
+
+  it('handles sync.since ack wrapper shape `{messages, attachmentsByMessageId}`', async () => {
+    listRoomMessagesMock.mockResolvedValue({
+      messages: [seedMessage(7n, 'b', '2026-04-20T10:01:00.000Z')],
+      nextCursor: null,
+    });
+    const { result } = renderHook(() => useMessages({ roomId: 42 }));
+    await waitFor(() => expect(result.current.messages.length).toBe(1));
+
+    emitMock.mockClear();
+    act(() => {
+      fireServerEvent('connect', undefined);
+    });
+    const ack = takeAck('sync.since');
+    act(() => {
+      ack({
+        ok: true,
+        messages: {
+          messages: [wireMessage(8n, 'missed', '2026-04-20T10:02:00.000Z')],
+          attachmentsByMessageId: {
+            '8': [
+              {
+                id: 'att-sync',
+                filename: 's.png',
+                mime: 'image/png',
+                sizeBytes: 1,
+                isImage: true,
+              },
+            ],
+          },
+        },
+      });
+    });
+
+    expect(result.current.messages.some((m) => m.id === 8n)).toBe(true);
+    expect(result.current.attachmentsOf(8n)).toEqual([
+      expect.objectContaining({ id: 'att-sync' }),
+    ]);
+  });
+
+  it('does NOT emit sync.since on connect when the store is empty', async () => {
+    listRoomMessagesMock.mockResolvedValue({ messages: [], nextCursor: null });
+    const { result } = renderHook(() => useMessages({ roomId: 42 }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    emitMock.mockClear();
+    act(() => {
+      fireServerEvent('connect', undefined);
+    });
+
+    const call = emitMock.mock.calls.find((c) => c[0] === 'sync.since');
+    expect(call).toBeUndefined();
+  });
+
+  it('uses the per-conversation lastSeenId for DMs', async () => {
+    listDmMessagesMock.mockResolvedValue({
+      messages: [
+        {
+          id: 99n,
+          roomId: null,
+          dmId: 3,
+          author: { id: 2, username: 'b' },
+          body: 'hi',
+          replyTo: null,
+          editedAt: null,
+          deletedAt: null,
+          createdAt: '2026-04-20T10:00:00.000Z',
+        },
+      ],
+      nextCursor: null,
+    });
+    const { result } = renderHook(() => useMessages({ dmUserId: 7 }));
+    await waitFor(() => expect(result.current.messages.length).toBe(1));
+
+    emitMock.mockClear();
+    act(() => {
+      fireServerEvent('connect', undefined);
+    });
+    const call = emitMock.mock.calls.find((c) => c[0] === 'sync.since');
+    expect(call).toBeDefined();
+    expect(call![1]).toMatchObject({ dmUserId: 7, lastSeenId: '99' });
+    expect(call![1]).not.toHaveProperty('roomId');
+  });
+
+  it('subscribes + unsubscribes the connect handler on mount/unmount', () => {
+    listRoomMessagesMock.mockResolvedValue({ messages: [], nextCursor: null });
+    const { unmount } = renderHook(() => useMessages({ roomId: 42 }));
+    expect(onMock).toHaveBeenCalledWith('connect', expect.any(Function));
+    unmount();
+    expect(offMock).toHaveBeenCalledWith('connect', expect.any(Function));
+  });
 });
