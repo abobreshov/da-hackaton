@@ -83,7 +83,7 @@ describe('<MessageComposer />', () => {
         onCancelReply={onCancelReply}
       />,
     );
-    const strip = screen.getByTestId('message-composer-reply-strip');
+    const strip = screen.getByTestId('reply-preview');
     expect(strip).toHaveTextContent(/alice/);
     expect(strip).toHaveTextContent(/hi there/);
     fireEvent.click(screen.getByTestId('message-composer-cancel-reply'));
