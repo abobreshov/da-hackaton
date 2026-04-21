@@ -194,12 +194,3 @@ yarn install
 | Playwright redis bleed | Handled — `e2e-tests/global-setup.ts` flushes Redis on each run |
 | 2FA secret lost | `cat app/.seed-admin-totp.txt` |
 | Stack won't tear down | `docker compose -f app/docker-compose.dev.yml down -v && docker compose -f app/docker-compose.infra.yml down -v` |
-
----
-
-## 6. Further reading
-
-- `mng/requirements/requirements.md` — hackathon brief.
-- `mng/implementation-status.md` — per-EPIC progress + ADR index.
-- `mng/specs/` — per-EPIC specs.
-- `app/CLAUDE.md` — stack + service wiring + gotchas.
