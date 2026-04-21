@@ -27,16 +27,29 @@ export function getSocket(): Socket {
 
   socket = io(resolveUrl(), {
     withCredentials: true,
-    // Default socket.io reconnection strategy is fine — exposed here for
-    // discoverability. Fail loud in dev if the handshake blows up so we
-    // notice mis-wired CORS / cookie config early.
     reconnection: true,
+    // Prefer websocket so we avoid the engine.io polling "Session ID unknown"
+    // race that happens when the BFF restarts under `nest --watch` and the
+    // client retries with a stale sid. The polling transport caches the sid
+    // and won't self-heal; websocket re-handshakes cleanly on every dial.
+    transports: ['websocket', 'polling'],
   });
 
   socket.on('connect_error', (err) => {
-    // Avoid throwing; socket.io will retry. Log so devs see the cause.
-     
-    console.warn('[socket] connect_error', err?.message ?? err);
+    const msg = (err as Error)?.message ?? String(err);
+    // Belt-and-braces: if a stale sid still slips through (eg both transports
+    // fail and polling is the last to die), tear the singleton down so the
+    // next `getSocket()` builds a fresh engine. The connect-error retry loop
+    // would otherwise spin forever against a server that's forgotten our sid.
+    if (msg.includes('Session ID unknown')) {
+      try {
+        socket?.disconnect();
+      } catch {
+        /* noop */
+      }
+      socket = null;
+    }
+    console.warn('[socket] connect_error', msg);
   });
 
   return socket;

@@ -46,14 +46,27 @@ describe('RoomsController (BFF)', () => {
   });
 
   describe('GET /rooms/catalog', () => {
-    it('delegates to service.catalog() and wraps in {rooms, total} envelope', async () => {
-      const list = [{ id: 1, name: 'general' }];
+    it('projects backend rows to FE CatalogRoom shape (id, name, description, memberCount) and wraps in {rooms, total}', async () => {
+      // Backend currently returns the full RoomRow (visibility, ownerId,
+      // createdAt, deletedAt, …) without `memberCount`. The BFF projects
+      // down to the 4 fields the FE consumes and defaults memberCount=0
+      // until the backend gains a counted query.
+      const list = [
+        { id: 1, name: 'general', description: 'hi', visibility: 'public', ownerId: 13 },
+        { id: 2, name: 'random', description: null, memberCount: 7 },
+      ];
       svc.catalog.mockResolvedValue(list);
 
       const res = await controller.catalog();
 
       expect(svc.catalog).toHaveBeenCalledWith();
-      expect(res).toEqual({ rooms: list, total: 1 });
+      expect(res).toEqual({
+        rooms: [
+          { id: 1, name: 'general', description: 'hi', memberCount: 0 },
+          { id: 2, name: 'random', description: null, memberCount: 7 },
+        ],
+        total: 2,
+      });
     });
 
     it('defaults to empty list + zero total when upstream returns non-array', async () => {

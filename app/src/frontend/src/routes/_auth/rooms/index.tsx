@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { listCatalog, type CatalogRoom } from '@/lib/rooms';
 import { ApiError } from '@/lib/api-client';
 import { EmptyState } from '@/components/empty-state';
@@ -87,27 +88,36 @@ export function RoomsCatalog() {
         <ul className="flex flex-col gap-4" aria-label="Public rooms">
           {state.rooms.map((room) => (
             <li key={room.id}>
-              <GlassCard
-                as="article"
-                radius="lg"
-                padding="md"
-                shadow="ambient"
-                className="flex items-start justify-between gap-4"
+              <Link
+                to="/rooms/$roomId"
+                params={{ roomId: String(room.id) }}
+                className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded-[2rem]"
+                aria-label={`Open ${room.name}`}
               >
-                <div className="min-w-0">
-                  <h2 className="truncate font-display text-title-md font-bold text-on-surface">
-                    {room.name}
-                  </h2>
-                  {room.description && (
-                    <p className="mt-1 font-body text-body-md text-on-surface-variant">
-                      {room.description}
-                    </p>
-                  )}
-                </div>
-                <span className="shrink-0 font-display text-label-md font-semibold text-on-surface-variant">
-                  {room.memberCount} {room.memberCount === 1 ? 'member' : 'members'}
-                </span>
-              </GlassCard>
+                <GlassCard
+                  as="article"
+                  radius="lg"
+                  padding="md"
+                  shadow="ambient"
+                  className="flex items-start justify-between gap-4 transition-transform hover:scale-[1.01]"
+                >
+                  <div className="min-w-0">
+                    <h2 className="truncate font-display text-title-md font-bold text-on-surface">
+                      {room.name}
+                    </h2>
+                    {room.description && (
+                      <p className="mt-1 font-body text-body-md text-on-surface-variant">
+                        {room.description}
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 font-display text-label-md font-semibold text-on-surface-variant">
+                    {typeof room.memberCount === 'number'
+                      ? `${room.memberCount} ${room.memberCount === 1 ? 'member' : 'members'}`
+                      : 'members'}
+                  </span>
+                </GlassCard>
+              </Link>
             </li>
           ))}
         </ul>

@@ -40,12 +40,34 @@ export class RoomsController {
 
   /** Public catalog — auth required, but no per-user filter. Wraps the
    *  backend's raw `RoomRow[]` into the `{rooms, total}` envelope the FE
-   *  (`lib/rooms.ts: RoomsCatalogResponse`) expects. */
+   *  (`lib/rooms.ts: RoomsCatalogResponse`) expects, projected down to the
+   *  4 fields `CatalogRoom` exposes. `memberCount` is defaulted to `0` until
+   *  the backend gains a counted query — the FE renders "0 members" rather
+   *  than crashing on `undefined`. */
   @Get('catalog')
-  async catalog(): Promise<{ rooms: unknown[]; total: number }> {
-    const rooms = (await this.service.catalog()) as unknown[];
-    const list = Array.isArray(rooms) ? rooms : [];
-    return { rooms: list, total: list.length };
+  async catalog(): Promise<{
+    rooms: Array<{
+      id: number;
+      name: string;
+      description: string | null;
+      memberCount: number;
+    }>;
+    total: number;
+  }> {
+    const raw = (await this.service.catalog()) as Array<{
+      id: number;
+      name: string;
+      description?: string | null;
+      memberCount?: number | null;
+    }> | null;
+    const list = Array.isArray(raw) ? raw : [];
+    const rooms = list.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description ?? null,
+      memberCount: typeof r.memberCount === 'number' ? r.memberCount : 0,
+    }));
+    return { rooms, total: rooms.length };
   }
 
   /** Rooms the caller is a member of. */
