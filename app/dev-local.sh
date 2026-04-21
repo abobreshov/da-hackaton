@@ -95,6 +95,10 @@ start_service() {
     # Service-specific env first, then override with host-aware values
     if [ -f "$env_file" ]; then set -a; source "$env_file"; set +a; fi
     export DATABASE_URL REDIS_HOST REDIS_PORT SYSTEM_KEY TCP_BIND
+    # WORKERS_ENABLED is also re-exported here so a per-call prefix
+    # (e.g. `WORKERS_ENABLED=true start_service backend …`) wins over
+    # whatever the .env file set.
+    if [ -n "${WORKERS_ENABLED+set}" ]; then export WORKERS_ENABLED; fi
     if [ "$TLS_ENABLED" = "true" ] && [ -n "$svc_cert" ]; then
       export TLS_ENABLED
       export TLS_CA_PATH
@@ -110,7 +114,12 @@ start_service() {
 
 start_service "auth-service" "$ROOT/src/auth-service" "yarn start:dev" "$ROOT/src/auth-service/.env" "auth-service"
 sleep 4
-start_service "backend"      "$ROOT/src/backend"      "yarn start:dev" "$ROOT/src/backend/.env"      "backend"
+# Backend runs the BullMQ workers inline when WORKERS_ENABLED=true. Without
+# this export, `dev-local.sh` would never drain the user-cascade-delete /
+# retention-prune / attachments-cleanup / abuse-report-notify queues — jobs
+# would accumulate in Redis. `dev.sh` (full Docker) already starts a
+# dedicated `backend-worker` container; `dev-local.sh` colocates them.
+WORKERS_ENABLED=true start_service "backend" "$ROOT/src/backend" "yarn start:dev" "$ROOT/src/backend/.env" "backend"
 sleep 3
 start_service "bff"          "$ROOT/src/bff"          "yarn start:dev" "$ROOT/src/bff/.env"          "bff"
 sleep 2

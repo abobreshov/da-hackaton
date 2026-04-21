@@ -8,6 +8,17 @@ export interface RpcEnvelope {
   [key: string]: unknown;
 }
 
+/**
+ * Wrap an outbound TCP payload with the shared `_sys` system-key envelope so
+ * the receiver's `SystemKeyRpcGuard` accepts it. Mirrors the helper in
+ * `backend/src/common/rpc-transport.ts` and `bff/src/common/rpc-transport.ts`
+ * — keeps every inter-service emit a one-line wrap instead of inlining
+ * `{ _sys: env.SYSTEM_KEY, …payload }` at every call site.
+ */
+export function withSys<T extends object>(payload: T): T & { _sys: string } {
+  return { ...payload, _sys: env.SYSTEM_KEY } as T & { _sys: string };
+}
+
 function assertTlsCerts(): void {
   const missing: string[] = [];
   for (const [label, p] of [

@@ -22,6 +22,7 @@ import { TotpService } from '../shared/totp.service';
 import { BACKEND_SERVICE } from '../shared/backend-client.module';
 import { MailerService } from '../../mail/mail.service';
 import { env } from '../../../config/environment';
+import { withSys } from '../../../common/rpc-transport';
 import { CustomerLoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
@@ -93,8 +94,7 @@ export class CustomerAuthService {
     ip: string | null;
   }): void {
     try {
-      const wrapped = { _sys: env.SYSTEM_KEY, ...payload };
-      this.backend.emit<unknown>({ cmd: 'sessions.recordLogin' }, wrapped).subscribe({
+      this.backend.emit<unknown>({ cmd: 'sessions.recordLogin' }, withSys(payload)).subscribe({
         error: (err) =>
           this.logger.warn(`sessions.recordLogin emit failed: ${(err as Error).message}`),
       });
@@ -328,8 +328,7 @@ export class CustomerAuthService {
     // Best-effort cascade enqueue. Backend may not expose this handler yet (or may be
     // offline in dev) — log and continue. Cascade is eventually consistent.
     try {
-      const payload = { _sys: env.SYSTEM_KEY, userId };
-      this.backend.emit<unknown>({ cmd: 'users.cascade.enqueue' }, payload).subscribe({
+      this.backend.emit<unknown>({ cmd: 'users.cascade.enqueue' }, withSys({ userId })).subscribe({
         error: (err) => this.logger.warn(`cascade enqueue failed: ${(err as Error).message}`),
       });
     } catch (err) {

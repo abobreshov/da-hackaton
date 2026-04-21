@@ -100,6 +100,10 @@ services:
       ATTACHMENT_RETENTION_DAYS: 30
       AUDIT_LOG_RETENTION_DAYS: 30
       ABUSE_REPORT_RETENTION_DAYS: 30
+      # Demo + E2E speed: presence flips to AFK after 5s instead of the
+      # default 60s. Production deploys override this to ~60s; the dev
+      # stack runs faster so two-browser presence specs aren't timeout-bound.
+      AFK_THRESHOLD_SECONDS: 5
       TLS_ENABLED: 'true'
       TLS_CA_PATH: /certs/ca.crt
       TLS_CERT_PATH: /certs/backend.crt
