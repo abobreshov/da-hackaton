@@ -17,4 +17,20 @@ export class CustomerLoginDto {
   @IsString()
   @Matches(TOTP_REGEX, { message: 'totpCode must be six digits' })
   totpCode?: string;
+
+  /**
+   * Optional request metadata forwarded by the BFF for the active-sessions
+   * tracker (EPIC-02 §2.2.4). Persisted on the `user_sessions` row written
+   * after successful tokens are minted. Absent today; bumping these in from
+   * the BFF is the next slice — no contract change required when that lands.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  userAgent?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  ip?: string;
 }

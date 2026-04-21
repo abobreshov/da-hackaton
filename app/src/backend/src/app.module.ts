@@ -13,6 +13,7 @@ import { AbuseReportsModule } from './modules/abuse-reports/abuse-reports.module
 import { MessagesModule } from './modules/messages/messages.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { UnreadModule } from './modules/unread/unread.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
 import { HealthController } from './modules/health/health.controller';
 import { SystemKeyRpcGuard } from './common/rpc-transport';
 import { WorkersModule } from './workers/workers.module';
@@ -37,6 +38,7 @@ import { env } from './config/environment';
     MessagesModule,
     AttachmentsModule,
     UnreadModule,
+    SessionsModule,
     // Gated on WORKERS_ENABLED — the main HTTP/TCP backend runs with this
     // `false` so BullMQ workers don't share its event loop. A separate
     // `backend-worker` process (src/worker.ts) boots AppModule with

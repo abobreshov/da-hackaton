@@ -90,4 +90,12 @@ export const TcpCmd = {
     getForUser: 'unread.getForUser',
     countSince: 'unread.countSince',
   },
+  sessions: {
+    /** Persist a `user_sessions` row when a login successfully mints tokens. */
+    recordLogin: 'sessions.recordLogin',
+    /** List active (non-revoked) sessions for a user. */
+    listForUser: 'sessions.listForUser',
+    /** Revoke a single session by id, scoped to the owning user. */
+    revoke: 'sessions.revoke',
+  },
 } as const;

@@ -75,7 +75,32 @@ export class CustomerAuthService {
       }
     }
 
-    return this.issueTokens(user);
+    const tokens = await this.issueTokens(user);
+    // EPIC-02 §2.2.4 — persist a row on the active-sessions surface. Best-effort:
+    // login itself must never fail when the tracker hiccups (network, backend
+    // restart, etc). Catches both sync throws and observable errors and logs.
+    this.recordLoginBestEffort({
+      userId: user.id,
+      userAgent: dto.userAgent ?? null,
+      ip: dto.ip ?? null,
+    });
+    return tokens;
+  }
+
+  private recordLoginBestEffort(payload: {
+    userId: number;
+    userAgent: string | null;
+    ip: string | null;
+  }): void {
+    try {
+      const wrapped = { _sys: env.SYSTEM_KEY, ...payload };
+      this.backend.emit<unknown>({ cmd: 'sessions.recordLogin' }, wrapped).subscribe({
+        error: (err) =>
+          this.logger.warn(`sessions.recordLogin emit failed: ${(err as Error).message}`),
+      });
+    } catch (err) {
+      this.logger.warn(`sessions.recordLogin emit threw: ${(err as Error).message}`);
+    }
   }
 
   /**

@@ -300,6 +300,77 @@ describe('CustomerAuthService', () => {
       );
       expect(result).toMatchObject({ accessToken: 'user.jwt' });
     });
+
+    describe('sessions.recordLogin TCP hook (EPIC-02 §2.2.4)', () => {
+      it('emits sessions.recordLogin with userId, userAgent, ip after successful login', async () => {
+        const user = baseUser();
+        deps.selectBuilder.__setTerminal('limit', [user]);
+        await svc.login({
+          email: user.email,
+          password: 'pw',
+          userAgent: 'Mozilla/5.0',
+          ip: '203.0.113.7',
+        } as any);
+        expect(backend.emit).toHaveBeenCalledWith(
+          { cmd: 'sessions.recordLogin' },
+          expect.objectContaining({
+            userId: user.id,
+            userAgent: 'Mozilla/5.0',
+            ip: '203.0.113.7',
+            _sys: expect.any(String),
+          }),
+        );
+      });
+
+      it('still emits sessions.recordLogin when UA/IP are absent (nulls)', async () => {
+        const user = baseUser();
+        deps.selectBuilder.__setTerminal('limit', [user]);
+        await svc.login({ email: user.email, password: 'pw' });
+        expect(backend.emit).toHaveBeenCalledWith(
+          { cmd: 'sessions.recordLogin' },
+          expect.objectContaining({ userId: user.id, _sys: expect.any(String) }),
+        );
+      });
+
+      it('does NOT emit sessions.recordLogin when login returns requires2fa', async () => {
+        deps.selectBuilder.__setTerminal('limit', [
+          baseUser({ twoFactorEnabled: true, twoFactorSecret: 'SEC' }),
+        ]);
+        await svc.login({ email: 'u@example.com', password: 'pw' });
+        const recordLoginEmits = backend.emit.mock.calls.filter(
+          (c) => (c[0] as any)?.cmd === 'sessions.recordLogin',
+        );
+        expect(recordLoginEmits).toHaveLength(0);
+      });
+
+      it('login still resolves when sessions.recordLogin emit observable errors', async () => {
+        const user = baseUser();
+        deps.selectBuilder.__setTerminal('limit', [user]);
+        backend.emit.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.recordLogin') {
+            return throwError(() => new Error('tcp down')) as any;
+          }
+          return of(undefined) as any;
+        });
+        await expect(
+          svc.login({ email: user.email, password: 'pw' }),
+        ).resolves.toMatchObject({ accessToken: 'user.jwt' });
+      });
+
+      it('login still resolves when backend.emit throws synchronously', async () => {
+        const user = baseUser();
+        deps.selectBuilder.__setTerminal('limit', [user]);
+        backend.emit.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.recordLogin') {
+            throw new Error('client exploded');
+          }
+          return of(undefined) as any;
+        });
+        await expect(
+          svc.login({ email: user.email, password: 'pw' }),
+        ).resolves.toMatchObject({ accessToken: 'user.jwt' });
+      });
+    });
   });
 
   // -------- register (OWASP V3.1.1 enumeration-safe) -----------------------
