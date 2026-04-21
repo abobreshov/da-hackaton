@@ -15,13 +15,13 @@ export class LoginPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.heading = page.getByRole('heading', { name: /sign in/i });
+    this.heading = page.locator('#login-heading');
     this.emailInput = page.getByLabel(/email/i);
     this.passwordInput = page.getByLabel(/^password$/i);
     this.totpInput = page.getByLabel(/verification code/i);
-    this.submitButton = page.getByRole('button', { name: /^continue$/i });
-    this.verifyButton = page.getByRole('button', { name: /^verify$/i });
-    this.errorAlert = page.locator('div.bg-red-50');
+    this.submitButton = page.getByRole('button', { name: /let's go|signing you in/i });
+    this.verifyButton = page.getByRole('button', { name: /^verify|verifying/i });
+    this.errorAlert = page.locator('[role="alert"]');
   }
 
   async expectLoaded(): Promise<void> {

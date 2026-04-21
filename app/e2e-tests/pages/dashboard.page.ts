@@ -11,9 +11,9 @@ export class DashboardPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.welcomeHeading = page.getByRole('heading', { name: /^hello,/i });
-    this.scopesSection = page.getByRole('heading', { name: /scopes/i });
-    this.logoutButton = page.getByRole('button', { name: /^logout$/i });
+    this.welcomeHeading = page.locator('#dash-hero');
+    this.scopesSection = page.getByRole('heading', { name: /your profile/i });
+    this.logoutButton = page.getByRole('button', { name: /log out/i });
   }
 
   async expectLoaded(): Promise<void> {
