@@ -60,7 +60,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
       >
         <div
           className={cn(
-            'relative max-w-[75ch] px-5 py-3 shadow-ambient-sm',
+            'relative max-w-[85vw] px-4 py-3 shadow-ambient-sm sm:max-w-[75ch] sm:px-5',
             rounded,
             surface,
             tombstoned && 'italic opacity-70',

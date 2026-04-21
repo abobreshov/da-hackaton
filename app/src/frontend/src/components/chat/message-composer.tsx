@@ -152,14 +152,14 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
 
       <div
         className={cn(
-          'flex items-end gap-3 rounded-[1.75rem] bg-surface-container-low p-3',
+          'flex items-end gap-2 rounded-[1.5rem] bg-surface-container-low p-2 sm:gap-3 sm:rounded-[1.75rem] sm:p-3',
           'focus-within:bg-surface-container focus-within:shadow-ambient',
         )}
       >
         <textarea
           data-testid="message-composer-input"
           className={cn(
-            'min-h-[2.75rem] max-h-48 flex-1 resize-none bg-transparent px-3 py-2',
+            'min-h-[2.75rem] max-h-48 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 sm:px-3',
             'font-body text-body-md text-on-surface placeholder:text-on-surface-variant/60',
             'focus:outline-none',
           )}
@@ -181,6 +181,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
           size="md"
           disabled={!canSubmit}
           data-testid="message-composer-send"
+          className="shrink-0"
         >
           Send
         </Button>

@@ -147,7 +147,7 @@ export const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({
             return (
               <li
                 key={a.id}
-                className="flex items-center gap-2 rounded-full bg-tertiary-container/60 px-3 py-1.5 text-label-md text-on-tertiary-container"
+                className="flex max-w-[60vw] items-center gap-2 rounded-full bg-tertiary-container/60 px-3 py-1.5 text-label-md text-on-tertiary-container sm:max-w-none"
                 data-testid={`attachment-chip-${a.id}`}
               >
                 {thumb?.isImage && thumb.objectUrl ? (
@@ -161,7 +161,7 @@ export const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({
                     📎
                   </span>
                 )}
-                <span className="max-w-[14ch] truncate font-body">{a.filename}</span>
+                <span className="max-w-[8ch] truncate font-body sm:max-w-[14ch]">{a.filename}</span>
                 <button
                   type="button"
                   onClick={() => handleRemove(a.id)}

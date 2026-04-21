@@ -58,7 +58,7 @@ export const AttachmentView: React.FC<AttachmentViewProps> = ({
                   src={href}
                   alt={a.filename}
                   loading="lazy"
-                  className="max-h-80 w-auto max-w-full object-contain"
+                  className="max-h-60 w-auto max-w-full object-contain sm:max-h-80"
                 />
               </a>
             </li>
