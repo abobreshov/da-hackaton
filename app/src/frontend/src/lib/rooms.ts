@@ -26,3 +26,14 @@ export interface RoomsCatalogResponse {
  */
 export const listCatalog = (): Promise<RoomsCatalogResponse> =>
   apiFetch<RoomsCatalogResponse>('/api/v1/rooms/catalog');
+
+/**
+ * Idempotent join — POSTs `/api/v1/rooms/:id/join`. Backend returns 204 when
+ * the row was inserted AND when the caller was already a member, so the
+ * caller can fire-and-forget on every catalog navigation (auto-join).
+ *
+ * Used by the room route to recover from a `room.join` WS ack of
+ * "not a member" — we POST, then re-emit the WS join.
+ */
+export const joinRoom = (roomId: number): Promise<void> =>
+  apiFetch<void>(`/api/v1/rooms/${roomId}/join`, { method: 'POST' });

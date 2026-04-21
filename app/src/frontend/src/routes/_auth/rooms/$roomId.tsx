@@ -5,6 +5,7 @@ import { WsEvent } from '@/lib/ws-events';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
 import { PresenceDot } from '@/components/presence-dot';
 import { useMessages } from '@/hooks/useMessages';
+import { joinRoom } from '@/lib/rooms';
 import { useAutoMarkRead } from '@/hooks/useAutoMarkRead';
 import { useSession } from '@/hooks/useSession';
 import { MessageList } from '@/components/chat/message-list';
@@ -161,24 +162,52 @@ export function RoomRoute() {
     const socket = getSocket();
     let active = true;
 
-    socket.emit(WsEvent.client.roomJoin, { roomId }, (ack: RoomJoinAck | undefined) => {
-      if (!active) return;
-      if (ack?.error) {
-        setState({ status: 'error', error: ack.error });
-        return;
-      }
-      if (ack?.room && ack.members) {
-        setState({ status: 'ok', room: ack.room, members: ack.members });
-        return;
-      }
-      setState({
-        status: 'error',
-        error: {
-          code: 'UPSTREAM_UNAVAILABLE',
-          message: 'Malformed response while joining the room.',
-        },
+    const tryJoin = (allowMembershipRetry: boolean): void => {
+      socket.emit(WsEvent.client.roomJoin, { roomId }, (ack: RoomJoinAck | undefined) => {
+        if (!active) return;
+        if (ack?.error) {
+          // First-visit auto-join — when the WS gateway rejects with
+          // "not a member" the user is just visiting from /rooms catalog.
+          // POST /rooms/:id/join (idempotent), then retry the WS handshake
+          // exactly once. After that, surface the error rather than loop.
+          const looksLikeNotMember =
+            allowMembershipRetry &&
+            (ack.error.message?.toLowerCase().includes('not a member') ||
+              ack.error.message?.toLowerCase().includes('membership'));
+          if (looksLikeNotMember) {
+            joinRoom(roomId)
+              .then(() => {
+                if (active) tryJoin(false);
+              })
+              .catch((err) => {
+                if (!active) return;
+                setState({
+                  status: 'error',
+                  error: {
+                    code: 'UPSTREAM_UNAVAILABLE',
+                    message: err instanceof Error ? err.message : 'Failed to join room.',
+                  },
+                });
+              });
+            return;
+          }
+          setState({ status: 'error', error: ack.error });
+          return;
+        }
+        if (ack?.room && ack.members) {
+          setState({ status: 'ok', room: ack.room, members: ack.members });
+          return;
+        }
+        setState({
+          status: 'error',
+          error: {
+            code: 'UPSTREAM_UNAVAILABLE',
+            message: 'Malformed response while joining the room.',
+          },
+        });
       });
-    });
+    };
+    tryJoin(true);
 
     return () => {
       active = false;
