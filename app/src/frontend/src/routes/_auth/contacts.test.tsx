@@ -44,11 +44,17 @@ vi.mock('@/hooks/useUnread', () => ({
 const getComponent = () =>
   (Route as unknown as { options: { component: () => JSX.Element } }).options.component;
 
-const jsonResponse = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
+const jsonResponse = (body: unknown, status = 200) => {
+  // 204 + 205 are null-body statuses per fetch spec; passing a body to the
+  // Response constructor throws. Skip the body for those codes.
+  if (status === 204 || status === 205) {
+    return new Response(null, { status });
+  }
+  return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+};
 
 describe('<ContactsRoute /> (/contacts)', () => {
   const fetchMock = vi.fn();

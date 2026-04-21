@@ -156,7 +156,7 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
       });
     });
     await waitFor(() => {
-      expect(screen.getByTestId('room-manage-button')).toBeInTheDocument();
+      expect(screen.getByTestId('manage-room-button')).toBeInTheDocument();
     });
   });
 
@@ -273,7 +273,7 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     await waitFor(() => {
       expect(screen.getByText('alice')).toBeInTheDocument();
     });
-    expect(screen.queryByTestId('room-manage-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('manage-room-button')).not.toBeInTheDocument();
   });
 
   it('shows the "Manage room" button for owners and opens the modal on click', async () => {
@@ -298,7 +298,7 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
       });
     });
 
-    const button = await screen.findByTestId('room-manage-button');
+    const button = await screen.findByTestId('manage-room-button');
     expect(screen.queryByTestId('manage-room-modal')).not.toBeInTheDocument();
 
     act(() => {

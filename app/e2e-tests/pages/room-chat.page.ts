@@ -45,10 +45,10 @@ export class RoomChatPage extends RoomDetailPage {
     this.messageList = page.getByTestId('message-list');
     this.composerInput = page.getByTestId('message-composer-input');
     this.composerSend = page.getByTestId('message-composer-send');
-    // FE: <Button data-testid="room-manage-button"> — binding to the testid is
+    // FE: <Button data-testid="manage-room-button"> — binding to the testid is
     // more robust than a role+name regex (the modal also exposes a "Manage
     // Room" header label + "Manage Room" dialog title, which can collide).
-    this.manageRoomButton = page.getByTestId('room-manage-button');
+    this.manageRoomButton = page.getByTestId('manage-room-button');
     this.manageRoomModal = page.getByTestId('manage-room-modal');
     this.replyPreview = page.getByTestId('reply-preview');
   }
