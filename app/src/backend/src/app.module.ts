@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { RpcExceptionFilter } from './common/rpc/rpc-exception.filter';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { DatabaseModule } from './database/database.module';
 import { AuthClientModule } from './common/auth-client.module';
@@ -52,6 +53,9 @@ import { env } from './config/environment';
     WorkersModule.forRoot({ enabled: env.WORKERS_ENABLED }),
   ],
   controllers: [HealthController],
-  providers: [{ provide: APP_GUARD, useClass: SystemKeyRpcGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: SystemKeyRpcGuard },
+    { provide: APP_FILTER, useClass: RpcExceptionFilter },
+  ],
 })
 export class AppModule {}

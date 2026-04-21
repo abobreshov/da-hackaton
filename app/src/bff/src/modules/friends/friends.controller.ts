@@ -53,7 +53,7 @@ export class FriendsController {
     return this.service.listPending({ userId: getUserId(req) });
   }
 
-  @Post('request')
+  @Post('requests')
   @HttpCode(201)
   // AC-14-13 — spam suppression: 20 friend-requests per hour per user.
   // Fail-open: Redis outage must not block social actions; this is advisory,
