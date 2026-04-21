@@ -91,6 +91,14 @@ export const messages = pgTable(
     roomCreatedIdx: index('messages_room_created_idx')
       .on(table.roomId, table.createdAt.desc(), table.id.desc())
       .where(sql`${table.deletedAt} IS NULL`),
+    // sys-arch MED 3 — supports the unread `countSinceForRoomMembers`
+    // correlated subquery (`room_id = :roomId AND id > :lastReadId`).
+    // Created via `0011_concurrent_indexes.sql` with CREATE INDEX
+    // CONCURRENTLY in prod; declared here so future drizzle-kit
+    // generate runs don't drop it.
+    roomIdIdx: index('messages_room_id_idx')
+      .on(table.roomId, table.id)
+      .where(sql`${table.deletedAt} IS NULL`),
     dmCreatedIdx: index('messages_dm_created_idx')
       .on(table.dmId, table.createdAt.desc(), table.id.desc())
       .where(sql`${table.deletedAt} IS NULL`),
