@@ -119,7 +119,8 @@ export function useMessagesSync(args: ConversationKeyArgs): UseMessagesSyncRetur
     };
 
     const handleEdited = (payload: unknown): void => {
-      const p = payload as WireMessageEditedPayload | undefined;
+      const wrap = payload as { message?: WireMessageEditedPayload } | undefined;
+      const p = (wrap?.message ?? wrap) as WireMessageEditedPayload | undefined;
       if (!p || p.id === undefined) return;
       const editedAt = p.editedAt ?? p.edited_at ?? new Date().toISOString();
       try {
@@ -130,7 +131,8 @@ export function useMessagesSync(args: ConversationKeyArgs): UseMessagesSyncRetur
     };
 
     const handleDeleted = (payload: unknown): void => {
-      const p = payload as WireMessageDeletedPayload | undefined;
+      const wrap = payload as { message?: WireMessageDeletedPayload } | undefined;
+      const p = (wrap?.message ?? wrap) as WireMessageDeletedPayload | undefined;
       if (!p || p.id === undefined) return;
       const deletedAt = p.deletedAt ?? p.deleted_at ?? new Date().toISOString();
       try {

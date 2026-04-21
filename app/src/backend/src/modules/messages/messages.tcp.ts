@@ -92,12 +92,11 @@ export class MessagesTcpController {
 
   @MessagePattern({ cmd: TcpCmd.messages.delete })
   async delete(@Payload() data: DeletePayload) {
-    await this.service.delete({
+    return this.service.delete({
       id: data.id,
       actorId: data.actorId,
       isRoomAdmin: data.isRoomAdmin,
     });
-    return { ok: true };
   }
 
   @MessagePattern({ cmd: TcpCmd.messages.list })

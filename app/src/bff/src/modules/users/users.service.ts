@@ -87,4 +87,28 @@ export class UsersService {
     if (!row) return { userId: null, found: false };
     return { userId: row.id, found: true };
   }
+
+  /**
+   * Autocomplete for the FE add-friend dropdown. Returns at most `limit`
+   * users whose `name` starts with `q` (case-insensitive), excluding the
+   * caller's own row. Empty / whitespace `q` short-circuits to `[]` so the
+   * dropdown stays empty until the user types a character.
+   *
+   * The backend clamps `limit` between 1 and 25; we forward the FE's
+   * request verbatim and let the server own the bound.
+   */
+  async searchByUsernamePrefix(
+    q: string,
+    excludeUserId: number | null,
+    limit: number,
+  ): Promise<Array<{ id: number; name: string }>> {
+    const trimmed = (q ?? '').trim();
+    if (!trimmed) return [];
+    const rows = await this.proxy.forward<Array<{ id: number; name: string }>>(
+      this.client,
+      { cmd: TcpCmd.users.search },
+      { q: trimmed, excludeUserId, limit },
+    );
+    return rows ?? [];
+  }
 }

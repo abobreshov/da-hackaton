@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { users } from '../../database/schema';
@@ -66,5 +66,38 @@ export class UsersService {
       .where(sql`lower(${users.name}) = lower(${trimmed})`)
       .limit(1);
     return user ?? null;
+  }
+
+  /**
+   * Autocomplete backend for the FE "add friend" flow. Returns at most
+   * `limit` users whose `name` starts with `q` (case-insensitive). The
+   * caller's own id is filtered out so the dropdown never surfaces the
+   * logged-in user. Empty / whitespace `q` short-circuits to an empty list
+   * rather than scanning the whole table.
+   *
+   * Rows come back ordered alphabetically so the dropdown is stable as the
+   * user types. Uses the same `users_name_lower_idx` functional index as
+   * `findByUsername` — prefix matches stay index-backed.
+   */
+  async searchByUsernamePrefix(
+    q: string,
+    excludeUserId: number | null,
+    limit: number,
+  ): Promise<Array<{ id: number; name: string }>> {
+    const trimmed = (q ?? '').trim();
+    if (!trimmed) return [];
+    // Hard-cap the limit server-side even when the caller doesn't; keeps a
+    // misbehaving client from pulling the whole directory.
+    const cappedLimit = Math.min(Math.max(Number(limit) || 8, 1), 25);
+    const needle = trimmed.toLowerCase().replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+    const where = excludeUserId
+      ? and(sql`lower(${users.name}) like ${`${needle}%`}`, ne(users.id, excludeUserId))
+      : sql`lower(${users.name}) like ${`${needle}%`}`;
+    return this.db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(where)
+      .orderBy(asc(sql`lower(${users.name})`))
+      .limit(cappedLimit);
   }
 }

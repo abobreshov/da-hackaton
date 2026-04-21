@@ -32,3 +32,23 @@ export const reportUser = (input: ReportUserInput): Promise<{ id: number }> =>
     method: 'POST',
     body: JSON.stringify(input),
   });
+
+export interface UserSearchHit {
+  id: number;
+  name: string;
+}
+
+/**
+ * Username autocomplete for the add-friend dropdown. Case-insensitive
+ * prefix match over `users.name`. BFF enforces the caller's own id gets
+ * filtered out so this call never returns the logged-in user.
+ *
+ * An empty / whitespace-only `q` short-circuits to `[]` without a round
+ * trip — let the dropdown stay empty until the user types a character.
+ */
+export const searchUsers = async (q: string, limit = 8): Promise<UserSearchHit[]> => {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const params = new URLSearchParams({ q: trimmed, limit: String(limit) });
+  return apiFetch<UserSearchHit[]>(`/api/v1/users/search?${params.toString()}`);
+};

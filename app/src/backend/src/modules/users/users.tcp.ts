@@ -31,4 +31,20 @@ export class UsersTcpController {
   findByUsername(@Payload() data: { username: string }) {
     return this.service.findByUsername(data.username);
   }
+
+  /**
+   * Autocomplete for add-friend. `excludeUserId` keeps the caller out of
+   * their own suggestions, `limit` is clamped server-side in the service.
+   */
+  @MessagePattern({ cmd: 'users.search' })
+  search(
+    @Payload()
+    data: { q: string; excludeUserId?: number | null; limit?: number; _sys?: string },
+  ) {
+    return this.service.searchByUsernamePrefix(
+      data?.q ?? '',
+      data?.excludeUserId ?? null,
+      data?.limit ?? 8,
+    );
+  }
 }

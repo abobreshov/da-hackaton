@@ -317,6 +317,30 @@ export class ChatGateway
     const ids = Array.isArray(body?.userIds) ? body.userIds : [];
     if (ids.length === 0) return { ok: true };
     await this.subscriber.watchPresenceOf(client.id, ids);
+
+    // Push an initial snapshot so the FE renders correct dots for users
+    // who were ALREADY online when this socket subscribed. Without this
+    // the presence map stays at its default ("offline") until someone
+    // else's state flips — which never happens for a user who's been
+    // steadily online since before the caller logged in.
+    try {
+      const numericIds = ids.map((v) => Number(v)).filter((n) => Number.isFinite(n));
+      const resp = await this.proxy.forward<{ states?: Record<number | string, string> }>(
+        this.backend,
+        { cmd: TcpCmd.presence.stateOf },
+        { userIds: numericIds },
+      );
+      const states = resp?.states ?? {};
+      const deltas = Object.entries(states).map(([uid, status]) => ({
+        userId: Number(uid),
+        status,
+      }));
+      if (deltas.length > 0) {
+        client.emit(WsEvent.server.presenceUpdate, { deltas });
+      }
+    } catch (e) {
+      this.logger.warn(`presence.subscribe snapshot failed: ${(e as Error).message}`);
+    }
     return { ok: true };
   }
 

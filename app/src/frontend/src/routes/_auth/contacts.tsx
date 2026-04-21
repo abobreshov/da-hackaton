@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   listFriends,
   sendFriendRequest,
@@ -8,6 +8,7 @@ import {
   removeFriend,
   type FriendsResponse,
 } from '@/lib/friends';
+import { searchUsers, type UserSearchHit } from '@/lib/users';
 import { ApiError } from '@/lib/api-client';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
 import { useUnread } from '@/hooks/useUnread';
@@ -47,6 +48,18 @@ export function ContactsRoute() {
   const [username, setUsername] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
+  // ── Autocomplete state for the add-friend input ──
+  // `suggestions` holds the latest search hits; `suggestOpen` gates the
+  // dropdown visibility so clicking outside / blurring hides it without
+  // dropping the list (re-focus re-opens with whatever's current).
+  // `activeIndex` is the keyboard cursor (-1 = no row highlighted).
+  const [suggestions, setSuggestions] = useState<UserSearchHit[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+  // Debounce handle + in-flight sequence id so a stale slow response never
+  // clobbers the latest one when the user is still typing.
+  const debounceRef = useRef<number | null>(null);
+  const searchSeqRef = useRef(0);
   const presenceIds = useMemo<number[]>(() => {
     if (state.status !== 'ok') return [];
     const ids = new Set<number>();
@@ -86,15 +99,49 @@ export function ContactsRoute() {
     [presence],
   );
 
+  // Debounced search on every keystroke. 200 ms felt best in manual testing
+  // — short enough to feel live, long enough that a fast typist doesn't
+  // burn a roundtrip per character. `searchSeqRef` discards any response
+  // that was overtaken by a later one.
+  useEffect(() => {
+    if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    const trimmed = username.trim();
+    if (!trimmed) {
+      setSuggestions([]);
+      setActiveIndex(-1);
+      return;
+    }
+    const seq = ++searchSeqRef.current;
+    debounceRef.current = window.setTimeout(() => {
+      void searchUsers(trimmed, 8).then((hits) => {
+        if (seq !== searchSeqRef.current) return;
+        setSuggestions(hits);
+        setActiveIndex(hits.length > 0 ? 0 : -1);
+      });
+    }, 200);
+    return () => {
+      if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    };
+  }, [username]);
+
+  const pickSuggestion = (hit: UserSearchHit): void => {
+    setUsername(hit.name);
+    setSuggestions([]);
+    setSuggestOpen(false);
+    setActiveIndex(-1);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const uname = username.trim();
     if (!uname || mutating) return;
+    setSuggestOpen(false);
     setSubmitError(null);
     setMutating(true);
     try {
       await sendFriendRequest(uname);
       setUsername('');
+      setSuggestions([]);
       await load();
     } catch (err) {
       setSubmitError(
@@ -146,17 +193,94 @@ export function ContactsRoute() {
           Add a friend
         </h2>
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
+          <div className="relative flex-1">
             <Label htmlFor="friend-username">Add friend by username</Label>
+            {/*
+              Minimal combobox — `role="combobox"` on the input, `role="listbox"`
+              on the dropdown, `role="option"` on each hit. Keeps the a11y tree
+              close to a native <datalist> without the styling limitations.
+              Dropdown position is absolute against the relative parent; the
+              input itself is rendered by `<Input>`.
+            */}
             <Input
               id="friend-username"
               name="username"
               autoComplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={suggestOpen && suggestions.length > 0}
+              aria-controls="friend-username-listbox"
+              aria-activedescendant={
+                activeIndex >= 0 && suggestions[activeIndex]
+                  ? `friend-username-option-${suggestions[activeIndex].id}`
+                  : undefined
+              }
               placeholder="username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setSuggestOpen(true);
+              }}
+              onFocus={() => setSuggestOpen(true)}
+              onBlur={() => {
+                // Delay close so a mousedown on an option still registers
+                // — `onClick` on the option re-opens state synchronously
+                // anyway via `pickSuggestion`.
+                window.setTimeout(() => setSuggestOpen(false), 120);
+              }}
+              onKeyDown={(e) => {
+                if (!suggestOpen || suggestions.length === 0) return;
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setActiveIndex((i) => (i + 1) % suggestions.length);
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+                } else if (e.key === 'Enter' && activeIndex >= 0) {
+                  const hit = suggestions[activeIndex];
+                  if (hit) {
+                    e.preventDefault();
+                    pickSuggestion(hit);
+                  }
+                } else if (e.key === 'Escape') {
+                  setSuggestOpen(false);
+                }
+              }}
               disabled={mutating}
             />
+            {suggestOpen && suggestions.length > 0 && (
+              <ul
+                id="friend-username-listbox"
+                role="listbox"
+                data-testid="friend-username-listbox"
+                className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-[1rem] bg-surface-container-high py-1 shadow-ambient"
+              >
+                {suggestions.map((hit, idx) => (
+                  <li
+                    key={hit.id}
+                    id={`friend-username-option-${hit.id}`}
+                    role="option"
+                    aria-selected={idx === activeIndex}
+                    data-testid={`friend-username-option-${hit.id}`}
+                    className={[
+                      'cursor-pointer px-4 py-2 font-body text-body-md text-on-surface',
+                      idx === activeIndex
+                        ? 'bg-primary/15 text-on-surface'
+                        : 'hover:bg-surface-container',
+                    ].join(' ')}
+                    // Use onMouseDown so the input's blur (which fires first on
+                    // a regular click) doesn't close the dropdown before the
+                    // click completes.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      pickSuggestion(hit);
+                    }}
+                  >
+                    {hit.name}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <Button type="submit" disabled={mutating || username.trim().length === 0} size="md">
             Send request

@@ -150,6 +150,83 @@ describe('<ContactsRoute /> (/contacts)', () => {
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
   });
 
+  it('accepts an incoming request via POST /api/v1/friends/requests/:id/accept', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        friends: [],
+        incoming: [{ id: 11, from: { userId: 2, username: 'bob' } }],
+        outgoing: [],
+      }),
+    );
+    const Contacts = getComponent();
+    render(<Contacts />);
+    await waitFor(() => expect(screen.getByText('bob')).toBeInTheDocument());
+
+    // Accept click → POST .../requests/11/accept, then refreshed list.
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        friends: [{ userId: 2, username: 'bob' }],
+        incoming: [],
+        outgoing: [],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /accept/i }));
+    });
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.map((c) => c[0] as string);
+      expect(calls.some((u) => /\/api\/v1\/friends\/requests\/11\/accept$/.test(u))).toBe(true);
+    });
+    const call = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && /\/requests\/11\/accept$/.test(c[0] as string),
+    );
+    expect((call![1] as RequestInit).method).toBe('POST');
+
+    // Incoming row is gone, bob now in friends list.
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+  });
+
+  it('rejects an incoming request via POST /api/v1/friends/requests/:id/reject', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        friends: [],
+        incoming: [{ id: 22, from: { userId: 4, username: 'erin' } }],
+        outgoing: [],
+      }),
+    );
+    const Contacts = getComponent();
+    render(<Contacts />);
+    await waitFor(() => expect(screen.getByText('erin')).toBeInTheDocument());
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ friends: [], incoming: [], outgoing: [] }),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /reject/i }));
+    });
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.map((c) => c[0] as string);
+      expect(calls.some((u) => /\/api\/v1\/friends\/requests\/22\/reject$/.test(u))).toBe(true);
+    });
+    const call = fetchMock.mock.calls.find(
+      (c) => typeof c[0] === 'string' && /\/requests\/22\/reject$/.test(c[0] as string),
+    );
+    expect((call![1] as RequestInit).method).toBe('POST');
+
+    // Pending row disappears — no friendship created.
+    await waitFor(() => {
+      expect(screen.queryByText('erin')).not.toBeInTheDocument();
+    });
+  });
+
   it('submits a new friend request via POST /api/v1/friends/requests', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ friends: [], incoming: [], outgoing: [] }));
     const Contacts = getComponent();

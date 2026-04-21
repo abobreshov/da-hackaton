@@ -297,7 +297,14 @@ export class FriendsService {
     return rows.map((r) => ({
       id: r.id,
       requesterId: r.requestedBy,
-      otherUserId: r.requestedBy === r.userA ? r.userA : r.userB,
+      // `otherUserId` must be the *non-self* side of the friendship: the
+      // inbox peer for incoming invites, the target for outgoing ones. The
+      // prior implementation picked `requestedBy === userA ? userA : userB`
+      // which collapsed to `requestedBy` every time — so outgoing rows
+      // showed the sender as their own target (and the FE rendered the
+      // logged-in user's own username / no name at all on the outgoing
+      // request row).
+      otherUserId: r.userA === userId ? r.userB : r.userA,
       incoming: r.requestedBy !== userId,
       requestText: r.requestText,
       createdAt: r.createdAt,

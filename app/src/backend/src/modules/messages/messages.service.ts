@@ -233,7 +233,9 @@ export class MessagesService {
     return { message: updated };
   }
 
-  async delete(params: DeleteMessageParams): Promise<void> {
+  async delete(
+    params: DeleteMessageParams,
+  ): Promise<{ id: bigint; roomId: number | null; dmId: number | null }> {
     const existing = await this.repo.findMessageById(params.id);
     if (!existing || existing.deletedAt) {
       throw new NotFoundException(`message ${params.id} not found`);
@@ -246,6 +248,12 @@ export class MessagesService {
       // Raced with another delete.
       throw new NotFoundException(`message ${params.id} not found`);
     }
+    // Return the routing tuple so the BFF gateway can fan-out
+    // `message.deleted` to the right Socket.IO room. Without this the
+    // tombstone never reaches other clients (and the originating client
+    // didn't update either, since the FE listens only to the server-push
+    // and doesn't apply optimistic local state).
+    return { id: row.id, roomId: row.roomId, dmId: row.dmId };
   }
 
   async list(params: ListMessagesParams): Promise<{

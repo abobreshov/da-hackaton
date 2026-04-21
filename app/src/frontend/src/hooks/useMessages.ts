@@ -369,7 +369,10 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
     };
 
     const handleEdited = (payload: unknown): void => {
-      const p = payload as WireMessageEditedPayload | undefined;
+      // BFF gateway emits `{ message: MessageRow }` (matches `messageNew`),
+      // older code paths may also flat-emit. Tolerate both.
+      const wrap = payload as { message?: WireMessageEditedPayload } | undefined;
+      const p = (wrap?.message ?? wrap) as WireMessageEditedPayload | undefined;
       if (!p || p.id === undefined) return;
       const editedAt = p.editedAt ?? p.edited_at ?? new Date().toISOString();
       try {
@@ -380,7 +383,10 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
     };
 
     const handleDeleted = (payload: unknown): void => {
-      const p = payload as WireMessageDeletedPayload | undefined;
+      // Same envelope-tolerance as `handleEdited` — backend may send `{id,…}`
+      // direct or wrapped under `{message:{…}}`.
+      const wrap = payload as { message?: WireMessageDeletedPayload } | undefined;
+      const p = (wrap?.message ?? wrap) as WireMessageDeletedPayload | undefined;
       if (!p || p.id === undefined) return;
       const deletedAt = p.deletedAt ?? p.deleted_at ?? new Date().toISOString();
       try {

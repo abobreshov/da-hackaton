@@ -28,6 +28,13 @@ export const TcpCmd = {
     listByIds: 'users.listByIds',
     findById: 'users.findById',
     findByUsername: 'users.findByUsername',
+    /**
+     * Case-insensitive prefix search over `users.name`. Backs the FE
+     * add-friend autocomplete — returns at most `limit` rows, ordered
+     * alphabetically, with the caller's own id filtered out so the
+     * dropdown never suggests "add yourself".
+     */
+    search: 'users.search',
     ban: 'users.ban',
     unban: 'users.unban',
     listBans: 'users.listBans',
