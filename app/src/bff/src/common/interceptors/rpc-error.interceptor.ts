@@ -105,30 +105,54 @@ function buildEnvelope(error: any, requestId?: string): { status: number; body: 
   return { status, body };
 }
 
+/**
+ * An upstream TCP-microservice error as delivered to BFF by NestJS
+ * `ClientProxy`. The wire deserializer emits the raw `{err}` payload via
+ * `observer.error` — so at the BFF call site it's a plain object, NOT a
+ * `RpcException` instance. We detect by shape (`status` + `message`) so both
+ * RpcException-wrapped and raw payloads route through `buildEnvelope`.
+ */
+function isUpstreamRpcPayload(err: unknown): err is { status?: number; message?: string } {
+  if (!err || typeof err !== 'object' || err instanceof Error) return false;
+  const o = err as Record<string, unknown>;
+  const statusOk =
+    typeof o.status === 'number' ||
+    typeof o.statusCode === 'number' ||
+    typeof o.status === 'string';
+  const messageOk = typeof o.message === 'string';
+  return statusOk || messageOk;
+}
+
 @Injectable()
 export class RpcErrorInterceptor implements NestInterceptor {
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       catchError((err) => {
-        if (err instanceof RpcException) {
-          const http = ctx.switchToHttp();
-          const req = http.getRequest?.();
-          const res = http.getResponse?.();
-          const requestId =
-            (req?.headers?.['x-request-id'] as string | undefined) ??
-            (req?.id as string | undefined);
+        const payload =
+          err instanceof RpcException
+            ? err.getError()
+            : isUpstreamRpcPayload(err)
+              ? (err as Record<string, unknown>)
+              : null;
 
-          const { status, body } = buildEnvelope(err.getError(), requestId);
+        if (payload === null) return throwError(() => err);
 
-          if (res && requestId && typeof res.header === 'function') {
-            res.header('X-Request-Id', requestId);
-          }
+        const http = ctx.switchToHttp();
+        const req = http.getRequest?.();
+        const res = http.getResponse?.();
+        const requestId =
+          (req?.headers?.['x-request-id'] as string | undefined) ??
+          (req?.id as string | undefined);
 
-          return throwError(
-            () => new HttpException(body as unknown as Record<string, unknown>, status),
-          );
+        const { status, body } = buildEnvelope(payload, requestId);
+
+        if (res && requestId && typeof res.header === 'function') {
+          res.header('X-Request-Id', requestId);
         }
-        return throwError(() => err);
+
+        return throwError(
+          () => new HttpException(body as unknown as Record<string, unknown>, status),
+        );
       }),
     );
   }
