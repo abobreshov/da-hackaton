@@ -38,10 +38,14 @@ function getUserId(req: SessionRequest): number {
 export class RoomsController {
   constructor(private readonly service: RoomsService) {}
 
-  /** Public catalog — auth required, but no per-user filter. */
+  /** Public catalog — auth required, but no per-user filter. Wraps the
+   *  backend's raw `RoomRow[]` into the `{rooms, total}` envelope the FE
+   *  (`lib/rooms.ts: RoomsCatalogResponse`) expects. */
   @Get('catalog')
-  catalog() {
-    return this.service.catalog();
+  async catalog(): Promise<{ rooms: unknown[]; total: number }> {
+    const rooms = (await this.service.catalog()) as unknown[];
+    const list = Array.isArray(rooms) ? rooms : [];
+    return { rooms: list, total: list.length };
   }
 
   /** Rooms the caller is a member of. */

@@ -46,14 +46,22 @@ describe('RoomsController (BFF)', () => {
   });
 
   describe('GET /rooms/catalog', () => {
-    it('delegates to service.catalog() and returns the list', async () => {
+    it('delegates to service.catalog() and wraps in {rooms, total} envelope', async () => {
       const list = [{ id: 1, name: 'general' }];
       svc.catalog.mockResolvedValue(list);
 
       const res = await controller.catalog();
 
       expect(svc.catalog).toHaveBeenCalledWith();
-      expect(res).toEqual(list);
+      expect(res).toEqual({ rooms: list, total: 1 });
+    });
+
+    it('defaults to empty list + zero total when upstream returns non-array', async () => {
+      svc.catalog.mockResolvedValue(undefined as any);
+
+      const res = await controller.catalog();
+
+      expect(res).toEqual({ rooms: [], total: 0 });
     });
 
     it('propagates upstream RpcException unchanged', async () => {
