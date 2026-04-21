@@ -55,7 +55,12 @@ interface WireError {
 interface RoomJoinAck {
   room?: RoomSummary;
   members?: RoomMember[];
-  error?: WireError;
+  /**
+   * Gateway returns either a `WireError` object (validation path) or a raw
+   * string (catch path — `e?.message ?? 'room.join failed'`). Tolerate both
+   * — the route normalises to a single message string downstream.
+   */
+  error?: WireError | string;
 }
 
 type LoadState =
@@ -166,14 +171,23 @@ export function RoomRoute() {
       socket.emit(WsEvent.client.roomJoin, { roomId }, (ack: RoomJoinAck | undefined) => {
         if (!active) return;
         if (ack?.error) {
+          // Gateway returns `error` as either a string (catch path) or a
+          // {code, message} object (validation path). Normalise to a single
+          // string for the membership-retry sniff so both shapes work.
+          const errMessage =
+            typeof ack.error === 'string'
+              ? ack.error
+              : (ack.error?.message ?? '');
+          const errLower = errMessage.toLowerCase();
           // First-visit auto-join — when the WS gateway rejects with
           // "not a member" the user is just visiting from /rooms catalog.
           // POST /rooms/:id/join (idempotent), then retry the WS handshake
           // exactly once. After that, surface the error rather than loop.
           const looksLikeNotMember =
             allowMembershipRetry &&
-            (ack.error.message?.toLowerCase().includes('not a member') ||
-              ack.error.message?.toLowerCase().includes('membership'));
+            (errLower.includes('not a member') ||
+              errLower.includes('membership') ||
+              errLower.includes('forbidden'));
           if (looksLikeNotMember) {
             joinRoom(roomId)
               .then(() => {
@@ -191,7 +205,13 @@ export function RoomRoute() {
               });
             return;
           }
-          setState({ status: 'error', error: ack.error });
+          // Surface the error in the FE error panel — keep the original
+          // shape if it's already an object, else wrap the string.
+          const errObj =
+            typeof ack.error === 'string'
+              ? { code: 'UPSTREAM_UNAVAILABLE', message: errMessage }
+              : ack.error;
+          setState({ status: 'error', error: errObj });
           return;
         }
         if (ack?.room && ack.members) {
