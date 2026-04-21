@@ -96,8 +96,11 @@ const BASE_URL = import.meta.env.VITE_BFF_URL ?? '';
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const method = init?.method ?? 'GET';
+  const hasBody = init?.body !== undefined && init?.body !== null;
+  // Fastify rejects empty bodies when Content-Type is application/json, so
+  // only advertise the JSON header when we're actually sending a payload.
   const baseHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     ...init?.headers,
   };
   const headers = attachCsrfHeader(method, baseHeaders);

@@ -3,17 +3,20 @@ import { test, expect } from '../fixtures/test';
 const USER = { email: 'user@example.com', password: 'User1234!' };
 
 /**
- * M1 demo journey — empty rooms catalog.
+ * M1 demo journey — rooms catalog renders + logout round-trip.
  *
- * The seeded `user@example.com` is not a member of any seeded rooms, and the
- * BFF's `rooms.catalog` call is expected to return an empty list at MVP
- * baseline. The view should render the shared `EmptyState` component.
+ * Historical note: this spec was originally named "empty rooms catalog" and
+ * asserted the EmptyState placeholder. The demo seed
+ * (`app/src/backend/scripts/seed-demo.ts`) now inserts three public rooms
+ * (#general id=1, #random id=2, #demo id=3) before the suite runs, so the
+ * catalog is never empty. The assertion was flipped to: heading "Public rooms"
+ * is reachable AND at least one room link is visible.
  *
  * Finishes by clicking logout to prove the full session lifecycle works for
  * this route (cookie clears + redirect back to /login).
  */
-test.describe('Rooms catalog — empty state + logout', () => {
-  test('seeded user visits /rooms, sees empty catalog, then logs out', async ({
+test.describe('Rooms catalog — populated catalog + logout', () => {
+  test('seeded user visits /rooms, sees at least one public room, then logs out', async ({
     page,
     context,
     loginPage,
@@ -26,10 +29,13 @@ test.describe('Rooms catalog — empty state + logout', () => {
     await loginPage.login(USER.email, USER.password);
     await dashboardPage.expectLoaded();
 
-    // 2. Navigate to the rooms catalog.
+    // 2. Navigate to the rooms catalog. Demo seed inserts general/random/demo,
+    //    so the public list must be present and contain at least one link.
     await roomsPage.goto();
     await roomsPage.expectLoaded();
-    await roomsPage.expectEmptyCatalog();
+    await roomsPage.expectRoomsList();
+    const firstRoomLink = page.locator('a[href^="/rooms/"]').first();
+    await expect(firstRoomLink).toBeVisible();
 
     // 3. Logout clears session + refresh cookies and returns to /login.
     await dashboardPage.clickLogout();
