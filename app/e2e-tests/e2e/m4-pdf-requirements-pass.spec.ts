@@ -39,22 +39,35 @@ test.describe('M4 — PDF requirements happy path', () => {
     }
   });
 
-  test('new user can register and lands on /dashboard', async ({ browser }) => {
+  test('new user can register and sees the "check your inbox" envelope (OWASP V3.1.1)', async ({
+    browser,
+  }) => {
+    // Per OWASP V3.1.1 the register endpoint no longer auto-logs-in. The PDF
+    // brief's "register" expectation is satisfied by the FE rendering its
+    // envelope-safe confirmation card; the user must consume the verify-email
+    // link before a session is minted (covered separately in register-flow
+    // and verify-email specs). Asserting the same /dashboard redirect here
+    // would re-bind the journey to the pre-audit auth contract.
     const ctx = await browser.newContext();
     try {
       const page = await ctx.newPage();
       const register = new RegisterPage(page);
-      const dashboard = new DashboardPage(page);
 
       await register.goto();
       await register.expectLoaded();
 
       const suffix = uniqueSuffix();
-      await register.fillForm(`pdf_${suffix}@example.com`, `pdf_${suffix}`, 'PdfPass-1!');
+      const email = `pdf_${suffix}@example.com`;
+      await register.fillForm(email, `pdf_${suffix}`, 'PdfPass-1!');
       await register.submit();
 
-      await register.expectDashboardRedirect();
-      await dashboard.expectLoaded();
+      await register.expectInboxConfirmation(email);
+      expect(page.url()).toContain('/register');
+
+      // Session + refresh cookies must NOT be set until verify-email runs.
+      const cookies = await ctx.cookies();
+      expect(cookies.some((c) => c.name === 'session')).toBe(false);
+      expect(cookies.some((c) => c.name === 'refresh')).toBe(false);
     } finally {
       await ctx.close();
     }

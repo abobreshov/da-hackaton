@@ -6,7 +6,7 @@ import { RoomChatPage } from '../pages/room-chat.page';
 /**
  * M3 — Manage Room modal full tour (EPIC-05 + EPIC-06 AC-06-03/05/06/09).
  *
- * admin opens /rooms/general, triggers the "Manage room" modal, navigates all
+ * admin opens seeded #general (`/rooms/1`), triggers the "Manage room" modal, navigates all
  * five tabs (overview, members, invites, banned, danger), then bans `user`
  * from the Members tab. The user's browser is open on the same room and
  * should be evicted (member row disappears / route redirects). The Banned
@@ -15,7 +15,9 @@ import { RoomChatPage } from '../pages/room-chat.page';
 
 const USER = { email: 'user@example.com', password: 'User1234!', username: 'user' };
 const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'admin' };
-const ROOM_ID = 'general';
+// FE route is `/rooms/$roomId` (numeric). Demo seed inserts #general first
+// into a clean `rooms` table → bigserial id 1. See backend/scripts/seed-demo.ts.
+const ROOM_ID = '1';
 
 const WS_DELIVERY_MS = 3_000;
 

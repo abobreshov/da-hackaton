@@ -18,7 +18,9 @@ import { RoomChatPage } from '../pages/room-chat.page';
  */
 
 const USER = { email: 'user@example.com', password: 'User1234!', username: 'user' };
-const ROOM_ID = 'general';
+// FE route is `/rooms/$roomId` (numeric). Demo seed inserts #general first
+// into a clean `rooms` table → bigserial id 1. See backend/scripts/seed-demo.ts.
+const ROOM_ID = '1';
 
 test.describe('M3 — infinite scroll older messages', () => {
   test('scrolling up on seeded #general loads an older batch', async ({

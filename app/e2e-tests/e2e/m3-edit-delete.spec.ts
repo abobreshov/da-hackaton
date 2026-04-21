@@ -13,7 +13,9 @@ import { RoomChatPage } from '../pages/room-chat.page';
 
 const USER = { email: 'user@example.com', password: 'User1234!', username: 'user' };
 const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'admin' };
-const ROOM_ID = 'general';
+// FE route is `/rooms/$roomId` (numeric). Demo seed inserts #general first
+// into a clean `rooms` table → bigserial id 1. See backend/scripts/seed-demo.ts.
+const ROOM_ID = '1';
 
 const WS_DELIVERY_MS = 3_000;
 

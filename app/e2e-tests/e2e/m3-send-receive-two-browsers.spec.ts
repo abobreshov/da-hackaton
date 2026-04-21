@@ -6,13 +6,15 @@ import { RoomChatPage } from '../pages/room-chat.page';
 /**
  * M3 demo journey — two-browser send/receive (EPIC-07 AC-07-08).
  *
- * Admin + user both sign in, both open `/rooms/general`, admin sends a
+ * Admin + user both sign in, both open seeded #general (`/rooms/1`), admin sends a
  * message; user observes it in their viewport within the 3s propagation SLA.
  */
 
 const USER = { email: 'user@example.com', password: 'User1234!', username: 'user' };
 const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'admin' };
-const ROOM_ID = 'general';
+// FE route is `/rooms/$roomId` (numeric). Demo seed inserts #general first
+// into a clean `rooms` table → bigserial id 1. See backend/scripts/seed-demo.ts.
+const ROOM_ID = '1';
 
 const WS_DELIVERY_MS = 3_000;
 
