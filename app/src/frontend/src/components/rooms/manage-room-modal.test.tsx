@@ -70,7 +70,7 @@ describe('<ManageRoomModal />', () => {
       visibility: baseRoom.visibility,
       memberCount: 3,
     });
-    vi.spyOn(moderation, 'inviteUser').mockResolvedValue({ id: 99 });
+    vi.spyOn(moderation, 'inviteUser').mockResolvedValue({ queued: true, invited: 99 });
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -191,7 +191,8 @@ describe('<ManageRoomModal />', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
-  it('Invitations tab: submit calls inviteUser(roomId, username)', async () => {
+  it('Invitations tab: submit calls inviteUser(roomId, username) and shows generic queued message when user resolves', async () => {
+    vi.spyOn(moderation, 'inviteUser').mockResolvedValue({ queued: true, invited: 42 });
     renderOwner();
     fireEvent.click(screen.getByTestId('manage-room-tab-invitations'));
     const input = screen.getByLabelText(/invite by username/i);
@@ -200,6 +201,27 @@ describe('<ManageRoomModal />', () => {
     await waitFor(() => {
       expect(moderation.inviteUser).toHaveBeenCalledWith(7, 'newfriend');
     });
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(/invitation queued/i);
+    // Must not echo the typed username — that would leak existence.
+    expect(status).not.toHaveTextContent(/newfriend/i);
+  });
+
+  it('Invitations tab: shows the same generic queued message when username does not exist (fail-silent per ADR-005)', async () => {
+    vi.spyOn(moderation, 'inviteUser').mockResolvedValue({ queued: true, invited: null });
+    renderOwner();
+    fireEvent.click(screen.getByTestId('manage-room-tab-invitations'));
+    const input = screen.getByLabelText(/invite by username/i);
+    fireEvent.change(input, { target: { value: 'ghost-user' } });
+    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+    await waitFor(() => {
+      expect(moderation.inviteUser).toHaveBeenCalledWith(7, 'ghost-user');
+    });
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(/invitation queued/i);
+    // Must NOT say "user not found" or anything similar that would leak existence.
+    expect(status).not.toHaveTextContent(/not found/i);
+    expect(status).not.toHaveTextContent(/ghost-user/i);
   });
 
   it('Settings tab: Save changes calls updateRoom with patched fields', async () => {

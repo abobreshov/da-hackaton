@@ -476,8 +476,12 @@ function InvitationsTab({ roomId }: InvitationsTabProps) {
     setError(null);
     setSuccess(null);
     try {
+      // Per ADR-005 the BFF returns `{ queued: true, invited: number | null }`
+      // regardless of whether the username matched a real user. We must NOT
+      // branch the success message on `invited` — leaking that distinction
+      // would expose username existence to anyone who can hit this form.
       await inviteUser(roomId, trimmed);
-      setSuccess(`Invite sent to ${trimmed}.`);
+      setSuccess('Invitation queued.');
       setUsername('');
     } catch (err) {
       setError(getErrorMessage(err));

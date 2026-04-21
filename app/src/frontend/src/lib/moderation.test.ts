@@ -108,15 +108,22 @@ describe('lib/moderation', () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual(patch);
   });
 
-  it('inviteUser() POSTs /api/v1/rooms/:id/invitations with { username }', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 101 }, 201));
-    await inviteUser(7, 'alice');
+  it('inviteUser() POSTs /api/v1/rooms/:id/invitations with { username } and parses { queued, invited } when user exists', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ queued: true, invited: 101 }, 201));
+    const res = await inviteUser(7, 'alice');
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/api\/v1\/rooms\/7\/invitations$/);
     expect((init as RequestInit).method).toBe('POST');
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       username: 'alice',
     });
+    expect(res).toEqual({ queued: true, invited: 101 });
+  });
+
+  it('inviteUser() returns { queued: true, invited: null } for unknown usernames (fail-silent per ADR-005)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ queued: true, invited: null }, 201));
+    const res = await inviteUser(7, 'ghost');
+    expect(res).toEqual({ queued: true, invited: null });
   });
 
   it('surfaces ApiError on non-2xx responses', async () => {
