@@ -2,8 +2,11 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
+import { MicroserviceOptions } from '@nestjs/microservices';
 import { AppModule } from './app.module';
 import { env } from './config/environment';
+import { buildTcpMicroserviceOptions } from './common/rpc-transport';
+import { RpcExceptionFilter } from './common/rpc/rpc-exception.filter';
 
 /**
  * Build the global ValidationPipe. Exported so a unit test (or a future
@@ -37,8 +40,17 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
+  app.connectMicroservice<MicroserviceOptions>(
+    buildTcpMicroserviceOptions(env.TCP_BIND, env.TCP_PORT),
+  );
+  app.useGlobalFilters(new RpcExceptionFilter());
+
+  await app.startAllMicroservices();
   await app.listen(env.PORT, '0.0.0.0');
   console.log(`Backend HTTP server running on port ${env.PORT}`);
+  console.log(
+    `Backend TCP microservice running on ${env.TCP_BIND}:${env.TCP_PORT} (TLS=${env.TLS_ENABLED})`,
+  );
 }
 
 bootstrap();

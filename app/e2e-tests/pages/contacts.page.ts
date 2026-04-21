@@ -7,14 +7,14 @@ import { BasePage } from './base.page';
  *
  * Expected DOM contract (M2 reviewer journey):
  *   - Heading "Contacts" (level 1).
- *   - "Add friend" form: input with `data-testid="friend-username-input"` and
- *     a submit button named "Send request" (case-insensitive).
- *   - Friends list: container `[data-testid="friend-list"]` with children
+ *   - "Add friend" form: input `#friend-username` (label "Add friend by username")
+ *     and a submit button named "Send request" (case-insensitive).
+ *   - Friends list: `<ul aria-label="Friends">` with children
  *     `[data-testid="friend-row"][data-username="<u>"]`. Each row exposes a
  *     "Remove" button.
- *   - Pending-incoming list: container `[data-testid="pending-incoming-list"]`
- *     with children `[data-testid="friend-request-row"][data-username="<u>"]`.
- *     Each row exposes "Accept" and "Reject" buttons.
+ *   - Pending-incoming list: `<ul aria-label="Incoming requests">`. Rows are
+ *     plain `<li>` carrying the requester's username text + "Accept" / "Reject"
+ *     buttons (no per-row data-testid in current FE).
  *
  * Matches BFF routes per `mng/specs/04-contacts-friends.md`:
  *   POST /api/v1/friends/request        {username, text?}
@@ -34,10 +34,10 @@ export class ContactsPage extends BasePage {
   constructor(page: Page) {
     super(page);
     this.heading = page.getByRole('heading', { name: /^contacts$/i });
-    this.usernameInput = page.getByTestId('friend-username-input');
+    this.usernameInput = page.locator('#friend-username');
     this.sendRequestButton = page.getByRole('button', { name: /send request/i });
-    this.friendList = page.getByTestId('friend-list');
-    this.pendingIncomingList = page.getByTestId('pending-incoming-list');
+    this.friendList = page.getByRole('list', { name: /^friends$/i });
+    this.pendingIncomingList = page.getByRole('list', { name: /incoming requests/i });
   }
 
   async expectLoaded(): Promise<void> {
@@ -50,9 +50,10 @@ export class ContactsPage extends BasePage {
   }
 
   private pendingRow(username: string): Locator {
-    return this.pendingIncomingList.locator(
-      `[data-testid="friend-request-row"][data-username="${username}"]`,
-    );
+    // FE renders incoming requests as plain <li>'s carrying the requester's
+    // username as text — no data-testid / data-username today. Filter the
+    // list's listitems by exact username match.
+    return this.pendingIncomingList.getByRole('listitem').filter({ hasText: username });
   }
 
   async sendFriendRequest(username: string): Promise<void> {

@@ -23,11 +23,13 @@ test.describe('Registration flow', () => {
     await registerPage.expectLoaded();
   });
 
-  test('happy path: new user registers and lands on dashboard with session cookies', async ({
+  test('happy path: new user submits form and sees the "check your inbox" envelope', async ({
     context,
     registerPage,
-    dashboardPage,
   }) => {
+    // OWASP V3.1.1 — register no longer auto-logs-in. The user must consume
+    // the verify-email link before a session is minted. The UI contract is a
+    // confirmation card echoing the submitted email back.
     const suffix = uniqueSuffix();
     const email = `e2e_${suffix}@example.com`;
     const username = `e2e_${suffix}`;
@@ -36,25 +38,26 @@ test.describe('Registration flow', () => {
     await registerPage.fillForm(email, username, password);
     await registerPage.submit();
 
-    await registerPage.expectDashboardRedirect();
-    await dashboardPage.expectLoaded();
+    await registerPage.expectInboxConfirmation(email);
+    expect(registerPage.url()).toContain('/register');
 
-    // BFF should have set both session + refresh cookies on the successful
-    // register → auto-login path (see auth.service.ts → register).
+    // Session + refresh cookies must NOT be set until verify-email runs.
     const cookies = await context.cookies();
-    const sessionCookie = cookies.find((c) => c.name === 'session');
-    const refreshCookie = cookies.find((c) => c.name === 'refresh');
-    expect(sessionCookie, 'session cookie should be set after register').toBeDefined();
-    expect(refreshCookie, 'refresh cookie should be set after register').toBeDefined();
+    expect(cookies.some((c) => c.name === 'session')).toBe(false);
+    expect(cookies.some((c) => c.name === 'refresh')).toBe(false);
   });
 
-  test('duplicate email surfaces the 409 copy', async ({ registerPage }) => {
-    // Seeded account — auth-service will return ErrorCode.CONFLICT.
+  test('duplicate email is indistinguishable from a fresh register (OWASP V3.1.1)', async ({
+    registerPage,
+  }) => {
+    // The BFF returns the SAME envelope for "user created" and "email already
+    // taken" — leaking the difference would expose existence of accounts.
+    // The FE therefore renders the same "Check your inbox" card.
     const suffix = uniqueSuffix();
     await registerPage.fillForm(SEEDED_EMAIL, `dup_${suffix}`, 'Another-Pw-42!');
     await registerPage.submit();
 
-    await registerPage.expectConflictError();
+    await registerPage.expectInboxConfirmation(SEEDED_EMAIL);
     expect(registerPage.url()).toContain('/register');
   });
 

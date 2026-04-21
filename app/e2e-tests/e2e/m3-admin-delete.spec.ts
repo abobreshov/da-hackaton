@@ -69,10 +69,18 @@ test.describe('M3 — admin deletes another author', () => {
         timeout: WS_DELIVERY_MS,
       });
 
-      // Admin finds the audit-log entry.
+      // Admin finds the audit-log entry. The audit table renders the actor as
+      // "{type} #{id}" (no username column today), so resolve the admin's
+      // numeric id from the BFF session before asserting.
+      const adminSession = await adminPage.request.get('/api/v1/auth/session');
+      expect(adminSession.ok()).toBe(true);
+      const adminBody = await adminSession.json();
+      const adminMatch = String(adminBody.sub ?? '').match(/^a:(\d+)$/);
+      expect(adminMatch, `expected admin sub, got ${adminBody.sub}`).not.toBeNull();
+      const adminId = Number(adminMatch![1]);
       await admin.gotoAuditLog();
       await admin.expectAuditLoaded();
-      await admin.expectAuditEntryBy('message.delete', ADMIN.username);
+      await admin.expectAuditEntryByActorId('message.delete', adminId);
     } finally {
       await userCtx.close();
       await adminCtx.close();

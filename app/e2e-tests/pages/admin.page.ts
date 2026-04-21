@@ -2,26 +2,31 @@ import type { Locator, Page, Response } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 /**
- * Page object for `/admin/reports` + `/admin/audit-log` (EPIC-06 admin
+ * Page object for `/admin/reports` + `/admin/audit-log` (EPIC-10 admin
  * moderation surface).
  *
- * Expected DOM contract:
+ * DOM contract reflects the **current FE** (see `routes/_admin/reports.tsx`
+ * and `routes/_admin/audit-log.tsx`):
  *   - Reports queue page at `/admin/reports`:
- *       - Container `[data-testid="admin-reports-queue"]`
- *       - One row per report: `[data-testid="admin-report-row"]` with
- *         `data-report-id` and a "Resolve" button (and "Dismiss").
+ *       - List: `<ul aria-label="Open reports">`
+ *       - Each report is a `<li>` carrying a "Resolve" button + a "Dismiss"
+ *         button. The reason text is exposed via
+ *         `[data-testid="report-reason-{id}"]`. There is no row-level
+ *         data-report-id; we read the report id off the reason testid.
  *   - Audit log page at `/admin/audit-log`:
- *       - Table `[data-testid="admin-audit-table"]`
- *       - Rows `[data-testid="admin-audit-row"]` with
- *         `data-action="<action>"` and `data-actor="<username>"`.
+ *       - Table: `<table aria-label="Audit log entries">`
+ *       - Each `<tr>` renders the action inside a `<code>` cell. The actor is
+ *         rendered as "{actorType} #{actorId}" — the wire shape doesn't carry
+ *         an actor *username*, so `expectAuditEntryBy` has to take the actor
+ *         numeric id (resolved by the test against /api/v1/auth/session).
  */
 export class AdminPage {
   readonly reportsQueue: Locator;
   readonly auditTable: Locator;
 
   constructor(private readonly page: Page) {
-    this.reportsQueue = page.getByTestId('admin-reports-queue');
-    this.auditTable = page.getByTestId('admin-audit-table');
+    this.reportsQueue = page.getByRole('list', { name: /open reports/i });
+    this.auditTable = page.getByRole('table', { name: /audit log entries/i });
   }
 
   async gotoReports(): Promise<Response | null> {
@@ -43,7 +48,7 @@ export class AdminPage {
   }
 
   reportRows(): Locator {
-    return this.reportsQueue.getByTestId('admin-report-row');
+    return this.reportsQueue.getByRole('listitem');
   }
 
   async expectReportsQueueNonEmpty(): Promise<void> {
@@ -51,32 +56,41 @@ export class AdminPage {
   }
 
   /**
-   * Resolves the first open report in the queue. Returns the
-   * `data-report-id` attribute of the row we acted on so callers can
-   * cross-reference audit-log entries if needed.
+   * Resolves the first open report in the queue. Returns the report id
+   * scraped from the per-reason testid so callers can correlate against the
+   * audit log if needed.
    */
   async resolveFirstReport(): Promise<string | null> {
     const row = this.reportRows().first();
     await expect(row).toBeVisible();
-    const id = await row.getAttribute('data-report-id');
+    // Extract the id from the reason testid `report-reason-{id}`.
+    const reason = row.locator('[data-testid^="report-reason-"]').first();
+    const testid = await reason.getAttribute('data-testid');
+    const id = testid ? testid.replace(/^report-reason-/, '') : null;
     await row.getByRole('button', { name: /^resolve$/i }).click();
-    // Optional note dialog — submit with empty/default note if it appears.
-    const submit = this.page.getByRole('button', { name: /^(submit|confirm)$/i });
-    if (await submit.isVisible().catch(() => false)) {
-      await submit.click();
-    }
     return id;
   }
 
+  /**
+   * Asserts at least one audit-log row whose Action cell carries the given
+   * action string (e.g. "report.resolve"). The action is rendered inside a
+   * `<code>` cell, so a row-text match on the action substring is enough.
+   */
   async expectAuditEntry(action: string): Promise<void> {
-    const row = this.auditTable.locator(`[data-testid="admin-audit-row"][data-action="${action}"]`);
+    const row = this.auditTable.locator('tbody tr').filter({ hasText: action });
     await expect(row.first()).toBeVisible();
   }
 
-  async expectAuditEntryBy(action: string, actorUsername: string): Promise<void> {
-    const row = this.auditTable.locator(
-      `[data-testid="admin-audit-row"][data-action="${action}"][data-actor="${actorUsername}"]`,
-    );
+  /**
+   * Asserts at least one audit-log row whose Action AND actor numeric id
+   * both match. The FE renders actor as "{type} #{id}" (no username — the
+   * audit table works off raw ids), so callers pass the numeric id.
+   */
+  async expectAuditEntryByActorId(action: string, actorId: number): Promise<void> {
+    const row = this.auditTable
+      .locator('tbody tr')
+      .filter({ hasText: action })
+      .filter({ hasText: new RegExp(`#${actorId}\\b`) });
     await expect(row.first()).toBeVisible();
   }
 }

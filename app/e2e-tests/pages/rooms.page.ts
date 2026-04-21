@@ -24,9 +24,11 @@ export class RoomsPage extends BasePage {
   constructor(page: Page) {
     super(page);
     this.heading = page.getByRole('heading', { name: /^rooms$/i });
-    // EmptyState renders the title as an <h3>.
-    this.emptyStateTitle = page.getByRole('heading', { name: /no rooms/i });
-    this.list = page.getByRole('list');
+    // EmptyState renders the title as an <h3>. Current copy: "No public rooms yet".
+    this.emptyStateTitle = page.getByRole('heading', { name: /no public rooms/i });
+    // FE renders the catalog as `<ul aria-label="Public rooms">`. Scope to it
+    // so the heading <ul> in <nav> elsewhere on the page doesn't shadow us.
+    this.list = page.getByRole('list', { name: /public rooms/i });
   }
 
   async expectLoaded(): Promise<void> {

@@ -39,7 +39,10 @@ export class RoomDetailPage {
 
   constructor(private readonly page: Page) {
     this.heading = page.getByRole('heading', { level: 1 });
-    this.memberList = page.getByTestId('room-member-list');
+    // Current FE renders the sidebar member list as `<ul aria-label="Members">`
+    // (see `routes/_auth/rooms/$roomId.tsx`). No `data-testid="room-member-list"`
+    // today. Bind via the ARIA label instead.
+    this.memberList = page.getByRole('list', { name: /^members$/i });
     this.joinButton = page.getByRole('button', { name: /^join$/i });
     this.leaveButton = page.getByRole('button', { name: /^leave$/i });
   }
@@ -68,29 +71,37 @@ export class RoomDetailPage {
   }
 
   /**
-   * Locator for the member row identified by username.
+   * Locator for the member row identified by username. Each row is a plain
+   * `<li>` carrying the username inside the inner `<UserPopover>` trigger;
+   * there is no `data-username` / `data-testid="room-member"` today.
    */
   memberRow(username: string): Locator {
-    return this.memberList.locator(`[data-testid="room-member"][data-username="${username}"]`);
+    return this.memberList.getByRole('listitem').filter({ hasText: username });
   }
 
   /**
    * Locator for the presence dot belonging to a member row.
+   *
+   * `<PresenceDot>` renders a `<span role="status" aria-label="Online|Away (AFK)|Offline">`
+   * with NO `data-testid="presence-dot"` attribute and NO `data-state` attr —
+   * the variant is encoded in Tailwind classes only. Tests that previously
+   * asserted `toHaveAttribute('data-state', '<state>')` are STRUCTURALLY
+   * BLOCKED today; the helpers below assert against the aria-label instead.
    */
   getPresenceDotFor(username: string): Locator {
-    return this.memberRow(username).getByTestId('presence-dot');
+    return this.memberRow(username).getByRole('status').first();
   }
 
   async expectMemberOnline(username: string): Promise<void> {
-    await expect(this.getPresenceDotFor(username)).toHaveAttribute('data-state', 'online');
+    await expect(this.getPresenceDotFor(username)).toHaveAttribute('aria-label', /online/i);
   }
 
   async expectMemberAfk(username: string): Promise<void> {
-    await expect(this.getPresenceDotFor(username)).toHaveAttribute('data-state', 'afk');
+    await expect(this.getPresenceDotFor(username)).toHaveAttribute('aria-label', /away|afk/i);
   }
 
   async expectMemberOffline(username: string): Promise<void> {
-    await expect(this.getPresenceDotFor(username)).toHaveAttribute('data-state', 'offline');
+    await expect(this.getPresenceDotFor(username)).toHaveAttribute('aria-label', /offline/i);
   }
 
   async expectMemberListed(username: string): Promise<void> {

@@ -72,9 +72,11 @@ test.describe('M2 — presence across two browsers (#general)', () => {
       await adminRoom.expectMemberListed(USER.username);
 
       // --- Assert 1: online propagation within the SLA.
+      // PresenceDot encodes its state via aria-label only (component has no
+      // data-state attribute today — see `components/presence-dot.tsx`).
       await expect(adminRoom.getPresenceDotFor(USER.username)).toHaveAttribute(
-        'data-state',
-        'online',
+        'aria-label',
+        /online/i,
         { timeout: PRESENCE_PROPAGATION_MS },
       );
 
@@ -91,8 +93,8 @@ test.describe('M2 — presence across two browsers (#general)', () => {
 
       // --- Assert 2: admin sees AFK within the accelerated window.
       await expect(adminRoom.getPresenceDotFor(USER.username)).toHaveAttribute(
-        'data-state',
-        'afk',
+        'aria-label',
+        /away|afk/i,
         { timeout: AFK_WAIT_MS },
       );
 
@@ -102,8 +104,8 @@ test.describe('M2 — presence across two browsers (#general)', () => {
       // --- Assert 3: admin sees offline within the propagation SLA
       // (AC-02-10 — last session gone → offline eager publish).
       await expect(adminRoom.getPresenceDotFor(USER.username)).toHaveAttribute(
-        'data-state',
-        'offline',
+        'aria-label',
+        /offline/i,
         { timeout: PRESENCE_PROPAGATION_MS },
       );
     } finally {

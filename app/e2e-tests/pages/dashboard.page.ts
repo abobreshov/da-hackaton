@@ -26,7 +26,7 @@ export class DashboardPage extends BasePage {
   }
 
   async expectSignedInAs(email: string): Promise<void> {
-    await expect(this.page.getByText(email)).toBeVisible();
+    await expect(this.page.getByText(email).first()).toBeVisible();
   }
 
   scopeChip(scope: string): Locator {

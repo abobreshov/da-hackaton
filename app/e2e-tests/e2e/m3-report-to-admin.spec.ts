@@ -66,9 +66,17 @@ test.describe('M3 — user reports admin message; admin resolves', () => {
       await admin.resolveFirstReport();
 
       // --- audit-log entry recorded.
+      // The audit table renders the actor as "{type} #{id}" (no username), so
+      // resolve the admin's numeric id from the BFF session before asserting.
+      const adminSession = await adminPage.request.get('/api/v1/auth/session');
+      expect(adminSession.ok()).toBe(true);
+      const adminBody = await adminSession.json();
+      const adminMatch = String(adminBody.sub ?? '').match(/^a:(\d+)$/);
+      expect(adminMatch, `expected admin sub, got ${adminBody.sub}`).not.toBeNull();
+      const adminId = Number(adminMatch![1]);
       await admin.gotoAuditLog();
       await admin.expectAuditLoaded();
-      await admin.expectAuditEntryBy('report.resolve', ADMIN.username);
+      await admin.expectAuditEntryByActorId('report.resolve', adminId);
     } finally {
       await userCtx.close();
       await adminCtx.close();

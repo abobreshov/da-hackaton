@@ -38,7 +38,8 @@ test.describe('M5 — room create/delete lifecycle', () => {
       await adminPage.goto('/login');
       await adminPage.getByLabel(/email/i).fill(ADMIN.email);
       await adminPage.getByLabel(/password/i).fill(ADMIN.password);
-      await adminPage.getByRole('button', { name: /sign in|log in/i }).click();
+      // Login submit copy: "Let's Go" (idle) / "Signing you in…" (busy).
+      await adminPage.getByRole('button', { name: /let's go|signing you in/i }).click();
       await adminPage.waitForURL((url) => !url.pathname.startsWith('/login'), {
         timeout: WS_DELIVERY_MS * 2,
       });
@@ -46,7 +47,7 @@ test.describe('M5 — room create/delete lifecycle', () => {
       await userPage.goto('/login');
       await userPage.getByLabel(/email/i).fill(USER.email);
       await userPage.getByLabel(/password/i).fill(USER.password);
-      await userPage.getByRole('button', { name: /sign in|log in/i }).click();
+      await userPage.getByRole('button', { name: /let's go|signing you in/i }).click();
       await userPage.waitForURL((url) => !url.pathname.startsWith('/login'), {
         timeout: WS_DELIVERY_MS * 2,
       });

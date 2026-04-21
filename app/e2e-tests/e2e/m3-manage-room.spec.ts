@@ -52,18 +52,29 @@ test.describe('M3 — Manage Room: ban + unban round-trip', () => {
       // --- open Manage Room + tour all five tabs.
       await adminChat.openManageRoomModal();
 
-      const tabs = ['overview', 'members', 'invites', 'banned', 'danger'] as const;
+      const tabs = ['members', 'admins', 'banned', 'invitations', 'settings'] as const;
       for (const tab of tabs) {
         await adminChat.switchManageRoomTab(tab);
-        await expect(adminChat.manageRoomTab(tab)).toHaveAttribute('data-state', 'active');
+        // Tab buttons reflect their active state via `aria-pressed` (see
+        // `manage-room-modal.tsx`); they do NOT use Radix's data-state attr.
+        await expect(adminChat.manageRoomTab(tab)).toHaveAttribute('aria-pressed', 'true');
       }
 
-      // --- ban user from Members tab.
+      // --- ban user from Members tab. We need the target's numeric id, which
+      // the FE wires into the per-row testid (`member-action-ban-{id}`). The
+      // /api/v1/auth/session endpoint exposes the OIDC sub from which we can
+      // recover the numeric id for the user we want to ban.
       await adminChat.switchManageRoomTab('members');
-      await adminChat.banMemberFromManageRoom(USER.username);
+      const userSession = await userPage.request.get('/api/v1/auth/session');
+      expect(userSession.ok()).toBe(true);
+      const userBody = await userSession.json();
+      const userIdMatch = String(userBody.sub ?? '').match(/^u:(\d+)$/);
+      expect(userIdMatch, `unexpected user sub: ${userBody.sub}`).not.toBeNull();
+      const userId = Number(userIdMatch![1]);
+      await adminChat.banMemberById(userId);
 
-      // --- user is evicted. Either the member row disappears in admin view,
-      // or the user's browser is booted from the room route.
+      // --- user is evicted. The member row disappears from admin's sidebar
+      // member list once the broadcast lands.
       await expect(async () => adminChat.expectMemberNotListed(USER.username)).toPass({
         timeout: WS_DELIVERY_MS,
       });
@@ -73,13 +84,12 @@ test.describe('M3 — Manage Room: ban + unban round-trip', () => {
       await adminChat.expectBannedListed(USER.username);
 
       // --- Unban restores.
-      await adminChat.unbanFromManageRoom(USER.username);
+      await adminChat.unbanById(userId);
       await expect(async () => {
-        await expect(
-          adminChat.manageRoomModal.locator(
-            `[data-testid="manage-room-banned-row"][data-username="${USER.username}"]`,
-          ),
-        ).toHaveCount(0);
+        const bannedList = adminChat.manageRoomModal.getByRole('list', { name: /banned users/i });
+        await expect(bannedList.getByRole('listitem').filter({ hasText: USER.username })).toHaveCount(
+          0,
+        );
       }).toPass({ timeout: WS_DELIVERY_MS });
     } finally {
       await userCtx.close();

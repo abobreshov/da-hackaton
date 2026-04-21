@@ -74,8 +74,10 @@ test.describe('M5 — offline DM delivery', () => {
       const sessionRes = await bootstrapPage.request.get('/api/v1/auth/session');
       expect(sessionRes.ok(), `session fetch for B failed: ${sessionRes.status()}`).toBe(true);
       const sessionBody = await sessionRes.json();
-      expect(typeof sessionBody.userId).toBe('number');
-      userBId = sessionBody.userId as number;
+      // BFF surfaces OIDC sub = "u:<id>" — no flat userId field.
+      const bMatch = String(sessionBody.sub ?? '').match(/^u:(\d+)$/);
+      expect(bMatch, `B session sub malformed: ${sessionBody.sub}`).not.toBeNull();
+      userBId = Number(bMatch![1]);
     } finally {
       await bootstrapCtx.close();
     }
@@ -98,7 +100,9 @@ test.describe('M5 — offline DM delivery', () => {
       const sessionA = await pageA.request.get('/api/v1/auth/session');
       expect(sessionA.ok()).toBe(true);
       const sessionABody = await sessionA.json();
-      userAId = sessionABody.userId as number;
+      const aMatch = String(sessionABody.sub ?? '').match(/^u:(\d+)$/);
+      expect(aMatch, `A session sub malformed: ${sessionABody.sub}`).not.toBeNull();
+      userAId = Number(aMatch![1]);
 
       const helloRes = await pageA.request.post('/api/v1/messages', {
         data: { dmUserId: userBId, body: 'hello' },

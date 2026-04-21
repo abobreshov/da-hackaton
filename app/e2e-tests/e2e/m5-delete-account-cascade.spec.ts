@@ -103,9 +103,13 @@ test.describe('M5 — DELETE /auth/account cascade (spec §2.1.5 / ADR-002)', ()
       // Session cookie should now be set on the user context.
       const sessionRes = await userPage.request.get('/api/v1/auth/session');
       expect(sessionRes.status()).toBe(200);
-      const sessionBody = (await sessionRes.json()) as { userId: number; email: string };
+      const sessionBody = (await sessionRes.json()) as { sub: string; email: string };
       expect(sessionBody.email).toBe(email);
-      const freshUserId = sessionBody.userId;
+      // BFF returns OIDC sub = "u:<id>" — derive the numeric id.
+      const userSubRe = /^u:(\d+)$/;
+      const subMatch = userSubRe.exec(sessionBody.sub);
+      expect(subMatch, 'session sub should be a user id').not.toBeNull();
+      const freshUserId = Number(subMatch![1]);
       expect(typeof freshUserId).toBe('number');
 
       // --- 3) User creates a public room --------------------------------------

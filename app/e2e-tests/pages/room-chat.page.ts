@@ -143,13 +143,15 @@ export class RoomChatPage extends RoomDetailPage {
   }
 
   async expectReplyQuote(parentSnippet: string | RegExp): Promise<void> {
-    const quote = this.messageList.getByTestId('reply-quote').last();
+    // FE testid is `message-bubble-reply-quote` — the inner reply-quote strip
+    // rendered inside each <MessageBubble>. See `components/chat/message-bubble.tsx`.
+    const quote = this.messageList.getByTestId('message-bubble-reply-quote').last();
     await expect(quote).toBeVisible();
     await expect(quote).toContainText(parentSnippet);
   }
 
   async expectReplyQuoteDeleted(): Promise<void> {
-    const quote = this.messageList.getByTestId('reply-quote').last();
+    const quote = this.messageList.getByTestId('message-bubble-reply-quote').last();
     await expect(quote).toBeVisible();
     await expect(quote).toContainText(/replying to deleted message/i);
   }
@@ -182,41 +184,49 @@ export class RoomChatPage extends RoomDetailPage {
     await expect(this.manageRoomModal).toBeVisible();
   }
 
-  manageRoomTab(name: 'overview' | 'members' | 'invites' | 'banned' | 'danger'): Locator {
+  /**
+   * The current FE renders five tabs under `data-testid="manage-room-tab-*"`:
+   *   members | admins | banned | invitations | settings
+   * (see `components/rooms/manage-room-modal.tsx`). Earlier drafts of the
+   * spec referenced "overview" / "invites" / "danger" — those buckets were
+   * folded into Members + Invitations + Settings respectively.
+   */
+  manageRoomTab(name: 'members' | 'admins' | 'banned' | 'invitations' | 'settings'): Locator {
     return this.messageList.page().getByTestId(`manage-room-tab-${name}`);
   }
 
   async switchManageRoomTab(
-    name: 'overview' | 'members' | 'invites' | 'banned' | 'danger',
+    name: 'members' | 'admins' | 'banned' | 'invitations' | 'settings',
   ): Promise<void> {
     await this.manageRoomTab(name).click();
   }
 
   /**
-   * Inside the Members tab: ban a member. The row is identified by
-   * `data-username` attribute; expose a "Ban" button per row.
+   * Inside the Members tab: ban a member by their numeric user id. The FE
+   * renders the per-row action as `data-testid="member-action-ban-{userId}"`
+   * — there is no row-level testid carrying `data-username`, so callers must
+   * resolve the id (e.g. via `/api/v1/auth/session` for self, or the room
+   * member list response for others) before invoking this helper.
    */
-  async banMemberFromManageRoom(username: string): Promise<void> {
-    const row = this.manageRoomModal.locator(
-      `[data-testid="manage-room-member-row"][data-username="${username}"]`,
-    );
-    await row.getByRole('button', { name: /^ban$/i }).click();
-    const confirm = this.messageList.page().getByRole('button', { name: /^(ban|confirm)$/i });
-    await confirm.click();
+  async banMemberById(userId: number): Promise<void> {
+    await this.manageRoomModal
+      .getByTestId(`member-action-ban-${userId}`)
+      .click();
   }
 
-  async unbanFromManageRoom(username: string): Promise<void> {
-    const row = this.manageRoomModal.locator(
-      `[data-testid="manage-room-banned-row"][data-username="${username}"]`,
-    );
-    await row.getByRole('button', { name: /^unban$/i }).click();
+  async unbanById(userId: number): Promise<void> {
+    await this.manageRoomModal
+      .getByTestId(`member-action-unban-${userId}`)
+      .click();
   }
 
+  /**
+   * Banned-tab entries render as plain `<li>` rows under
+   * `<ul aria-label="Banned users">` carrying the username as text — no
+   * row-level testid today, so we filter by visible username text.
+   */
   async expectBannedListed(username: string): Promise<void> {
-    await expect(
-      this.manageRoomModal.locator(
-        `[data-testid="manage-room-banned-row"][data-username="${username}"]`,
-      ),
-    ).toBeVisible();
+    const bannedList = this.manageRoomModal.getByRole('list', { name: /banned users/i });
+    await expect(bannedList.getByRole('listitem').filter({ hasText: username }).first()).toBeVisible();
   }
 }

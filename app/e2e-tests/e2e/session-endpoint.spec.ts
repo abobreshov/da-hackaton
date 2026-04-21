@@ -23,7 +23,11 @@ test.describe('BFF /api/v1/auth/session endpoint', () => {
       type: 'user',
     });
     expect(typeof body.name).toBe('string');
-    expect(typeof body.userId).toBe('number');
+    // BFF returns OIDC-style claims: `sub = "u:<numericId>"` for users (see
+    // `bff/src/auth/cookie.service.ts`). No `userId` field — the FE derives
+    // the numeric id from `sub` in `lib/auth.ts#fromWire`.
+    expect(typeof body.sub).toBe('string');
+    expect(body.sub).toMatch(/^u:\d+$/);
     expect(Array.isArray(body.scopes)).toBe(true);
   });
 

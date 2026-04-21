@@ -14,8 +14,10 @@ test.describe('Login flow', () => {
     await dashboardPage.expectLoaded();
     await dashboardPage.expectWelcomeFor(/dev user/i);
     await dashboardPage.expectSignedInAs(USER.email);
+    // Current dashboard surfaces the user's profile (display name + email)
+    // under a "Your profile" section. Scope chips are no longer rendered on
+    // the dashboard itself — see `_auth/dashboard.tsx`.
     await expect(dashboardPage.scopesSection).toBeVisible();
-    await expect(dashboardPage.scopeChip('read:dashboard')).toBeVisible();
   });
 
   test('invalid credentials show error', async ({ loginPage }) => {

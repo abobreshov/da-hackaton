@@ -53,10 +53,13 @@ async function currentUserId(page: import('@playwright/test').Page): Promise<num
   const res = await page.request.get('/api/v1/auth/session');
   expect(res.status()).toBe(200);
   const body = await res.json();
-  if (typeof body.userId !== 'number') {
+  // BFF surfaces OIDC sub = "u:<id>" for users (or "a:<id>" for admins).
+  if (typeof body.sub !== 'string') {
     throw new Error(`unexpected session shape: ${JSON.stringify(body)}`);
   }
-  return body.userId;
+  const match = /^[ua]:(\d+)$/.exec(body.sub);
+  if (!match) throw new Error(`malformed session sub: ${body.sub}`);
+  return Number(match[1]);
 }
 
 test.describe('M5 — attachment access revoked on room ban', () => {
