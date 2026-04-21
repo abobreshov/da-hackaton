@@ -67,9 +67,16 @@ export class RegisterPage extends BasePage {
    * Replaces the legacy `expectConflictError` — per OWASP V3.1.1 the FE no
    * longer surfaces a CONFLICT message, so a duplicate-email submit lands on
    * the SAME inbox card as a brand-new email.
+   *
+   * The FE renders the confirmation inside `<div role="status">` — scope the
+   * email assertion to that region so the nested `<span>` echoing the address
+   * doesn't race the surrounding `<p>` (Playwright strict mode would otherwise
+   * see the email text at both the `<p>` and its `<span>` child).
    */
   async expectInboxConfirmation(email: string): Promise<void> {
     await expect(this.inboxHeading).toBeVisible();
-    await expect(this.page.getByText(email)).toBeVisible();
+    const status = this.page.getByRole('status');
+    await expect(status).toBeVisible();
+    await expect(status.getByText(email, { exact: true })).toBeVisible();
   }
 }

@@ -45,7 +45,10 @@ export class RoomChatPage extends RoomDetailPage {
     this.messageList = page.getByTestId('message-list');
     this.composerInput = page.getByTestId('message-composer-input');
     this.composerSend = page.getByTestId('message-composer-send');
-    this.manageRoomButton = page.getByRole('button', { name: /manage room/i });
+    // FE: <Button data-testid="room-manage-button"> — binding to the testid is
+    // more robust than a role+name regex (the modal also exposes a "Manage
+    // Room" header label + "Manage Room" dialog title, which can collide).
+    this.manageRoomButton = page.getByTestId('room-manage-button');
     this.manageRoomModal = page.getByTestId('manage-room-modal');
     this.replyPreview = page.getByTestId('reply-preview');
   }
@@ -93,9 +96,12 @@ export class RoomChatPage extends RoomDetailPage {
   async deleteLatestMessage(): Promise<void> {
     const bubble = this.latestMessage();
     await bubble.getByRole('button', { name: /^delete$/i }).click();
-    // Confirmation dialog — "Delete message" / "Confirm" submit.
-    const confirm = this.messageList.page().getByRole('button', { name: /^(delete|confirm)$/i });
-    await confirm.click();
+    // Confirmation dialog — FE renders `[data-testid="confirm-delete-dialog"]`
+    // with a "Delete" primary + "Cancel" secondary button pair. Scope to the
+    // dialog so we don't double-hit the bubble-toolbar "Delete" that triggered
+    // it in the first place.
+    const dialog = this.messageList.page().getByTestId('confirm-delete-dialog');
+    await dialog.getByRole('button', { name: /^delete$/i }).click();
   }
 
   async replyToLatestMessage(replyText: string): Promise<void> {
@@ -108,16 +114,18 @@ export class RoomChatPage extends RoomDetailPage {
   async reportLatestMessage(reason: string): Promise<void> {
     const bubble = this.latestMessage();
     await bubble.getByRole('button', { name: /^report$/i }).click();
-    const dialog = this.messageList.page().getByRole('dialog');
-    await dialog.getByRole('textbox').fill(reason);
+    // Scope to the report-message dialog testid; other dialogs (confirm-delete,
+    // manage-room) may also be mounted on the same page.
+    const dialog = this.messageList.page().getByTestId('report-message-dialog');
+    await dialog.getByTestId('report-message-reason').fill(reason);
     await dialog.getByRole('button', { name: /submit report/i }).click();
   }
 
   async adminDeleteLatestFrom(username: string): Promise<void> {
     const bubble = this.latestMessageBy(username);
     await bubble.getByRole('button', { name: /^delete$/i }).click();
-    const confirm = this.messageList.page().getByRole('button', { name: /^(delete|confirm)$/i });
-    await confirm.click();
+    const dialog = this.messageList.page().getByTestId('confirm-delete-dialog');
+    await dialog.getByRole('button', { name: /^delete$/i }).click();
   }
 
   async expectMessageVisible(text: string): Promise<void> {
@@ -203,20 +211,26 @@ export class RoomChatPage extends RoomDetailPage {
 
   /**
    * Inside the Members tab: ban a member by their numeric user id. The FE
-   * renders the per-row action as `data-testid="member-action-ban-{userId}"`
-   * — there is no row-level testid carrying `data-username`, so callers must
-   * resolve the id (e.g. via `/api/v1/auth/session` for self, or the room
-   * member list response for others) before invoking this helper.
+   * renders the per-row action as a `<Button>` carrying
+   * `data-testid="manage-room-member-ban-btn"` + `data-member-id={userId}`
+   * (see `components/rooms/manage-room-modal.tsx` MembersTab). The testid is
+   * not id-suffixed, so we filter the row-button locator by the `data-member-id`
+   * attribute to pin the correct target.
+   *
+   * Callers must resolve the id (e.g. via `/api/v1/auth/session` for self, or
+   * the room member list response for others) before invoking this helper.
    */
   async banMemberById(userId: number): Promise<void> {
     await this.manageRoomModal
-      .getByTestId(`member-action-ban-${userId}`)
+      .locator(`[data-testid="manage-room-member-ban-btn"][data-member-id="${userId}"]`)
       .click();
   }
 
   async unbanById(userId: number): Promise<void> {
+    // Banned-tab unban control: `[data-testid="manage-room-banned-unban-btn"]`
+    // + `data-member-id={userId}` (see ManageRoomModal BannedTab).
     await this.manageRoomModal
-      .getByTestId(`member-action-unban-${userId}`)
+      .locator(`[data-testid="manage-room-banned-unban-btn"][data-member-id="${userId}"]`)
       .click();
   }
 
