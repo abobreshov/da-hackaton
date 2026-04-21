@@ -3,7 +3,7 @@
 Live progress tracker MVP build-out. Updated as milestones land.
 See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-21 (M4 polish + sessions backend + 2 M5 deferrals landed via 8-agent fan-out)
+**Last updated:** 2026-04-21 (M5 critical fixes complete — 8-agent review-fix fan-out landed)
 
 ## Milestone map
 
@@ -13,8 +13,8 @@ See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 | **M2a — WS + presence pipeline** | WS gateway mounted, cookie handshake, PresenceService + eager publish + scheduler, 2-browser presence demo. | **DONE** (2026-04-20) |
 | **M2b — Rooms & membership UI** | Browse/join/leave rooms; presence dots on members pane; friends pane; rate-limits on register/login/reset. | **DONE** (2026-04-20) |
 | **M3 — Messaging core** | Room + DM messaging, admin delete, friend → DM flow, moderation basics, admin FE panel. | **DONE** (2026-04-20) |
-| **M4 — Attachments & unread** | Upload image/file; unread badges; offline delivery. | **FEATURE WORK DONE** (2026-04-20) — review + E2E + sessions FE pending |
-| **M5 — Reviewer-ready** | Top-5 reviewer journeys green; load test; retention tested; dep-hygiene. | NOT STARTED |
+| **M4 — Attachments & unread** | Upload image/file; unread badges; offline delivery. | **DONE** (2026-04-21) — sessions FE + E2E + polish landed |
+| **M5 — Reviewer-ready** | Top-5 reviewer journeys green; load test; retention tested; dep-hygiene. | **CRITICAL FIXES DONE** (2026-04-21) — live-stack E2E + load-test runs pending |
 
 ## Per-EPIC status
 
@@ -23,7 +23,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | EPIC | Backend | BFF | Frontend | Tests | Notes |
 |---|---|---|---|---|---|
 | 01 accounts-auth | ✅ | ✅ | ✅ | ✅ | register, reset via Mailpit, change, delete w/ async cascade; JWT + TOTP 2FA; refresh rotation + family invalidation |
-| 02 sessions-presence | ✅ | ✅ | ✅ | ✅ | `presence:sessions:{id}` + `presence:state:{id}` Redis; eager publish + 10s scheduler; AFK_THRESHOLD_SECONDS env |
+| 02 sessions-presence | ✅ | ✅ | ✅ | ✅ | presence Redis pipeline (eager + 10s scheduler) + sessions FE w/ revoke (sid-claim binding — ADR-007); BFF `/sessions` proxy live |
 | 03 realtime-transport | ✅ PresencePublisher | ✅ gateway + subscriber + msg fan-out | ✅ Socket.IO client + hooks | ✅ | `/ws` cookie handshake; presence via interest-graph + coalesced `presence:global`; messages via `io.to(room:{id}).emit` (ADR-004) |
 | 04 contacts-friends | ✅ + atomic ban-tx | ✅ proxy + list endpoints + block-UX | ✅ contacts route + UserPopover | ✅ | friends.list + listPending + bans wired end-to-end |
 | 05 rooms | ✅ membersOf/ensureMember/update | ✅ proxy (RpcProxyService) | ✅ catalog + detail + Manage Room modal | ✅ | PATCH room (name/desc/visibility) owner-only; username-resolve invite (ADR-005 fail-silent) |
@@ -39,34 +39,47 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | 15 contracts | ✅ | ✅ | ✅ | ✅ + grep-gate | `@app/contracts` wired; PASSWORD_MIN/USERNAME_MIN/USERNAME_MAX + MessageScope XOR + ErrorCode enum (14) + inline-drift CI gate |
 | design-system | — | — | 🟡 partial retheme | — | Kinetic Playground tokens partial; full UI primitives retheme + responsive breakpoints pending |
 
-## Test coverage (post-M4 polish + M5 deferrals)
+## Test coverage (post-M5 critical fixes)
 
 | Workspace | Tests | Notes |
 |---|---|---|
-| `@app/auth-service` | 192 | +19 since M3 (sessions writer hook + UA/IP DTO tests) |
-| `@app/backend` | 490 | +88 since M3 (M4 feature + sessions module + batched unread + history hydration) |
-| `@app/bff` | 371 | +26 since M3 (M4 feature; T26 BFF sessions proxy still pending) |
-| `@app/frontend` | 466 | +57 since M3 (M4 unread/attachments UI + moderation shape fix) |
-| `@app/contracts` | 65 | +2 (`messages.resolveDm` + `sessions.{recordLogin,listForUser,revoke}`) |
-| **Unit total** | **1584** | +190 since M3 |
-| E2E (Playwright) | 28 | +4 specs (M4 attachments, unread, session-revoke skip, PDF-requirement) — live-stack dependent |
+| `@app/auth-service` | 199 | +7 since M4 (sid-claim binding on validate + revoke chain + refresh rotation) |
+| `@app/backend` | 515 | +25 since M4 (DM friend/freeze gate + worker timeout backstop + sync.since reconnect) |
+| `@app/bff` | 380 | +9 since M4 (UA/IP injection from request headers + sessions DELETE proxy) |
+| `@app/frontend` | 488 | +22 since M4 (`/_auth/sessions` route + per-chip attachment caption + page-object retheme) |
+| `@app/contracts` | 83 | +18 since M4 (`sessions.{isRevoked,revoke}` + caption field on attachments + DM gate errors) |
+| **Unit total** | **1665** | +81 since M4 |
+| E2E (Playwright) | 30+ | T22 session-revoke unblocked + T27 PDF + critical ship-blocker specs — live-stack run pending |
 | Integration (testcontainers) | 3 | unchanged |
+| Load (k6) | 2 scaffolds | message-burst + presence-fanout — `b246c38`; live run pending |
 
-## Deferred / debt (post-M4 feature work)
+## Deferred / debt (post-M5 critical fixes)
 
-1. **M4 review round** — 5 reviewers (oop-patterns, devils-advocate, system-architect, business-analyst, code-reviewer) + consolidated + critical fixes. Not yet run.
-2. **M4 Playwright E2E** — T13 (attachment upload + view), T15 (unread badge + auto-mark-read), T22 (sessions), T27 (PDF-requirement pass) all pending.
-3. **Attachments history hydration gap** — `messages.list` + `.since` don't JOIN attachments. Send-ack + WS broadcast carry them, but scrolling history shows body-only. Follow-up: batch `findAttachmentsByMessageIds` in service.
-4. **Sessions management FE** — backend writes `user_sessions` on login + revoke endpoint + BFF proxy + FE `/_auth/sessions` route (T23–T26 block). Still uses Redis-only refresh store today.
-5. **Design-system refactor** — full Kinetic Playground retheme of UI primitives + responsive breakpoints for chat composer + ManageRoom modal.
-6. **M1-era contracts drift backfill** — inline wire-string literals allow-listed in grep-gate (unchanged list from M3).
-7. **E2E specs red** — live-stack dependent; M2 + M3 specs need stack up + run for green.
-8. **Frontend moderation.ts inviteUser** — return type out-of-sync w/ new BFF `{queued, invited}` shape. FE update pending.
-9. **Pre-existing backend messages.controller spec fails** — bigint JSON serialization test mock (unaffected by M4).
-10. **Migration 0009/0010 not CONCURRENTLY** — prod day-one lock risk; MVP-safe only.
-11. **Dashboard copy-drift tests** — Kinetic Playground redesign broke 3 assertions.
-12. **zod 3 → 4 bump** — cascades type breakage across 4 workspaces + `@hookform/resolvers` upgrade. Deferred.
-13. **Dependabot** — 12 vulns (10 high + 2 moderate) flagged on origin/master.
+### ✅ Landed in the M5 critical-fix block
+
+- **Unread fan-out batched SQL** — `2488a17` (one SQL per room write, `VALUES` recipient list).
+- **Attachments history hydration** — `0edec86` (`findByMessageIds` + `attachmentsByMessageId` on list/since).
+- **DM friend/freeze gate** — `021e902` (gate on `resolveOrCreateDmChannelId` blocks lazy upsert from blocked/non-friend pairs).
+- **Sessions revoke chain end-to-end** — `e2cbe79` + `ffee0f5` + `af8d1dd` (sid-claim binding — see ADR-007).
+- **BFF UA/IP injection** — `45ff888` (request-header derived; XSS hardening on session-list display).
+- **Workers wall-clock timeout** — `1bd6b80` (per-queue backstop prevents indefinite stalls).
+- **`sync.since` on WS reconnect** — `128baa2` (backfills missed messages on transient disconnects).
+- **AC-08-04 per-chip caption** — `0acfe76` (uploader exposes caption input per attachment).
+- **M4 Playwright E2E** — `0f65f34` + `b61ca11` + `4cb20da` (T22 session-revoke unblocked; ship-blocker specs in place).
+- **Sessions FE surface** — `ffee0f5` (`/_auth/sessions` route + revoke UI live; T26 done).
+
+### Still open
+
+1. **Live-stack E2E run** — `app/e2e-tests` specs need stack up + green pass. Compose smoke landed (`0f65f34`); full suite run pending.
+2. **k6 load-test live run** — scaffolds in `b246c38` (message-burst + presence-fanout). Need to execute against running stack and record p95/p99.
+3. **Retention prune verification** — run nightly job against seeded 10k-msg room.
+4. **Design-system refactor** — full Kinetic Playground retheme of remaining UI primitives + ManageRoom modal breakpoints.
+5. **M1-era contracts drift backfill** — inline wire-string literals allow-listed in grep-gate (unchanged list from M3).
+6. **Pre-existing backend messages.controller spec fails** — bigint JSON serialization test mock (unaffected).
+7. **Migration 0009/0010 not CONCURRENTLY** — prod day-one lock risk; MVP-safe only.
+8. **zod 3 → 4 bump** — cascades type breakage across 4 workspaces + `@hookform/resolvers` upgrade. Deferred.
+9. **Dependabot** — 12 vulns (10 high + 2 moderate) flagged on origin/master.
+10. **Sidless token gap on backend-down login** — `recordLogin` is best-effort (ADR-007 trade-off). Tokens minted while backend is down survive until natural expiry. Post-MVP outbox.
 
 ## M4 commits
 
@@ -89,6 +102,24 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 - `0edec86` — M5 follow-up: attachments hydrated on history (`messages.list` + `.since` carry `attachmentsByMessageId`); FE store applies it on `replaceAll` + `prependOlder` — closes the demo-visible scroll-back gap
 - `2488a17` — M5 follow-up: unread fan-out batched into one SQL via `(VALUES …)` recipient list — replaces N round-trips per room write
 - `e2cbe79` — T23-T25: sessions backend module + auth-service `recordLogin` emit (best-effort, fail-safe). New `TcpCmd.sessions.{recordLogin,listForUser,revoke}`. T26 (BFF + FE surface) still pending.
+
+### 2026-04-21 (M5 critical-fix block — 8-agent fan-out)
+
+- `8368a45` — docs: M4 fan-out outcomes (6 commits, 2 M5 deferrals cleared).
+- `0f65f34` — E2E coverage for critical ship-blockers + compose smoke spec.
+- `ffee0f5` — T26 sessions BFF proxy + FE `/_auth/sessions` route w/ revoke UI.
+- `4d113a3` — quick-wins from 5-reviewer round (devils + oop + sys-arch consolidated).
+- `e533561` — README demo walkthrough + features + arch + test status sections.
+- `b246c38` — k6 load-test scaffold (message-burst + presence-fanout).
+- `0acfe76` — AC-08-04 per-chip attachment caption input.
+- `128baa2` — `sync.since` on WS reconnect to backfill missed messages.
+- `1bd6b80` — per-queue wall-clock timeout backstop on BullMQ workers.
+- `021e902` — friend/freeze gate on DM channel resolution (closes lazy-upsert hardening gap).
+- `45ff888` — BFF injects `userAgent`/`ip` from request headers (XSS hardening on sessions display).
+- `af8d1dd` — session revoke invalidates the cookie path via sid claim (binds ADR-007).
+- `4cb20da` — E2E page-objects realigned to Kinetic Playground copy.
+
+13 commits in this block (`8368a45..4cb20da`).
 
 ## M4 review round — consolidated (5 reviewers: oop-patterns / devils-advocate / system-architect / business-analyst / coderabbit)
 
@@ -113,18 +144,16 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 
 ## M4 pending
 
-1. **T26** — sessions FE: BFF `/sessions` GET + DELETE proxy + FE `/_auth/sessions` route + revoke UI. Backend half done in `e2cbe79`; this slice unblocks the `m4-session-revoke` spec.
-2. **T28 / T30** — non-blocking polish deferred: Kinetic Playground token audit (T28) + emoji picker (T30). Both pure UX/visual; not on the demo critical path.
+1. **T28 / T30** — non-blocking polish deferred: Kinetic Playground token audit (T28) + emoji picker (T30). Both pure UX/visual; not on the demo critical path.
 
-## M5 candidates (reviewer-ready)
+## M5 remaining
 
-1. **Load test harness** — k6 / artillery scripts for 300 concurrent × 1000 members × 6 msg/s; measure p95 msg delivery + presence propagation.
-2. **Retention prune verification** — run against seeded 10k-msg room; check non-blocking + batch sizing.
-3. **Dependabot cleanup** — resolve 12 flagged vulns.
-4. **Migration 0009/0010 rewrite CONCURRENTLY** — prod-safe variant.
-5. **Observability** — Dozzle + Prometheus/Loki scaffolding for demo dashboards.
-6. **README.md + mng/README.md demo walkthrough refresh**.
-7. **E2E green** against live stack — confirm M2 + M3 specs all pass.
+1. **Live-stack E2E run** — full Playwright suite against running compose stack; confirm M2 + M3 + M4 + M5 specs all green.
+2. **Live k6 load run** — execute `b246c38` scaffolds (message-burst + presence-fanout) at 300 concurrent × 1000 members × 6 msg/s; record p95/p99.
+3. **Retention prune verification** — run against seeded 10k-msg room; check non-blocking + batch sizing.
+4. **Dependabot cleanup** — resolve 12 flagged vulns.
+5. **Migration 0009/0010 rewrite CONCURRENTLY** — prod-safe variant.
+6. **Observability** — Dozzle + Prometheus/Loki scaffolding for demo dashboards.
 
 ## ADR index
 
@@ -134,3 +163,4 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 - **ADR-004** — Message fan-out: Socket.IO room + @socket.io/redis-adapter (`io.to('room:'+id).emit`). Presence keeps explicit interest-graph subscriber (different semantics).
 - **ADR-005** — Invite username enumeration: BFF `resolveUserIdByUsername` returns `{queued:true, invited:null}` on miss (fail-silent). Rate-limit via AC-14-13 friend-req bucket. Prevents auth'd users probing directory via invite API.
 - **ADR-006** — Message fan-out scaling envelope: 300 concurrent × 1000 members/room × 6 msg/s = 6000 socket-emits/s/room. @socket.io/redis-adapter stream-per-room default. Re-visit if p99 > 250ms or hot rooms > 10. Resharding trigger: Redis aggregate > 50k msg/s.
+- **ADR-007** — Session-id claim binding for revoke chain: bind `sid` UUID to access + refresh JWT at mint, validate via per-request `sessions.isRevoked(sid)` TCP probe (~5 ms localhost mTLS). Fails OPEN on backend bounce; refresh rotation must preserve sid. See `mng/architecture/adr/ADR-007-session-sid-claim-binding.md`.
