@@ -127,7 +127,9 @@ async function bootstrap() {
     maxAge: 600,
   });
 
-  app.setGlobalPrefix('api/v1');
+  // Exclude `/metrics` from the global prefix — Prometheus scrapes at root
+  // path (see app/observability/prometheus.yml).
+  app.setGlobalPrefix('api/v1', { exclude: ['/metrics'] });
 
   // WS plane — Socket.IO adapter backed by Redis pub/sub so broadcasts
   // fan out across BFF replicas. Connect to Redis *before* listen() so

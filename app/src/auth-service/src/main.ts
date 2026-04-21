@@ -45,7 +45,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.setGlobalPrefix('api/v1');
+  // Exclude `/metrics` from the global prefix — Prometheus scrapes at root
+  // path (see app/observability/prometheus.yml).
+  app.setGlobalPrefix('api/v1', { exclude: ['/metrics'] });
 
   app.connectMicroservice(buildTcpMicroserviceOptions(env.TCP_BIND, env.TCP_PORT));
 

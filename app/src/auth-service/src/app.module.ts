@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { DatabaseModule } from './database/database.module';
 import { CacheModule } from './cache/cache.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -8,7 +9,16 @@ import { SystemKeyRpcGuard } from './common/rpc-transport';
 import { RpcExceptionFilter } from './common/rpc/rpc-exception.filter';
 
 @Module({
-  imports: [DatabaseModule, CacheModule, AuthModule],
+  imports: [
+    // /metrics endpoint — default path (`/metrics`) + default Node + process
+    // metrics enabled out of the box. main.ts excludes /metrics from the
+    // global `api/v1` prefix so Prometheus can scrape at the root path
+    // declared in app/observability/prometheus.yml.
+    PrometheusModule.register({ defaultMetrics: { enabled: true } }),
+    DatabaseModule,
+    CacheModule,
+    AuthModule,
+  ],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: SystemKeyRpcGuard },

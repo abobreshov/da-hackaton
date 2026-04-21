@@ -1,5 +1,6 @@
 import { Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import Redis from 'ioredis';
 import { MicroserviceModule } from './common/microservice.module';
 import { RpcProxyModule } from './common/proxy/rpc-proxy.module';
@@ -64,6 +65,11 @@ export class RedisModule implements OnApplicationShutdown {
 
 @Module({
   imports: [
+    // /metrics endpoint — default path (`/metrics`) + default Node + process
+    // metrics enabled out of the box. main.ts excludes /metrics from the
+    // global `api/v1` prefix so Prometheus can scrape at the root path
+    // declared in app/observability/prometheus.yml.
+    PrometheusModule.register({ defaultMetrics: { enabled: true } }),
     RedisModule,
     MicroserviceModule,
     RpcProxyModule,

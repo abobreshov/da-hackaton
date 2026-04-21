@@ -1,4 +1,14 @@
 import 'reflect-metadata';
+
+// BigInt JSON support — Postgres BIGINT columns (e.g. messages.id) deserialise
+// to JS bigint, which JSON.stringify refuses by default. Microservice TCP
+// framing uses JSON.stringify, so without this polyfill any RPC payload that
+// surfaces a bigint field crashes the process. Serialising as string is the
+// safe default; BFF / frontend parse back to Number where needed.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(BigInt.prototype as any).toJSON = function toJSON(this: bigint): string {
+  return this.toString();
+};
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
