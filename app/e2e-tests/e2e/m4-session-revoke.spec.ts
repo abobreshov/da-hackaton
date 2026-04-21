@@ -3,28 +3,18 @@ import { LoginPage } from '../pages/login.page';
 import { DashboardPage } from '../pages/dashboard.page';
 
 /**
- * M4 — T22 session-revoke flow (structural spec).
+ * M4 — T22 session-revoke flow.
  *
- * Documents the contract for the active-sessions UI + revoke endpoint.
- * Backend session-management wiring (T23–T26) is not in place yet, so
- * every case is declared with `test.skip` and a reason. CI will report
- * these as `skipped`, not `failing`. Unskip case-by-case as the backend
- * lands and the `/sessions` route + testids ship in the frontend.
- *
- * Selectors documented (do not rename without updating the spec):
+ * Selectors (do not rename without updating the FE route):
  *   - route:   /sessions
  *   - row:     [data-testid="session-row"]
  *   - revoke:  [data-testid="session-revoke-btn"]
  */
 
-const SKIP_REASON = 'AWAITING T23-T26 backend wiring';
-
 const USER = { email: 'user@example.com', password: 'User1234!' };
 
 test.describe('M4 — session revoke', () => {
-  test.skip('active sessions list shows the current login row', async ({ page }) => {
-    test.info().annotations.push({ type: 'skip-reason', description: SKIP_REASON });
-
+  test('active sessions list shows the current login row', async ({ page }) => {
     const login = new LoginPage(page);
     await login.goto();
     await login.login(USER.email, USER.password);
@@ -44,9 +34,7 @@ test.describe('M4 — session revoke', () => {
     await expect(rows.filter({ hasText: ua.split(' ')[0] }).first()).toBeVisible();
   });
 
-  test.skip('revoking a session logs that browser out', async ({ browser }) => {
-    test.info().annotations.push({ type: 'skip-reason', description: SKIP_REASON });
-
+  test('revoking a session logs that browser out', async ({ browser }) => {
     // Two independent browser contexts → two independent sessions for the
     // same user. Revoking session A from session B must invalidate A's
     // cookies; A's next request should 401 and bounce to /login.

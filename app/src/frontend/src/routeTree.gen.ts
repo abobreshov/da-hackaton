@@ -11,6 +11,7 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email';
 import { Route as AuthRouteImport } from './routes/_auth';
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard';
 import { Route as AuthContactsRouteImport } from './routes/_auth/contacts';
+import { Route as AuthSessionsRouteImport } from './routes/_auth/sessions';
 import { Route as AuthRoomsIndexRouteImport } from './routes/_auth/rooms/index';
 import { Route as AuthRoomsRoomIdRouteImport } from './routes/_auth/rooms/$roomId';
 import { Route as AuthDmUserIdRouteImport } from './routes/_auth/dm/$userId';
@@ -71,6 +72,12 @@ const AuthContactsRoute = AuthContactsRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any);
 
+const AuthSessionsRoute = AuthSessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
+  getParentRoute: () => AuthRoute,
+} as any);
+
 const AuthRoomsIndexRoute = AuthRoomsIndexRouteImport.update({
   id: '/rooms/',
   path: '/rooms/',
@@ -101,6 +108,7 @@ const PublicRouteWithChildren = (PublicRoute as any)._addFileChildren(PublicRout
 const AuthRouteChildren = {
   AuthDashboardRoute,
   AuthContactsRoute,
+  AuthSessionsRoute,
   AuthRoomsIndexRoute,
   AuthRoomsRoomIdRoute,
   AuthDmUserIdRoute,
@@ -204,6 +212,13 @@ declare module '@tanstack/react-router' {
       path: '/contacts';
       fullPath: '/contacts';
       preLoaderRoute: typeof AuthContactsRouteImport;
+      parentRoute: typeof AuthRouteImport;
+    };
+    '/_auth/sessions': {
+      id: '/_auth/sessions';
+      path: '/sessions';
+      fullPath: '/sessions';
+      preLoaderRoute: typeof AuthSessionsRouteImport;
       parentRoute: typeof AuthRouteImport;
     };
     '/_auth/rooms/': {

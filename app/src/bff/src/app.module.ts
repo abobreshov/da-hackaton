@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { UnreadModule } from './modules/unread/unread.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { FriendsModule } from './modules/friends/friends.module';
 import { BansModule } from './modules/bans/bans.module';
@@ -71,6 +72,7 @@ export class RedisModule implements OnApplicationShutdown {
     RoomsModule,
     MessagesModule,
     UnreadModule,
+    SessionsModule,
     AttachmentsModule,
     FriendsModule,
     BansModule,
