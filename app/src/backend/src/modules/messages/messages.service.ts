@@ -125,7 +125,9 @@ export class MessagesService {
   async create(
     params: CreateMessageParams,
   ): Promise<{ message: MessageRow; attachments: AttachmentRow[] }> {
-    this.assertBody(params.body);
+    this.assertBody(params.body, {
+      hasAttachments: !!(params.attachmentIds && params.attachmentIds.length > 0),
+    });
 
     const hasRoom = params.roomId != null;
     const hasDm = params.dmUserId != null;
@@ -240,8 +242,23 @@ export class MessagesService {
     if (!existing || existing.deletedAt) {
       throw new NotFoundException(`message ${params.id} not found`);
     }
-    if (existing.authorId !== params.actorId && !params.isRoomAdmin) {
-      throw new ForbiddenException('only the author or a room admin can delete');
+    // Authority at edge: resolve the actor's room role server-side rather
+    // than trusting a wire-supplied `isRoomAdmin`. The client (or even the
+    // BFF gateway relaying the WS event) cannot forge cross-author delete
+    // by setting the flag; we only consult the actual membership row.
+    if (existing.authorId !== params.actorId) {
+      let canAdminDelete = false;
+      if (existing.roomId != null) {
+        try {
+          const role = await this.rooms.roleOf(existing.roomId, params.actorId);
+          canAdminDelete = role === 'owner' || role === 'admin';
+        } catch {
+          canAdminDelete = false;
+        }
+      }
+      if (!canAdminDelete) {
+        throw new ForbiddenException('only the author or a room admin can delete');
+      }
     }
     const row = await this.repo.softDeleteMessage(params.id);
     if (!row) {
@@ -374,11 +391,16 @@ export class MessagesService {
 
   // ——— helpers ———
 
-  private assertBody(body: string): void {
-    if (!body || body.trim().length === 0) {
+  private assertBody(body: string, opts: { hasAttachments?: boolean } = {}): void {
+    const empty = !body || body.trim().length === 0;
+    if (empty && !opts.hasAttachments) {
+      // AC-08-11 / product parity with Slack+Discord+WhatsApp: an empty body
+      // is legal iff the message carries at least one attachment. Both the FE
+      // composer and the attachment flows rely on this — without the relax
+      // here an image-only post 400s.
       throw new BadRequestException('body is required');
     }
-    if (body.length > MAX_BODY_LENGTH) {
+    if (body && body.length > MAX_BODY_LENGTH) {
       throw new BadRequestException(`body exceeds ${MAX_BODY_LENGTH} character cap`);
     }
   }

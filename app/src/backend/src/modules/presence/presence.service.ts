@@ -172,6 +172,20 @@ export class PresenceService {
   }
 
   /**
+   * Hard-clear every presence trace for a user. Called by the account-
+   * cascade handler when a user deletes themselves — without this,
+   * HASH entries linger until the offline-threshold prune (≥ 3 min) and
+   * other clients keep rendering the deleted user as `afk`. The final
+   * publish emits `offline` so FE presence maps update in real time.
+   */
+  async purge(userId: number): Promise<void> {
+    const hashKey = RedisKey.presenceSessions(userId);
+    const stateKey = RedisKey.presenceState(userId);
+    await Promise.all([this.redis.del(hashKey), this.redis.del(stateKey)]);
+    this.publisher.publish(userId, 'offline');
+  }
+
+  /**
    * HDEL every session entry in the HASH whose timestamp is older than
    * `offlineThresholdMs`. Runs inside `evaluate()` but is split out so
    * the intent is obvious — this is the crashed-client eviction path,

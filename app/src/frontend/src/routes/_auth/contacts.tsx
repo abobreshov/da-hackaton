@@ -11,7 +11,9 @@ import {
 import { searchUsers, type UserSearchHit } from '@/lib/users';
 import { ApiError } from '@/lib/api-client';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
+import { useSocket } from '@/hooks/useSocket';
 import { useUnread } from '@/hooks/useUnread';
+import { WsEvent } from '@/lib/ws-events';
 import { PresenceDot } from '@/components/presence-dot';
 import { UnreadBadge } from '@/components/unread-badge';
 import { Button } from '@/components/ui/button';
@@ -91,6 +93,14 @@ export function ContactsRoute() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Refresh the list whenever a friend-graph event lands over WS. Without
+  // this the counterparty's page stays stale after an accept / reject /
+  // remove — the list is only re-fetched on mount + after own mutations.
+  useSocket(WsEvent.server.friendRequestNew, () => void load());
+  useSocket(WsEvent.server.friendRequestAccepted, () => void load());
+  useSocket(WsEvent.server.friendRequestRejected, () => void load());
+  useSocket(WsEvent.server.friendRemoved, () => void load());
 
   const presenceFor = useMemo(
     () =>

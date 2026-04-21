@@ -205,6 +205,21 @@ export class RoomsService {
   }
 
   /**
+   * Server-side role lookup for a `(roomId, userId)` pair. Returns the
+   * stored role (`owner` | `admin` | `member`) or `null` when the user
+   * has no membership row. Callers must NOT trust wire-supplied role
+   * fields — this method is the canonical source for authority checks
+   * that cross the BFF→backend trust boundary.
+   */
+  async roleOf(roomId: number, userId: number): Promise<'owner' | 'admin' | 'member' | null> {
+    const membership = await this.repo.findMembership(roomId, userId);
+    if (!membership) return null;
+    const role = membership.role as string;
+    if (role === 'owner' || role === 'admin' || role === 'member') return role;
+    return 'member';
+  }
+
+  /**
    * EPIC-05 AC-05-13. Owner-only partial update of name / description /
    * visibility. Unique name collision surfaces as ConflictException (→ 409
    * WireError on the BFF). Empty patches are a no-op returning the current

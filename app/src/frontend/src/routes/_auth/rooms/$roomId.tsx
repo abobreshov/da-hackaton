@@ -381,6 +381,20 @@ export function RoomRoute() {
         }
       : null;
 
+  // Room-details strip data. Owner resolution tolerates a missing
+  // `room.ownerId` on older `room.join` ack shapes by falling back to the
+  // member with `role === 'owner'`. If neither is present, the chip is
+  // omitted entirely rather than rendering "Unknown" into the UI.
+  const ownerIdResolved =
+    room.ownerId ?? members.find((m) => normaliseRole(m.role) === 'owner')?.userId;
+  const ownerUsername =
+    ownerIdResolved !== undefined
+      ? (members.find((m) => m.userId === ownerIdResolved)?.username ?? 'Unknown')
+      : null;
+  const visibilityLabel = room.visibility === 'private' ? 'Private' : 'Public';
+  const roleLabel =
+    currentRole.charAt(0).toUpperCase() + currentRole.slice(1);
+
   return (
     <div className="animate-fade-up grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_20rem]">
       {/* Main column — room header + live chat viewport */}
@@ -414,7 +428,7 @@ export function RoomRoute() {
                 type="button"
                 variant="secondary"
                 size="sm"
-                data-testid="room-manage-button"
+                data-testid="manage-room-button"
                 onClick={() => setManageOpen(true)}
               >
                 Manage room
@@ -455,6 +469,45 @@ export function RoomRoute() {
             {leaveError}
           </p>
         )}
+
+        {/* Room-details strip — quick read-only facts about the room.
+            Pills only, no borders/hrs/hex per design-system.md. Owner chip
+            gets the `primary-container` tonal lift so it reads as the
+            anchor fact; the rest sit on `surface-container-high`. */}
+        <div
+          className="mt-4 flex flex-wrap gap-2"
+          data-testid="room-details-strip"
+          aria-label="Room details"
+        >
+          {ownerUsername ? (
+            <span
+              data-testid="room-chip-owner"
+              className="rounded-full bg-primary-container px-3 py-1 font-body text-label-md text-on-primary-container"
+            >
+              Owned by {ownerUsername}
+            </span>
+          ) : null}
+          <span
+            data-testid="room-chip-visibility"
+            className="rounded-full bg-surface-container-high px-3 py-1 font-body text-label-md text-on-surface-variant"
+          >
+            {visibilityLabel}
+          </span>
+          <span
+            data-testid="room-chip-members"
+            className="rounded-full bg-surface-container-high px-3 py-1 font-body text-label-md text-on-surface-variant"
+          >
+            {members.length} members
+          </span>
+          {selfMember ? (
+            <span
+              data-testid="room-chip-role"
+              className="rounded-full bg-surface-container-high px-3 py-1 font-body text-label-md text-on-surface-variant"
+            >
+              {roleLabel}
+            </span>
+          ) : null}
+        </div>
 
         <div className="mt-8 flex flex-1 flex-col overflow-hidden rounded-[1.5rem] bg-surface-container-low">
           <div className="flex-1 overflow-hidden">

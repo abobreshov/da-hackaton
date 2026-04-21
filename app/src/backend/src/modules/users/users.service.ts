@@ -1,12 +1,18 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
-import { users } from '../../database/schema';
+import { friendships, roomMemberships, users } from '../../database/schema';
+import { PresenceService } from '../presence/presence.service';
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject(DATABASE) private readonly db: Db) {}
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    @Inject(DATABASE) private readonly db: Db,
+    private readonly presence: PresenceService,
+  ) {}
 
   async findAll() {
     return this.db
@@ -99,5 +105,50 @@ export class UsersService {
       .where(where)
       .orderBy(asc(sql`lower(${users.name})`))
       .limit(cappedLimit);
+  }
+
+  /**
+   * Cascade cleanup after `auth-service.deleteAccount` has soft-deleted
+   * the users row. Must be safe to retry (idempotent) — auth-service
+   * fires-and-forgets this RPC, so the worst case is the same userId
+   * landing here twice. Every statement uses `where userId = $1` so a
+   * second run is a no-op.
+   *
+   * Cleaned up:
+   *   - Friendships (both directions, any status).
+   *   - Room memberships — the deleted user disappears from every room
+   *     they were in. Rooms they owned stay (separate "orphan room"
+   *     policy; MVP treats that as a manual moderator cleanup).
+   *   - Presence hashes — so the FE presence map flips to `offline`
+   *     within one fanout tick instead of lingering at `afk` until
+   *     the 3-minute offline-threshold prune.
+   *
+   * DMs are NOT mutated here: `messaging.dm_channels` is keyed by the
+   * users the DM belongs to and surface-level permissions are enforced
+   * on send (FRIEND_REQUIRED). Once the friendship row is gone the next
+   * DM send from the peer will 403 as FRIEND_REQUIRED, which is the
+   * correct surface.
+   */
+  async cascadeDelete(userId: number): Promise<void> {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new BadRequestException('userId must be a positive integer');
+    }
+    try {
+      await this.db
+        .delete(friendships)
+        .where(or(eq(friendships.userA, userId), eq(friendships.userB, userId)));
+    } catch (e) {
+      this.logger.warn(`cascade friendships delete failed: ${(e as Error).message}`);
+    }
+    try {
+      await this.db.delete(roomMemberships).where(eq(roomMemberships.userId, userId));
+    } catch (e) {
+      this.logger.warn(`cascade roomMemberships delete failed: ${(e as Error).message}`);
+    }
+    try {
+      await this.presence.purge(userId);
+    } catch (e) {
+      this.logger.warn(`cascade presence purge failed: ${(e as Error).message}`);
+    }
   }
 }

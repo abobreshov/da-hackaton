@@ -42,3 +42,38 @@ export const joinRoom = (roomId: number): Promise<void> =>
  *  AC-05-09 — backend rejects with 403 + must `DELETE /rooms/:id` instead. */
 export const leaveRoom = (roomId: number): Promise<void> =>
   apiFetch<void>(`/api/v1/rooms/${roomId}/leave`, { method: 'POST' });
+
+/**
+ * Request body for `POST /api/v1/rooms` — matches the BFF `CreateRoomDto`
+ * (`src/bff/src/modules/rooms/dto/create-room.dto.ts`). `name` is 1–128
+ * chars server-side; FE tightens to 2–80 for better UX. `description` is
+ * optional (<=2000 chars upstream; FE caps at 500 chars for the form).
+ */
+export interface CreateRoomInput {
+  name: string;
+  description?: string;
+  visibility: 'public' | 'private';
+}
+
+/**
+ * Shape of a freshly-created room as forwarded by the BFF from the backend
+ * `rooms.create` RPC. Only the fields the FE actually consumes right after
+ * creation (navigation + optimistic cache insert) are enumerated.
+ */
+export interface CreatedRoom {
+  id: number;
+  name: string;
+  description: string | null;
+  visibility: 'public' | 'private';
+  ownerId: number;
+}
+
+/**
+ * Create a room. Returns the new row on 201; throws `ApiError` on non-2xx
+ * (e.g. 409 duplicate name, 429 throttled by AC-14-13 room-create bucket).
+ */
+export const createRoom = (input: CreateRoomInput): Promise<CreatedRoom> =>
+  apiFetch<CreatedRoom>('/api/v1/rooms', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });

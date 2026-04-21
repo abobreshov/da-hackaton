@@ -226,7 +226,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               <time dateTime={message.createdAt}>{timestamp}</time>
               {message.editedAt && !tombstoned && (
                 <span className="italic" data-testid="message-bubble-edited">
-                  edited
+                  (edited)
                 </span>
               )}
             </div>

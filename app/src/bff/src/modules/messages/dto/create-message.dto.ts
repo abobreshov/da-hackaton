@@ -7,7 +7,6 @@ import {
   IsString,
   IsUUID,
   MaxLength,
-  MinLength,
   ValidateIf,
 } from 'class-validator';
 
@@ -34,8 +33,10 @@ export class CreateMessageDto {
   @IsPositive()
   dmUserId?: number;
 
+  // Empty body is legal iff `attachmentIds` carries at least one entry.
+  // Cross-field validation is enforced server-side in MessagesService; the
+  // DTO only enforces the size cap.
   @IsString()
-  @MinLength(1)
   @MaxLength(3000)
   body!: string;
 
