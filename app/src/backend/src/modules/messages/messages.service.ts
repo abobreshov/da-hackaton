@@ -8,7 +8,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ErrorCode, WireError } from '@app/contracts';
-import { MESSAGES_REPOSITORY, MessageRow, MessagesRepositoryPort } from './messages.types';
+import {
+  FRIENDS_CHECKER,
+  IsFriendChecker,
+  MESSAGES_REPOSITORY,
+  MessageRow,
+  MessagesRepositoryPort,
+} from './messages.types';
 import { RoomsService } from '../rooms/rooms.service';
 import {
   ATTACHMENTS_REPOSITORY,
@@ -112,6 +118,8 @@ export class MessagesService {
     private readonly attachments: AttachmentsRepositoryPort,
     @Inject(EVENT_PUBLISHER)
     private readonly publisher: IEventPublisher,
+    @Inject(FRIENDS_CHECKER)
+    private readonly friends: IsFriendChecker,
   ) {}
 
   async create(
@@ -152,10 +160,9 @@ export class MessagesService {
       return { message: row, attachments: bound };
     }
 
-    // DM path
-    if (params.dmUserId === params.authorId) {
-      throw new BadRequestException('cannot DM yourself');
-    }
+    // DM path. assertDmAllowed centralises the self-DM, friendship, and
+    // DM_FROZEN gates so any future caller of upsertDmChannel inherits them.
+    await this.assertDmAllowed(params.authorId, params.dmUserId as number);
     const channel = await this.repo.upsertDmChannel(params.authorId, params.dmUserId as number);
     const row = await this.repo.insertMessageIfDmNotFrozen({
       roomId: null,
@@ -313,11 +320,48 @@ export class MessagesService {
    * with BadRequestException so the guard lives in one place.
    */
   async resolveOrCreateDmChannelId(userA: number, userB: number): Promise<{ dmId: number }> {
-    if (userA === userB) {
-      throw new BadRequestException('cannot resolve a DM channel with yourself');
-    }
+    // Same gate as the message-send DM path so the attachments upload route
+    // (BFF -> messages.resolveDm) cannot be used to silently provision a
+    // dm_channels row for an arbitrary user pair.
+    await this.assertDmAllowed(userA, userB);
     const ch = await this.repo.upsertDmChannel(userA, userB);
     return { dmId: ch.id };
+  }
+
+  /**
+   * Centralised authorization gate for any code path that is about to
+   * provision (or use) a DM channel between `actorId` and `peerId`:
+   *  - rejects self-DM as 400 (still a programming error in callers)
+   *  - rejects non-friends as 403 FRIEND_REQUIRED so attackers cannot
+   *    pollute `dm_channels` with arbitrary pairs
+   *  - rejects already-frozen channels as 403 DM_FROZEN so a banned peer
+   *    cannot reopen the channel by re-resolving it
+   *
+   * Note: insertMessageIfDmNotFrozen still runs an atomic frozen-guard at
+   * insert time — that handles the race where the channel is frozen
+   * between this check and the insert. This function adds the missing
+   * pre-upsert gates.
+   */
+  private async assertDmAllowed(actorId: number, peerId: number): Promise<void> {
+    if (actorId === peerId) {
+      throw new BadRequestException('cannot DM yourself');
+    }
+    const ok = await this.friends.isFriends(actorId, peerId);
+    if (!ok) {
+      throw wire(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FRIEND_REQUIRED,
+        'DM is only available between accepted friends',
+      );
+    }
+    const existing = await this.repo.findDmChannel(actorId, peerId);
+    if (existing?.frozenAt) {
+      throw wire(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.DM_FROZEN,
+        'DM is frozen; one side has banned the other',
+      );
+    }
   }
 
   // ——— helpers ———

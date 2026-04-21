@@ -242,6 +242,33 @@ export class FriendsService {
     }));
   }
 
+  /**
+   * Friend-pair gate used by MessagesService before any `upsertDmChannel`.
+   * Returns true only when an `accepted` friendships row exists for the
+   * canonical pair. Self-pair is meaningless here — the service-level
+   * self-DM guard catches it earlier — but we still short-circuit to false
+   * so a misuse never returns a phantom "friend with self".
+   *
+   * Implements the `IsFriendChecker` port declared in
+   * `messages/messages.types.ts`.
+   */
+  async isFriends(userA: number, userB: number): Promise<boolean> {
+    if (userA === userB) return false;
+    const { low, high } = pair(userA, userB);
+    const rows = await this.db
+      .select({ id: friendships.id })
+      .from(friendships)
+      .where(
+        and(
+          eq(friendships.userA, low),
+          eq(friendships.userB, high),
+          eq(friendships.status, 'accepted'),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
   async listPending(input: ListInput) {
     const { userId } = input;
     const rows = await this.db

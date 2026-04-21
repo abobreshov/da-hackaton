@@ -15,6 +15,7 @@ import { MessagesService } from './messages.service';
 import type {
   DmChannelRow,
   InsertMessageInput,
+  IsFriendChecker,
   ListMessagesInput,
   MessageRow,
   MessagesRepositoryPort,
@@ -233,24 +234,46 @@ class FakeEventPublisher {
   }
 }
 
+/**
+ * In-memory friend checker — default-allows so existing happy-path DM tests
+ * keep passing without every test having to set up friendship state. New
+ * tests that exercise the FRIEND_REQUIRED gate flip `isFriend = false`.
+ */
+class FakeFriendsChecker implements IsFriendChecker {
+  isFriend = true;
+  calls: Array<[number, number]> = [];
+  async isFriends(a: number, b: number): Promise<boolean> {
+    this.calls.push([a, b]);
+    return this.isFriend;
+  }
+}
+
 describe('MessagesService', () => {
   let repo: FakeMessagesRepository;
   let attachments: FakeAttachmentsRepository;
   let publisher: FakeEventPublisher;
+  let friends: FakeFriendsChecker;
 
   beforeEach(() => {
     repo = new FakeMessagesRepository();
     attachments = new FakeAttachmentsRepository();
     publisher = new FakeEventPublisher();
+    friends = new FakeFriendsChecker();
   });
 
   function make(rooms: any = makeRoomsAuth(), messagesRepo: any = repo): MessagesService {
-    return new MessagesService(messagesRepo, rooms, attachments, publisher as any);
+    return new MessagesService(messagesRepo, rooms, attachments, publisher as any, friends);
   }
 
   describe('create — XOR scope', () => {
     it('rejects when neither roomId nor dmUserId is present', async () => {
-      const svc = new MessagesService(repo, makeRoomsAuth() as any, attachments, publisher as any);
+      const svc = new MessagesService(
+        repo,
+        makeRoomsAuth() as any,
+        attachments,
+        publisher as any,
+        friends,
+      );
       await expect(svc.create({ authorId: AUTHOR, body: 'hi' })).rejects.toBeInstanceOf(
         BadRequestException,
       );
@@ -357,6 +380,54 @@ describe('MessagesService', () => {
       await expect(
         svc.create({ authorId: AUTHOR, dmUserId: AUTHOR, body: 'hi me' }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('create — DM friend gate (M4-review HIGH)', () => {
+    it('rejects with FRIEND_REQUIRED 403 when peer is not an accepted friend', async () => {
+      friends.isFriend = false;
+      const svc = make();
+      try {
+        await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'hi stranger' });
+        fail('expected FRIEND_REQUIRED HttpException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HttpException);
+        const e = err as HttpException;
+        expect(e.getStatus()).toBe(403);
+        expect(e.getResponse()).toMatchObject({ code: ErrorCode.FRIEND_REQUIRED });
+      }
+      // Critical: no dm_channels row was created — that was the whole point
+      // of moving the gate before upsertDmChannel.
+      expect(repo.channels).toHaveLength(0);
+      expect(repo.messages).toHaveLength(0);
+    });
+
+    it('rejects with DM_FROZEN 403 when an existing channel is frozen, before upsert', async () => {
+      // Provision via the happy path, then freeze.
+      const svc = make();
+      await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'first' });
+      repo.channels[0].frozenAt = new Date();
+      const channelsBefore = repo.channels.length;
+
+      try {
+        await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'still there?' });
+        fail('expected DM_FROZEN HttpException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HttpException);
+        const e = err as HttpException;
+        expect(e.getStatus()).toBe(403);
+        expect(e.getResponse()).toMatchObject({ code: ErrorCode.DM_FROZEN });
+      }
+      // No new channel row, no new message row.
+      expect(repo.channels).toHaveLength(channelsBefore);
+      expect(repo.messages).toHaveLength(1);
+    });
+
+    it('does not call friends.isFriends on the room path', async () => {
+      const rooms = makeRoomsAuth(true);
+      const svc = make(rooms);
+      await svc.create({ authorId: AUTHOR, roomId: 5, body: 'hi room' });
+      expect(friends.calls).toHaveLength(0);
     });
   });
 
@@ -820,6 +891,56 @@ describe('MessagesService', () => {
       expect(out.attachmentsByMessageId).toEqual({
         [b.message.id.toString()]: expect.arrayContaining([expect.objectContaining({ id: 'att-since' })]),
       });
+    });
+  });
+
+  describe('resolveOrCreateDmChannelId — friend gate (M5-review MED #7)', () => {
+    it('returns dmId on the happy path when peers are friends', async () => {
+      const svc = make();
+      const out = await svc.resolveOrCreateDmChannelId(AUTHOR, OTHER);
+      expect(out.dmId).toBe(repo.channels[0].id);
+      expect(repo.channels).toHaveLength(1);
+    });
+
+    it('rejects self with BadRequestException without touching the repo', async () => {
+      const svc = make();
+      await expect(svc.resolveOrCreateDmChannelId(AUTHOR, AUTHOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repo.channels).toHaveLength(0);
+    });
+
+    it('rejects with FRIEND_REQUIRED 403 when peers are not friends — and never upserts', async () => {
+      friends.isFriend = false;
+      const svc = make();
+      try {
+        await svc.resolveOrCreateDmChannelId(AUTHOR, OTHER);
+        fail('expected FRIEND_REQUIRED HttpException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HttpException);
+        const e = err as HttpException;
+        expect(e.getStatus()).toBe(403);
+        expect(e.getResponse()).toMatchObject({ code: ErrorCode.FRIEND_REQUIRED });
+      }
+      expect(repo.channels).toHaveLength(0);
+    });
+
+    it('rejects with DM_FROZEN 403 when the channel is already frozen', async () => {
+      const svc = make();
+      // Bootstrap a channel through the message path so the test is honest
+      // about how a frozen channel gets there in production.
+      await svc.create({ authorId: AUTHOR, dmUserId: OTHER, body: 'hi' });
+      repo.channels[0].frozenAt = new Date();
+
+      try {
+        await svc.resolveOrCreateDmChannelId(AUTHOR, OTHER);
+        fail('expected DM_FROZEN HttpException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HttpException);
+        const e = err as HttpException;
+        expect(e.getStatus()).toBe(403);
+        expect(e.getResponse()).toMatchObject({ code: ErrorCode.DM_FROZEN });
+      }
     });
   });
 

@@ -398,6 +398,29 @@ describe('FriendsService', () => {
     });
   });
 
+  describe('isFriends (DM gate)', () => {
+    it('returns true when an accepted friendships row exists for the canonical pair', async () => {
+      const db: any = { select: jest.fn(() => makeChain(() => [{ id: 1 }])) };
+      const svc = new FriendsService(db, events as any);
+      await expect(svc.isFriends(7, 3)).resolves.toBe(true);
+      // Canonical ordering must not depend on argument order.
+      await expect(svc.isFriends(3, 7)).resolves.toBe(true);
+    });
+
+    it('returns false when no row exists', async () => {
+      const db: any = { select: jest.fn(() => makeChain(() => [])) };
+      const svc = new FriendsService(db, events as any);
+      await expect(svc.isFriends(7, 3)).resolves.toBe(false);
+    });
+
+    it('short-circuits to false on self-pair without hitting the DB', async () => {
+      const db: any = { select: jest.fn() };
+      const svc = new FriendsService(db, events as any);
+      await expect(svc.isFriends(7, 7)).resolves.toBe(false);
+      expect(db.select).not.toHaveBeenCalled();
+    });
+  });
+
   describe('listPending (lines 246-264)', () => {
     it('returns pending rows tagged with incoming flag and otherUserId', async () => {
       const rows = [

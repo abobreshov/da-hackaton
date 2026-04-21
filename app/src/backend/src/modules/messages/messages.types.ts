@@ -119,3 +119,18 @@ export interface MessagesRepositoryPort {
 }
 
 export const MESSAGES_REPOSITORY = 'MESSAGES_REPOSITORY';
+
+/**
+ * Thin port for the friend-pair gate. Lets MessagesService verify that a DM
+ * peer is an accepted friend before any `upsertDmChannel` runs (M4-review
+ * HIGH + M5-review MED #7 — otherwise any authenticated user could pollute
+ * `dm_channels` with arbitrary user pairs).
+ *
+ * Adapter is `FriendsService.isFriends` in production; unit tests inject a
+ * fake to avoid pulling the Drizzle chain.
+ */
+export interface IsFriendChecker {
+  isFriends(userA: number, userB: number): Promise<boolean>;
+}
+
+export const FRIENDS_CHECKER = 'FRIENDS_CHECKER';
