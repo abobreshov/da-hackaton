@@ -10,6 +10,10 @@ import {
 } from '@/lib/attachments';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+/** BFF caps per-attachment comment at 500 chars (EPIC-08). */
+export const MAX_COMMENT_CHARS = 500;
 
 /**
  * Composer-mounted attachment picker + preview strip.
@@ -60,6 +64,11 @@ export const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({
   // Map attachmentId → local object URL so image previews survive until the
   // message lands (and the chip is cleared).
   const [thumbs, setThumbs] = React.useState<Record<string, PendingThumb>>({});
+  // Per-chip optional caption (AC-08-04 §2.6.3). The BFF only persists the
+  // *last* `comment` form field per multipart upload (`lastComment`), so when
+  // a follow-up batch is picked we forward the FIRST existing chip's comment
+  // — matching backend semantics and giving the user a deterministic binding.
+  const [comments, setComments] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     return () => {
@@ -91,7 +100,16 @@ export const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({
 
     setUploading(true);
     try {
-      const res = await uploadAttachments({ target, files: picked });
+      // Forward the first non-empty existing chip comment with the next batch.
+      // Backend behaviour: only the LAST `comment` form field is captured, so
+      // sending one entry covers all files in this multipart submission.
+      const firstWithComment = value.find((a) => (comments[a.id] ?? '').trim().length > 0);
+      const carryComment = firstWithComment ? comments[firstWithComment.id]?.trim() : undefined;
+      const res = await uploadAttachments({
+        target,
+        files: picked,
+        ...(carryComment ? { comment: carryComment } : {}),
+      });
       const next = [...value, ...res.attachments];
       // Build thumbnails for successfully uploaded files.
       const nextThumbs: Record<string, PendingThumb> = { ...thumbs };
@@ -131,7 +149,17 @@ export const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({
     const { [id]: _drop, ...rest } = thumbs;
     void _drop;
     setThumbs(rest);
+    const { [id]: _dropComment, ...restComments } = comments;
+    void _dropComment;
+    setComments(restComments);
     onChange(next);
+  };
+
+  const handleCommentChange = (id: string, raw: string): void => {
+    // Cap to BFF limit; surplus characters are silently truncated rather than
+    // rejected so the typing experience stays smooth.
+    const capped = raw.slice(0, MAX_COMMENT_CHARS);
+    setComments((prev) => ({ ...prev, [id]: capped }));
   };
 
   return (
@@ -144,33 +172,56 @@ export const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({
         >
           {value.map((a) => {
             const thumb = thumbs[a.id];
+            const commentValue = comments[a.id] ?? '';
             return (
               <li
                 key={a.id}
-                className="flex max-w-[60vw] items-center gap-2 rounded-full bg-tertiary-container/60 px-3 py-1.5 text-label-md text-on-tertiary-container sm:max-w-none"
+                // Per-chip layout: header row (thumb + name + remove) stacked
+                // above an optional caption input. Tonal tertiary-container
+                // tier shift carries the chip without any 1px border.
+                className="flex max-w-[60vw] flex-col gap-1.5 rounded-3xl bg-tertiary-container/60 px-3 py-2 text-label-md text-on-tertiary-container sm:max-w-[18rem]"
                 data-testid={`attachment-chip-${a.id}`}
               >
-                {thumb?.isImage && thumb.objectUrl ? (
-                  <img
-                    src={thumb.objectUrl}
-                    alt={a.filename}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <span aria-hidden className="font-display">
-                    📎
+                <div className="flex items-center gap-2">
+                  {thumb?.isImage && thumb.objectUrl ? (
+                    <img
+                      src={thumb.objectUrl}
+                      alt={a.filename}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span aria-hidden className="font-display">
+                      📎
+                    </span>
+                  )}
+                  <span className="max-w-[8ch] flex-1 truncate font-body sm:max-w-[14ch]">
+                    {a.filename}
                   </span>
-                )}
-                <span className="max-w-[8ch] truncate font-body sm:max-w-[14ch]">{a.filename}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(a.id)}
-                  aria-label={`Remove ${a.filename}`}
-                  className="rounded-full px-2 text-on-tertiary-container/70 hover:text-on-tertiary-container"
-                  data-testid={`attachment-chip-remove-${a.id}`}
-                >
-                  ×
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(a.id)}
+                    aria-label={`Remove ${a.filename}`}
+                    className="rounded-full px-2 text-on-tertiary-container/70 hover:text-on-tertiary-container"
+                    data-testid={`attachment-chip-remove-${a.id}`}
+                  >
+                    ×
+                  </button>
+                </div>
+                <Input
+                  type="text"
+                  sizing="md"
+                  value={commentValue}
+                  onChange={(e) => handleCommentChange(a.id, e.target.value)}
+                  placeholder="Add a caption (optional)"
+                  aria-label={`Caption for ${a.filename}`}
+                  maxLength={MAX_COMMENT_CHARS}
+                  disabled={disabled || uploading}
+                  // Slimmer than the default pill — chip-scoped surface tier
+                  // sits on tertiary-container, so swap the input fill to
+                  // surface-container-low for contrast (no border, no hex).
+                  className="h-9 px-4 text-body-sm bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/70"
+                  data-testid={`attachment-chip-comment-${a.id}`}
+                />
               </li>
             );
           })}

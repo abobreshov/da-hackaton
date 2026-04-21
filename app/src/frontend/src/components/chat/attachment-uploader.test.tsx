@@ -145,6 +145,102 @@ describe('<AttachmentUploader />', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('renders a per-chip caption input bound to the attachment', () => {
+    const att = makeAttachment('a1');
+    render(
+      <AttachmentUploader
+        target={{ kind: 'room', roomId: 5 }}
+        value={[att]}
+        onChange={() => {}}
+      />,
+    );
+    const field = screen.getByTestId('attachment-chip-comment-a1') as HTMLInputElement;
+    expect(field).toBeInTheDocument();
+    expect(field.getAttribute('aria-label')).toBe('Caption for a1.pdf');
+    expect(field.maxLength).toBe(500);
+  });
+
+  it('updates local state as the user types in the caption input', () => {
+    const att = makeAttachment('a1');
+    render(
+      <AttachmentUploader
+        target={{ kind: 'room', roomId: 5 }}
+        value={[att]}
+        onChange={() => {}}
+      />,
+    );
+    const field = screen.getByTestId('attachment-chip-comment-a1') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: 'invoice for Q3' } });
+    expect(field.value).toBe('invoice for Q3');
+  });
+
+  it('forwards the first chip caption to uploadAttachments on the next pick', async () => {
+    uploadAttachmentsMock.mockResolvedValueOnce({
+      attachments: [makeAttachment('a2')],
+    });
+    const existing = makeAttachment('a1');
+    render(
+      <AttachmentUploader
+        target={{ kind: 'room', roomId: 5 }}
+        value={[existing]}
+        onChange={() => {}}
+      />,
+    );
+    const captionField = screen.getByTestId('attachment-chip-comment-a1') as HTMLInputElement;
+    fireEvent.change(captionField, { target: { value: 'invoice for Q3' } });
+    const fileInput = screen.getByTestId('attachment-uploader-input') as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(fileInput, {
+        target: { files: [makeFile('b.pdf', 100, 'application/pdf')] },
+      });
+    });
+    await waitFor(() => {
+      expect(uploadAttachmentsMock).toHaveBeenCalledTimes(1);
+    });
+    const callArg = uploadAttachmentsMock.mock.calls[0][0];
+    expect(callArg.comment).toBe('invoice for Q3');
+  });
+
+  it('omits the comment field when no caption has been typed', async () => {
+    uploadAttachmentsMock.mockResolvedValueOnce({
+      attachments: [makeAttachment('a2')],
+    });
+    const existing = makeAttachment('a1');
+    render(
+      <AttachmentUploader
+        target={{ kind: 'room', roomId: 5 }}
+        value={[existing]}
+        onChange={() => {}}
+      />,
+    );
+    const fileInput = screen.getByTestId('attachment-uploader-input') as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(fileInput, {
+        target: { files: [makeFile('b.pdf', 100, 'application/pdf')] },
+      });
+    });
+    await waitFor(() => {
+      expect(uploadAttachmentsMock).toHaveBeenCalledTimes(1);
+    });
+    const callArg = uploadAttachmentsMock.mock.calls[0][0];
+    expect('comment' in callArg).toBe(false);
+  });
+
+  it('caps the caption input at the BFF 500-char limit', () => {
+    const att = makeAttachment('a1');
+    render(
+      <AttachmentUploader
+        target={{ kind: 'room', roomId: 5 }}
+        value={[att]}
+        onChange={() => {}}
+      />,
+    );
+    const field = screen.getByTestId('attachment-chip-comment-a1') as HTMLInputElement;
+    const overflow = 'x'.repeat(600);
+    fireEvent.change(field, { target: { value: overflow } });
+    expect(field.value.length).toBe(500);
+  });
+
   it('pre-validates client-side size caps before uploading', async () => {
     const onChange = vi.fn();
     const onError = vi.fn();
