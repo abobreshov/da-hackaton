@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Reviewer-ready test gauntlet: build + unit-test all workspaces, typecheck e2e,
-# print a coloured summary table with per-workspace test counts.
+# print a coloured summary table with per-workspace test counts + coverage.
 #
 # Usage:
-#   ./scripts/smoke.sh                     # full run
+#   ./scripts/smoke.sh                     # full run (no coverage)
+#   ./scripts/smoke.sh --coverage          # include stmt-% per workspace
 #   ./scripts/smoke.sh --skip-build        # tests only
 #   ./scripts/smoke.sh --skip-tests        # builds only (still typechecks e2e)
 #   ./scripts/smoke.sh --workspace=@app/bff   # restrict to one workspace
@@ -17,11 +18,13 @@ cd "$APP_DIR"
 # --- flags -----------------------------------------------------------------
 SKIP_BUILD=0
 SKIP_TESTS=0
+WITH_COVERAGE=0
 ONLY_WS=""
 for arg in "$@"; do
   case "$arg" in
     --skip-build)        SKIP_BUILD=1 ;;
     --skip-tests)        SKIP_TESTS=1 ;;
+    --coverage)          WITH_COVERAGE=1 ;;
     --workspace=*)       ONLY_WS="${arg#--workspace=}" ;;
     -h|--help)
       sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
@@ -85,6 +88,7 @@ fi
 RESULT_BUILD=()
 RESULT_TEST=()
 RESULT_COUNT=()
+RESULT_COV=()
 
 # Generate a /tmp logfile path safe for a workspace name.
 logfile() {
@@ -131,6 +135,19 @@ extract_count() {
   fi
 }
 
+# Extract statements coverage % from jest/vitest istanbul table. Matches
+#   All files    |   85.12 |    72.34 |   88.91 |   85.12 |
+# and returns the first number (Stmts). Echoes "N%" or "?" when absent.
+extract_coverage() {
+  local log="$1" pct=""
+  pct=$(grep -E '^All files' "$log" | tail -n1 | awk -F'|' '{ gsub(/[[:space:]]/,"",$2); print $2 }') || true
+  if [ -z "$pct" ]; then
+    printf '?'
+  else
+    printf '%s%%' "$pct"
+  fi
+}
+
 START_TS=$(date +%s)
 TOTAL_TESTS=0
 ANY_FAIL=0
@@ -143,6 +160,7 @@ for entry in "${WORKSPACES[@]}"; do
   build_status="$DASH"
   test_status="$DASH"
   count="$DASH"
+  cov="$DASH"
 
   if [ "$SKIP_BUILD" -eq 0 ]; then
     if run_step "$ws" build yarn workspace "$ws" run build; then
@@ -159,12 +177,20 @@ for entry in "${WORKSPACES[@]}"; do
 
   if [ "$SKIP_TESTS" -eq 0 ]; then
     log=$(logfile "$ws" test)
-    if run_step "$ws" test yarn workspace "$ws" run test; then
+    # `--coverage` works for both jest + vitest when forwarded after `--`.
+    test_cmd=(yarn workspace "$ws" run test)
+    if [ "$WITH_COVERAGE" -eq 1 ]; then
+      test_cmd+=(--coverage)
+    fi
+    if run_step "$ws" test "${test_cmd[@]}"; then
       test_status="$C_GREEN$CHECK$C_RESET"
       n=$(extract_count "$log" "$runner")
       count="$n"
       if [ "$n" != "?" ]; then
         TOTAL_TESTS=$(( TOTAL_TESTS + n ))
+      fi
+      if [ "$WITH_COVERAGE" -eq 1 ]; then
+        cov=$(extract_coverage "$log")
       fi
     else
       test_status="$C_RED$CROSS$C_RESET"
@@ -173,6 +199,7 @@ for entry in "${WORKSPACES[@]}"; do
       RESULT_BUILD+=("$build_status")
       RESULT_TEST+=("$test_status")
       RESULT_COUNT+=("$count")
+      RESULT_COV+=("$cov")
       break
     fi
   fi
@@ -180,6 +207,7 @@ for entry in "${WORKSPACES[@]}"; do
   RESULT_BUILD+=("$build_status")
   RESULT_TEST+=("$test_status")
   RESULT_COUNT+=("$count")
+  RESULT_COV+=("$cov")
 done
 
 # --- e2e typecheck ---------------------------------------------------------
@@ -202,8 +230,8 @@ ELAPSED=$(( END_TS - START_TS ))
 
 # --- summary ---------------------------------------------------------------
 printf '\n%b================ SMOKE SUMMARY ================%b\n' "$C_BOLD" "$C_RESET"
-printf '%-20s %-7s %-7s %s\n' "Workspace" "Build" "Tests" "Count"
-printf '%-20s %-7s %-7s %s\n' "--------------------" "-----" "-----" "-----"
+printf '%-20s %-7s %-7s %-8s %s\n' "Workspace" "Build" "Tests" "Count" "Coverage"
+printf '%-20s %-7s %-7s %-8s %s\n' "--------------------" "-----" "-----" "-----" "--------"
 i=0
 for entry in "${WORKSPACES[@]}"; do
   ws="${entry%%|*}"
@@ -211,16 +239,17 @@ for entry in "${WORKSPACES[@]}"; do
     b="${RESULT_BUILD[$i]}"
     t="${RESULT_TEST[$i]}"
     c="${RESULT_COUNT[$i]}"
+    cv="${RESULT_COV[$i]}"
   else
-    b="$DASH"; t="$DASH"; c="$DASH"
+    b="$DASH"; t="$DASH"; c="$DASH"; cv="$DASH"
   fi
   # printf padding ignores ANSI bytes — rendered width is still aligned for
   # 1-glyph status markers, which is what we have.
-  printf '%-20s %-7b %-7b %s\n' "$ws" "$b" "$t" "$c"
+  printf '%-20s %-7b %-7b %-8s %s\n' "$ws" "$b" "$t" "$c" "$cv"
   i=$(( i + 1 ))
 done
 if [ -z "$ONLY_WS" ]; then
-  printf '%-20s %-7s %-7b %s\n' "e2e-tests typecheck" "" "$E2E_STATUS" ""
+  printf '%-20s %-7s %-7b %-8s %s\n' "e2e-tests typecheck" "" "$E2E_STATUS" "" ""
 fi
 printf '%b-----------------------------------------------%b\n' "$C_DIM" "$C_RESET"
 
