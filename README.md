@@ -149,7 +149,7 @@ All scripts live under `app/` (boot scripts) or `app/scripts/` (helpers). Run fr
 | Script | Purpose | Common flags |
 |---|---|---|
 | `./scripts/smoke.sh` | Reviewer-ready test gauntlet: build + unit-test every workspace, typecheck E2E, print a coloured summary table with per-workspace pass/fail counts. Exit 0 = all green. | `--skip-build`, `--skip-tests`, `--workspace=@app/<name>` |
-| `./scripts/demo-verify.sh` | Runs Playwright + k6 against the **already-running** dev stack (will not boot its own) and writes a timestamped markdown report to `app/demo-reports/demo-verify-<ts>.md`. Auto-skips k6 if not installed. Pre-req: `./dev.sh` or `./dev-local.sh` running in another terminal. | `--skip-e2e`, `--skip-load` |
+| `yarn workspace @app/tests test` | Playwright E2E suite (`app/e2e-tests/`, POM under `pages/`, fixtures in `fixtures/test.ts`, specs in `e2e/`). Runs against `BASE_URL` (default `http://localhost:3007`) — dev stack must already be up via `./dev.sh` or `./dev-local.sh`. First run: `yarn workspace @app/tests install:browsers`. | `test:headed`, `test:ui`, `report` |
 | `./scripts/logs.sh` | Live-tail the dev-local stack logs under `app/.dev-logs/` with coloured `[service]` prefixes + `pino-pretty` formatting. Requires `./dev-local.sh`. | `--service=<auth-service\|backend\|bff\|frontend>`, `--filter='<grep pattern>'` |
 
 ### Load testing
@@ -168,8 +168,8 @@ yarn install
 # (walk §2 in the browser)
 
 # --- in another terminal, stack still running ---
-./scripts/smoke.sh            # unit gauntlet (stack-independent)
-./scripts/demo-verify.sh      # E2E + k6 against the live stack, writes markdown report
+./scripts/smoke.sh                     # unit gauntlet (stack-independent)
+yarn workspace @app/tests test         # Playwright E2E against the live stack
 
 # if ports stick after Ctrl-C:
 ./dev-doctor.sh --clean
