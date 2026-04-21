@@ -56,3 +56,4 @@ secrets/
 # demo-verify.sh report output (local only)
 app/demo-reports/*.md
 !app/demo-reports/README.md
+app/.dev-data/

@@ -49,6 +49,14 @@ export SYSTEM_KEY="${SYSTEM_KEY:-dev-internal-system-key-min-32-chars-ok}"
 # Bind TCP microservices to loopback so the wire is only reachable from this host.
 export TCP_BIND="${TCP_BIND:-127.0.0.1}"
 
+# Attachments live on the host when services run outside Docker — the compose
+# default (/data/attachments) isn't writable from the user's home account and
+# the backend crashes with EACCES on the first upload. Anchor to the repo's
+# gitignored .dev-data/ instead; ops can override by exporting ATTACHMENTS_DIR
+# before invoking ./dev-local.sh.
+export ATTACHMENTS_DIR="${ATTACHMENTS_DIR:-$ROOT/.dev-data/attachments}"
+mkdir -p "$ATTACHMENTS_DIR"
+
 NODE_VER=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
 [ "$NODE_VER" -ge 22 ] || warn "Node 22+ recommended (found $NODE_VER)"
 
