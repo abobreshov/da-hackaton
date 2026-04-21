@@ -37,3 +37,8 @@ export const listCatalog = (): Promise<RoomsCatalogResponse> =>
  */
 export const joinRoom = (roomId: number): Promise<void> =>
   apiFetch<void>(`/api/v1/rooms/${roomId}/join`, { method: 'POST' });
+
+/** Leave a room (self-removal). 204 on success. Owner can't leave per
+ *  AC-05-09 — backend rejects with 403 + must `DELETE /rooms/:id` instead. */
+export const leaveRoom = (roomId: number): Promise<void> =>
+  apiFetch<void>(`/api/v1/rooms/${roomId}/leave`, { method: 'POST' });

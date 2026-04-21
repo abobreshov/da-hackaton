@@ -1,11 +1,11 @@
-import { createFileRoute, Link, useParams } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { getSocket } from '@/lib/socket';
 import { WsEvent } from '@/lib/ws-events';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
 import { PresenceDot } from '@/components/presence-dot';
 import { useMessages } from '@/hooks/useMessages';
-import { joinRoom } from '@/lib/rooms';
+import { joinRoom, leaveRoom } from '@/lib/rooms';
 import { useAutoMarkRead } from '@/hooks/useAutoMarkRead';
 import { useSession } from '@/hooks/useSession';
 import { MessageList } from '@/components/chat/message-list';
@@ -91,9 +91,12 @@ function normaliseRole(role: RoomMember['role']): ManageRoomRole {
  */
 export function RoomRoute() {
   const { roomId: roomIdRaw } = useParams({ from: '/_auth/rooms/$roomId' });
+  const navigate = useNavigate();
   const roomId = Number(roomIdRaw);
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [manageOpen, setManageOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const presence = usePresenceMap();
   const session = useSession((s) => s.session);
   const currentUserId = session?.type === 'user' ? (session.id ?? null) : null;
@@ -167,9 +170,20 @@ export function RoomRoute() {
     const socket = getSocket();
     let active = true;
 
+    const dbg = (msg: string, extra?: unknown): void => {
+      // Verbose lifecycle log so a failing E2E spec (or a real UX
+      // wedge like 'Couldn't open this room') has a readable trail in
+      // the browser DevTools console. Pre-fixed with `[room]` so it
+      // grepable amongst Vite/React noise.
+      // eslint-disable-next-line no-console
+      console.info(`[room ${roomId}] ${msg}`, extra ?? '');
+    };
+
     const tryJoin = (allowMembershipRetry: boolean): void => {
+      dbg('emit room.join', { allowMembershipRetry, socketConnected: socket.connected });
       socket.emit(WsEvent.client.roomJoin, { roomId }, (ack: RoomJoinAck | undefined) => {
         if (!active) return;
+        dbg('room.join ack', ack);
         if (ack?.error) {
           // Gateway returns `error` as either a string (catch path) or a
           // {code, message} object (validation path). Normalise to a single
@@ -377,18 +391,53 @@ export function RoomRoute() {
               </p>
             )}
           </div>
-          {canManage && modalCurrentUser ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              data-testid="room-manage-button"
-              onClick={() => setManageOpen(true)}
-            >
-              Manage room
-            </Button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {canManage && modalCurrentUser ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="room-manage-button"
+                onClick={() => setManageOpen(true)}
+              >
+                Manage room
+              </Button>
+            ) : null}
+            {/* Owners can't leave (AC-05-09). Render Leave only for non-owners. */}
+            {currentRole !== 'owner' && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-testid="room-leave-button"
+                disabled={leaving}
+                onClick={async () => {
+                  if (leaving) return;
+                  setLeaving(true);
+                  try {
+                    await leaveRoom(roomId);
+                    void navigate({ to: '/rooms' });
+                  } catch (err) {
+                    setLeaveError(err instanceof Error ? err.message : 'Failed to leave room.');
+                  } finally {
+                    setLeaving(false);
+                  }
+                }}
+              >
+                {leaving ? 'Leaving…' : 'Leave'}
+              </Button>
+            )}
+          </div>
         </header>
+        {leaveError && (
+          <p
+            role="alert"
+            data-testid="room-leave-error"
+            className="mt-2 font-body text-body-sm text-on-error-container"
+          >
+            {leaveError}
+          </p>
+        )}
 
         <div className="mt-8 flex flex-1 flex-col overflow-hidden rounded-[1.5rem] bg-surface-container-low">
           <div className="flex-1 overflow-hidden">

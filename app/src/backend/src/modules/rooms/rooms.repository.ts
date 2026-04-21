@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { rooms, roomMemberships, roomInvitations, users } from '../../database/schema';
@@ -49,7 +49,20 @@ export class DrizzleRoomsRepository implements RoomsRepositoryPort {
 
   async listPublicRooms(): Promise<RoomRow[]> {
     const list = await this.db
-      .select()
+      .select({
+        id: rooms.id,
+        name: rooms.name,
+        description: rooms.description,
+        visibility: rooms.visibility,
+        ownerId: rooms.ownerId,
+        createdAt: rooms.createdAt,
+        deletedAt: rooms.deletedAt,
+        memberCount: sql<number>`(
+          select count(*)::int
+          from ${roomMemberships}
+          where ${roomMemberships.roomId} = ${rooms.id}
+        )`.as('member_count'),
+      })
       .from(rooms)
       .where(and(eq(rooms.visibility, 'public'), isNull(rooms.deletedAt)));
     return list as unknown as RoomRow[];
