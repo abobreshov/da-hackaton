@@ -35,6 +35,7 @@ socketGetMock.mockImplementation(() => ({
 }));
 vi.mock('@/lib/socket', () => ({
   getSocket: () => socketGetMock(),
+  ensureSocket: () => socketGetMock(),
   disconnect: () => socketDisconnectMock(),
 }));
 

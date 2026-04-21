@@ -332,6 +332,12 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
   // emits to `dm:{id}`, and again the socket only sees ones it's allowed to.
   useEffect(() => {
     const socket = getSocket();
+    // Pre-login (no session yet) the socket is null — skip registration;
+    // the `useSocket`-style hooks elsewhere also key on session id, so when
+    // the user logs in the upstream re-render will re-run this effect
+    // (this hook re-renders alongside any session change because the hook
+    // tree owns the messages store too).
+    if (!socket) return;
     const sock = socket as unknown as {
       on: (e: string, l: (...args: unknown[]) => void) => void;
       off: (e: string, l: (...args: unknown[]) => void) => void;
@@ -462,6 +468,10 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
     (send: SendMessageArgs): Promise<Message> =>
       new Promise((resolve, reject) => {
         const socket = getSocket();
+        if (!socket) {
+          reject(new Error('Socket not connected — log in first'));
+          return;
+        }
         const payload: Record<string, unknown> = { body: send.body };
         if (args.roomId !== undefined) payload.roomId = args.roomId;
         if (args.dmUserId !== undefined) payload.dmUserId = args.dmUserId;
@@ -511,6 +521,10 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
     (id: bigint, body: string): Promise<void> =>
       new Promise((resolve, reject) => {
         const socket = getSocket();
+        if (!socket) {
+          reject(new Error('Socket not connected — log in first'));
+          return;
+        }
         socket.emit(
           WsEvent.client.messageEdit,
           { id: id.toString(), body },
@@ -534,6 +548,10 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
     (id: bigint): Promise<void> =>
       new Promise((resolve, reject) => {
         const socket = getSocket();
+        if (!socket) {
+          reject(new Error('Socket not connected — log in first'));
+          return;
+        }
         socket.emit(
           WsEvent.client.messageDelete,
           { id: id.toString() },

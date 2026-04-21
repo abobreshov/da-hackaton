@@ -13,6 +13,9 @@ jest.mock('./config/environment', () => ({
     ALLOWED_ORIGINS: 'http://localhost:3007',
     COOKIE_SECRET: 'test-cookie-secret',
   },
+  // ChatGateway decorator calls this at class-load (module import) time —
+  // must be present on the mock or the AppModule import below explodes.
+  resolveAllowedWsOrigins: () => ['http://localhost:3007'],
 }));
 
 import { Logger } from '@nestjs/common';

@@ -15,6 +15,7 @@ const PING_INTERVAL_MS = 20_000;
 export function usePresence(): void {
   useEffect(() => {
     const socket = getSocket();
+    if (!socket) return;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const ping = (): void => {

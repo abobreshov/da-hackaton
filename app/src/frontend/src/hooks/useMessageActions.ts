@@ -41,6 +41,10 @@ export function useMessageActions(args: ConversationKeyArgs): UseMessageActionsR
     (send: SendMessageArgs): Promise<Message> =>
       new Promise((resolve, reject) => {
         const socket = getSocket();
+        if (!socket) {
+          reject(new Error('Socket not connected — log in first'));
+          return;
+        }
         const payload: Record<string, unknown> = { body: send.body };
         if (args.roomId !== undefined) payload.roomId = args.roomId;
         if (args.dmUserId !== undefined) payload.dmUserId = args.dmUserId;
@@ -77,6 +81,10 @@ export function useMessageActions(args: ConversationKeyArgs): UseMessageActionsR
     (id: bigint, body: string): Promise<void> =>
       new Promise((resolve, reject) => {
         const socket = getSocket();
+        if (!socket) {
+          reject(new Error('Socket not connected — log in first'));
+          return;
+        }
         socket.emit(
           WsEvent.client.messageEdit,
           { id: id.toString(), body },
@@ -97,6 +105,10 @@ export function useMessageActions(args: ConversationKeyArgs): UseMessageActionsR
     (id: bigint): Promise<void> =>
       new Promise((resolve, reject) => {
         const socket = getSocket();
+        if (!socket) {
+          reject(new Error('Socket not connected — log in first'));
+          return;
+        }
         socket.emit(
           WsEvent.client.messageDelete,
           { id: id.toString() },

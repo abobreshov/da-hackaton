@@ -95,6 +95,7 @@ export function useMessagesSync(args: ConversationKeyArgs): UseMessagesSyncRetur
   // filter by roomId on `message.new` as defence-in-depth.
   useEffect(() => {
     const socket = getSocket();
+    if (!socket) return;
     const sock = socket as unknown as {
       on: (e: string, l: (...args: unknown[]) => void) => void;
       off: (e: string, l: (...args: unknown[]) => void) => void;

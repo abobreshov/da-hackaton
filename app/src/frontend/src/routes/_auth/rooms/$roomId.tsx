@@ -168,6 +168,15 @@ export function RoomRoute() {
     }
 
     const socket = getSocket();
+    if (!socket) {
+      // Pre-login or mid-logout — `_auth` layout normally guarantees a
+      // session before this route renders, but bail safely if not.
+      setState({
+        status: 'error',
+        error: { code: 'UPSTREAM_UNAVAILABLE', message: 'Socket not connected.' },
+      });
+      return;
+    }
     let active = true;
 
     const dbg = (msg: string, extra?: unknown): void => {
@@ -456,29 +465,6 @@ export function RoomRoute() {
               }}
             />
           </div>
-          {/* Reply-preview shim — the e2e suite asserts on this testid before
-              typing a reply. The composer renders its own internal strip; we
-              mirror the state here so Playwright's selector resolves. */}
-          {replyingTo && (
-            <div
-              data-testid="reply-preview"
-              className="mx-4 mt-2 flex items-center justify-between gap-3 rounded-full bg-surface-container px-4 py-2 font-body text-body-sm text-on-surface-variant"
-            >
-              <span className="truncate">
-                Replying to{' '}
-                <span className="font-semibold text-on-surface">{replyingTo.author.username}</span>
-                : {replyingTo.deletedAt ? 'deleted message' : replyingTo.body}
-              </span>
-              <button
-                type="button"
-                data-testid="reply-preview-cancel"
-                onClick={() => setReplyingTo(null)}
-                className="rounded-full bg-surface-container-low px-3 py-1 font-display text-label-sm text-on-surface hover:bg-surface-container-high"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
           <div className="border-0 px-4 pb-4 pt-2">
             <MessageComposer
               attachmentTarget={Number.isFinite(roomId) ? { kind: 'room', roomId } : undefined}

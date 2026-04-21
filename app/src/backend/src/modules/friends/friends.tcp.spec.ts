@@ -97,7 +97,7 @@ describe('FriendsTcpController', () => {
   // ---------------------------------------------------------------------------
 
   it('friends.accept forwards payload to service.accept', async () => {
-    service.accept.mockResolvedValue(undefined);
+    service.accept.mockResolvedValue({ ok: true });
     await controller.accept({ userId: 3, requestId: 7 });
     expect(service.accept).toHaveBeenCalledWith({ userId: 3, requestId: 7 });
   });
@@ -114,7 +114,7 @@ describe('FriendsTcpController', () => {
   // ---------------------------------------------------------------------------
 
   it('friends.remove forwards payload to service.remove', async () => {
-    service.remove.mockResolvedValue(undefined);
+    service.remove.mockResolvedValue({ ok: true });
     await controller.remove({ userId: 3, otherUserId: 4 });
     expect(service.remove).toHaveBeenCalledWith({ userId: 3, otherUserId: 4 });
   });
