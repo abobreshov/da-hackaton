@@ -9,7 +9,10 @@ import { useSession } from '@/hooks/useSession';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageComposer } from '@/components/chat/message-composer';
 import { GlassCard } from '@/components/ui/surface';
+import { Button } from '@/components/ui/button';
 import { listFriends, type FriendSummary } from '@/lib/friends';
+import { reportUser } from '@/lib/users';
+import type { Message } from '@/lib/messages';
 
 export const Route = createFileRoute('/_auth/dm/$userId')({
   component: DmRoute,
@@ -40,9 +43,51 @@ export function DmRoute() {
   const [friend, setFriend] = useState<FriendSummary | null>(null);
 
   const dmUserId = Number.isFinite(userId) ? userId : undefined;
-  const { messages, sendMessage, loadOlder, hasMore, error, attachmentsOf } = useMessages({
-    dmUserId,
-  });
+  const { messages, sendMessage, editMessage, deleteMessage, loadOlder, hasMore, error, attachmentsOf } =
+    useMessages({
+      dmUserId,
+    });
+
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [reportTarget, setReportTarget] = useState<Message | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Message | null>(null);
+
+  const handleReport = (m: Message): void => {
+    setReportTarget(m);
+    setReportReason('');
+    setReportError(null);
+  };
+
+  const handleSubmitReport = async (): Promise<void> => {
+    if (!reportTarget) return;
+    setReportSubmitting(true);
+    setReportError(null);
+    try {
+      await reportUser({
+        targetType: 'message',
+        targetId: Number(reportTarget.id),
+        reason: reportReason.trim(),
+      });
+      setReportTarget(null);
+      setReportReason('');
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : 'Failed to submit report.');
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
+  const handleConfirmDelete = async (): Promise<void> => {
+    if (!confirmDelete) return;
+    try {
+      await deleteMessage(confirmDelete.id);
+    } finally {
+      setConfirmDelete(null);
+    }
+  };
 
   // Auto-mark-read the conversation whenever the newest rendered message id
   // changes (AC-09-06). If the DM channel has not been provisioned yet the
@@ -143,8 +188,34 @@ export function DmRoute() {
             hasMore={hasMore}
             onLoadOlder={loadOlder}
             attachmentsOf={attachmentsOf}
+            onReply={(m) => setReplyingTo(m)}
+            onReport={handleReport}
+            onDelete={(m) => setConfirmDelete(m)}
+            onEditSubmit={async (id, body) => {
+              await editMessage(id, body);
+            }}
           />
         </div>
+        {replyingTo && (
+          <div
+            data-testid="reply-preview"
+            className="mx-4 mt-2 flex items-center justify-between gap-3 rounded-full bg-surface-container px-4 py-2 font-body text-body-sm text-on-surface-variant"
+          >
+            <span className="truncate">
+              Replying to{' '}
+              <span className="font-semibold text-on-surface">{replyingTo.author.username}</span>:{' '}
+              {replyingTo.deletedAt ? 'deleted message' : replyingTo.body}
+            </span>
+            <button
+              type="button"
+              data-testid="reply-preview-cancel"
+              onClick={() => setReplyingTo(null)}
+              className="rounded-full bg-surface-container-low px-3 py-1 font-display text-label-sm text-on-surface hover:bg-surface-container-high"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <div className="px-4 pb-4 pt-2">
           <MessageComposer
             frozen={frozen}
@@ -153,9 +224,13 @@ export function DmRoute() {
                 ? { kind: 'dm', peerUserId: userId }
                 : undefined
             }
+            replyingTo={replyingTo}
+            onCancelReply={() => setReplyingTo(null)}
             onSubmit={async (body, attachmentIds) => {
               try {
-                await sendMessage({ body, attachmentIds });
+                const replyToId = replyingTo?.id;
+                await sendMessage({ body, attachmentIds, replyToId });
+                setReplyingTo(null);
               } catch (e) {
                 const code = (e as Error & { code?: string }).code;
                 if (code === ErrorCode.DM_FROZEN) {
@@ -171,6 +246,111 @@ export function DmRoute() {
           />
         </div>
       </GlassCard>
+
+      {confirmDelete ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-delete-title"
+          data-testid="confirm-delete-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmDelete(null);
+          }}
+        >
+          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+            <h2
+              id="confirm-delete-title"
+              className="font-display text-title-md font-semibold text-on-surface"
+            >
+              Delete this message?
+            </h2>
+            <p className="mt-2 font-body text-body-md text-on-surface-variant">
+              The message will be replaced with a tombstone for everyone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  void handleConfirmDelete();
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {reportTarget ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="report-message-title"
+          data-testid="report-message-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReportTarget(null);
+          }}
+        >
+          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+            <h2
+              id="report-message-title"
+              className="font-display text-title-md font-semibold text-on-surface"
+            >
+              Report message
+            </h2>
+            <p className="mt-2 font-body text-body-sm text-on-surface-variant">
+              Tell the moderators what&apos;s wrong with this message.
+            </p>
+            <textarea
+              aria-label="Reason"
+              data-testid="report-message-reason"
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="mt-3 min-h-[6rem] w-full resize-y rounded-[1rem] bg-surface-container-low px-4 py-3 font-body text-body-md text-on-surface focus:bg-surface-container focus:outline-none"
+              placeholder="What's the problem?"
+            />
+            {reportError && (
+              <p className="mt-2 font-body text-body-sm text-error" role="alert">
+                {reportError}
+              </p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setReportTarget(null)}
+                disabled={reportSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  void handleSubmitReport();
+                }}
+                disabled={reportSubmitting || reportReason.trim().length === 0}
+              >
+                Submit report
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

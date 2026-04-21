@@ -17,6 +17,9 @@ vi.mock('@/lib/socket', () => ({
   disconnect: vi.fn(),
 }));
 
+// Mutable so individual tests can swap in non-numeric / weird ids to
+// exercise the INVALID_ROOM_ID defensive-UX branch.
+let currentRoomIdParam = '42';
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (opts: unknown) => ({ options: opts }),
   Link: ({ children, to, ...rest }: { children: React.ReactNode; to: string }) => (
@@ -24,7 +27,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
-  useParams: () => ({ roomId: '42' }),
+  useParams: () => ({ roomId: currentRoomIdParam }),
   useNavigate: () => vi.fn(),
 }));
 
@@ -70,10 +73,12 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     offMock.mockClear();
     presenceMapStore.getState().reset();
     useSession.setState({ session: null });
+    currentRoomIdParam = '42';
   });
   afterEach(() => {
     presenceMapStore.getState().reset();
     useSession.setState({ session: null });
+    currentRoomIdParam = '42';
   });
 
   it('emits room.join with the parsed roomId on mount', () => {
@@ -204,6 +209,28 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     });
     // The UI should not claim the room loaded OK.
     expect(screen.queryByRole('heading', { level: 1 })).not.toHaveTextContent(/general/i);
+  });
+
+  it('renders the catalog-link CTA when the roomId param is non-numeric', async () => {
+    // Sanity: a slug like `general` should NOT 404 with raw "INVALID_ROOM_ID"
+    // text — defensive UX surfaces a friendlier panel + a link back to the
+    // catalog so a stale bookmark doesn't dead-end the user.
+    currentRoomIdParam = 'general';
+    const RoomRoute = getComponent();
+    render(<RoomRoute />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('room-error-invalid-id')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/couldn't find that room/i)).toBeInTheDocument();
+    expect(screen.getByText(/needs to be a number/i)).toBeInTheDocument();
+    const catalogLink = screen.getByTestId('room-error-catalog-link');
+    expect(catalogLink).toBeInTheDocument();
+    expect(catalogLink).toHaveAttribute('href', '/rooms');
+    // The raw error code should NOT bleed through in the invalid-id branch.
+    expect(screen.queryByText('INVALID_ROOM_ID')).not.toBeInTheDocument();
+    // No room.join should have fired for an unparseable id.
+    expect(emitMock.mock.calls.some((c) => c[0] === 'room.join')).toBe(false);
   });
 
   it('emits room.leave with the roomId on unmount', () => {

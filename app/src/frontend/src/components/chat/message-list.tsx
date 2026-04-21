@@ -29,6 +29,15 @@ export interface MessageListProps {
   /** Optional attachment resolver. Omit for legacy call sites that don't
    *  track attachments yet; bubbles then render body-only. */
   attachmentsOf?: (id: bigint) => AttachmentDto[];
+  /** Per-bubble action callbacks — forwarded straight through to <MessageBubble>. */
+  onEdit?: (message: Message) => void;
+  onDelete?: (message: Message) => void;
+  onReply?: (message: Message) => void;
+  onReport?: (message: Message) => void;
+  /** Inline-edit Save handler — forwarded to <MessageBubble>. */
+  onEditSubmit?: (id: bigint, newBody: string) => void | Promise<void>;
+  /** When true, expose Delete on other-user bubbles (admin / room owner). */
+  canAdminDelete?: boolean;
   className?: string;
 }
 
@@ -43,6 +52,12 @@ export const MessageList: React.FC<MessageListProps> = ({
   hasMore,
   onLoadOlder,
   attachmentsOf,
+  onEdit,
+  onDelete,
+  onReply,
+  onReport,
+  onEditSubmit,
+  canAdminDelete = false,
   className,
 }) => {
   const scrollerRef = React.useRef<HTMLDivElement | null>(null);
@@ -156,6 +171,12 @@ export const MessageList: React.FC<MessageListProps> = ({
             isMe={isMe}
             parent={parent}
             attachments={attachments}
+            canAdminDelete={canAdminDelete}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onReply={onReply}
+            onReport={onReport}
+            onEditSubmit={onEditSubmit}
           />
         );
       })}

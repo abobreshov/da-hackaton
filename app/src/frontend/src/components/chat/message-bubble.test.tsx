@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MessageBubble } from './message-bubble';
 import type { Message } from '@/lib/messages';
 
@@ -119,5 +119,118 @@ describe('<MessageBubble />', () => {
     const themBubbleInner = container.querySelector('[data-testid="message-bubble"] > div');
     expect(themBubbleInner?.className).toMatch(/bg-surface-container-high/);
     expect(themBubbleInner?.className).toMatch(/rounded-bl-sm/);
+  });
+
+  describe('toolbar (edit / delete / reply / report)', () => {
+    it('exposes data-author so list selectors can target a specific author', () => {
+      render(<MessageBubble message={baseMessage()} isMe={false} />);
+      expect(screen.getByTestId('message-bubble')).toHaveAttribute('data-author', 'alice');
+    });
+
+    it('renders Edit + Delete on own bubbles, Reply too, but NOT Report', () => {
+      render(<MessageBubble message={baseMessage()} isMe={true} />);
+      expect(screen.getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^reply$/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^report$/i })).not.toBeInTheDocument();
+    });
+
+    it('renders Reply + Report on other-user bubbles, but NOT Edit / Delete', () => {
+      render(<MessageBubble message={baseMessage()} isMe={false} />);
+      expect(screen.getByRole('button', { name: /^reply$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^report$/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
+    });
+
+    it('renders Delete on other-user bubbles when canAdminDelete is true', () => {
+      render(
+        <MessageBubble message={baseMessage()} isMe={false} canAdminDelete />,
+      );
+      expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument();
+      // Edit must remain own-only even for admins.
+      expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    });
+
+    it('hides every action when the message is tombstoned', () => {
+      render(
+        <MessageBubble
+          message={baseMessage({ deletedAt: '2026-04-20T10:05:00.000Z' })}
+          isMe={true}
+          canAdminDelete
+        />,
+      );
+      expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^reply$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^report$/i })).not.toBeInTheDocument();
+    });
+
+    it('fires onEdit / onDelete / onReply with the message when clicked', () => {
+      const onEdit = vi.fn();
+      const onDelete = vi.fn();
+      const onReply = vi.fn();
+      const msg = baseMessage();
+      render(
+        <MessageBubble
+          message={msg}
+          isMe={true}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onReply={onReply}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /^reply$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+      expect(onReply).toHaveBeenCalledWith(msg);
+      expect(onDelete).toHaveBeenCalledWith(msg);
+      // Edit click enters inline-edit mode by default; the optional onEdit
+      // hook still fires so callers can react (analytics, etc).
+      expect(onEdit).toHaveBeenCalledWith(msg);
+    });
+
+    it('fires onReport when Report clicked', () => {
+      const onReport = vi.fn();
+      const msg = baseMessage();
+      render(<MessageBubble message={msg} isMe={false} onReport={onReport} />);
+      fireEvent.click(screen.getByRole('button', { name: /^report$/i }));
+      expect(onReport).toHaveBeenCalledWith(msg);
+    });
+  });
+
+  describe('inline edit mode', () => {
+    it('swaps the body for a textarea + Save / Cancel when Edit clicked', () => {
+      render(<MessageBubble message={baseMessage()} isMe={true} />);
+      fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+      const editor = screen.getByTestId('message-edit-input');
+      expect(editor).toBeInTheDocument();
+      expect(editor).toHaveValue('hello');
+      expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    });
+
+    it('Save calls onEditSubmit(id, newBody) and exits edit mode', async () => {
+      const onEditSubmit = vi.fn().mockResolvedValue(undefined);
+      render(
+        <MessageBubble message={baseMessage()} isMe={true} onEditSubmit={onEditSubmit} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+      const editor = screen.getByTestId('message-edit-input');
+      fireEvent.change(editor, { target: { value: 'hello world' } });
+      fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+      expect(onEditSubmit).toHaveBeenCalledWith(1n, 'hello world');
+    });
+
+    it('Cancel exits edit mode without calling onEditSubmit', () => {
+      const onEditSubmit = vi.fn();
+      render(
+        <MessageBubble message={baseMessage()} isMe={true} onEditSubmit={onEditSubmit} />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+      expect(onEditSubmit).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('message-edit-input')).not.toBeInTheDocument();
+    });
   });
 });

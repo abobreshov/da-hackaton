@@ -1,4 +1,4 @@
-import { createFileRoute, useParams } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { getSocket } from '@/lib/socket';
 import { WsEvent } from '@/lib/ws-events';
@@ -17,6 +17,8 @@ import {
   type ManageRoomRole,
 } from '@/components/rooms/manage-room-modal';
 import { UserPopover } from '@/components/user-popover';
+import { reportUser } from '@/lib/users';
+import type { Message } from '@/lib/messages';
 
 export const Route = createFileRoute('/_auth/rooms/$roomId')({
   component: RoomRoute,
@@ -91,9 +93,54 @@ export function RoomRoute() {
   const currentUserId = session?.type === 'user' ? (session.id ?? null) : null;
 
   const roomIdForMessages = Number.isFinite(roomId) ? roomId : undefined;
-  const { messages, sendMessage, loadOlder, hasMore, attachmentsOf } = useMessages({
-    roomId: roomIdForMessages,
-  });
+  const { messages, sendMessage, editMessage, deleteMessage, loadOlder, hasMore, attachmentsOf } =
+    useMessages({
+      roomId: roomIdForMessages,
+    });
+
+  // Per-message UI state — reply target + report dialog target. Owned at the
+  // route level so MessageBubble stays a presentational component (one source
+  // of truth for reply preview + report dialog state).
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [reportTarget, setReportTarget] = useState<Message | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Message | null>(null);
+
+  const handleReport = (m: Message): void => {
+    setReportTarget(m);
+    setReportReason('');
+    setReportError(null);
+  };
+
+  const handleSubmitReport = async (): Promise<void> => {
+    if (!reportTarget) return;
+    setReportSubmitting(true);
+    setReportError(null);
+    try {
+      await reportUser({
+        targetType: 'message',
+        targetId: Number(reportTarget.id),
+        reason: reportReason.trim(),
+      });
+      setReportTarget(null);
+      setReportReason('');
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : 'Failed to submit report.');
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
+  const handleConfirmDelete = async (): Promise<void> => {
+    if (!confirmDelete) return;
+    try {
+      await deleteMessage(confirmDelete.id);
+    } finally {
+      setConfirmDelete(null);
+    }
+  };
 
   // Mark-read upshot of having messages visible: the newest rendered message
   // id is our "last read" watermark for this scope (AC-09-06). `useMessages`
@@ -160,6 +207,43 @@ export function RoomRoute() {
   }
 
   if (state.status === 'error') {
+    // Special-case INVALID_ROOM_ID — the param wasn't a number, so the user
+    // likely hit a stale bookmark / typo'd slug (`/rooms/general`). Steer
+    // them toward the catalog instead of dumping the raw error code.
+    if (state.error.code === 'INVALID_ROOM_ID') {
+      return (
+        <GlassCard
+          as="section"
+          tone="error"
+          radius="lg"
+          padding="none"
+          className="animate-fade-up px-8 py-10"
+          aria-labelledby="room-error"
+          data-testid="room-error-invalid-id"
+        >
+          <p className="font-display text-label-lg font-semibold uppercase tracking-[0.18em] text-on-error-container/80">
+            Room not found
+          </p>
+          <h1
+            id="room-error"
+            className="mt-3 font-display text-headline-sm font-extrabold text-on-error-container"
+          >
+            Couldn&apos;t find that room
+          </h1>
+          <p className="mt-3 font-body text-body-lg text-on-error-container">
+            The room id needs to be a number. Browse public rooms instead?
+          </p>
+          <div className="mt-6">
+            <Button asChild variant="primary" size="md">
+              <Link to="/rooms" data-testid="room-error-catalog-link">
+                Open rooms catalog
+              </Link>
+            </Button>
+          </div>
+        </GlassCard>
+      );
+    }
+
     return (
       <GlassCard
         as="section"
@@ -265,13 +349,47 @@ export function RoomRoute() {
               hasMore={hasMore}
               onLoadOlder={loadOlder}
               attachmentsOf={attachmentsOf}
+              canAdminDelete={canManage}
+              onReply={(m) => setReplyingTo(m)}
+              onReport={handleReport}
+              onDelete={(m) => setConfirmDelete(m)}
+              onEditSubmit={async (id, body) => {
+                await editMessage(id, body);
+              }}
             />
           </div>
+          {/* Reply-preview shim — the e2e suite asserts on this testid before
+              typing a reply. The composer renders its own internal strip; we
+              mirror the state here so Playwright's selector resolves. */}
+          {replyingTo && (
+            <div
+              data-testid="reply-preview"
+              className="mx-4 mt-2 flex items-center justify-between gap-3 rounded-full bg-surface-container px-4 py-2 font-body text-body-sm text-on-surface-variant"
+            >
+              <span className="truncate">
+                Replying to{' '}
+                <span className="font-semibold text-on-surface">{replyingTo.author.username}</span>
+                : {replyingTo.deletedAt ? 'deleted message' : replyingTo.body}
+              </span>
+              <button
+                type="button"
+                data-testid="reply-preview-cancel"
+                onClick={() => setReplyingTo(null)}
+                className="rounded-full bg-surface-container-low px-3 py-1 font-display text-label-sm text-on-surface hover:bg-surface-container-high"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <div className="border-0 px-4 pb-4 pt-2">
             <MessageComposer
               attachmentTarget={Number.isFinite(roomId) ? { kind: 'room', roomId } : undefined}
+              replyingTo={replyingTo}
+              onCancelReply={() => setReplyingTo(null)}
               onSubmit={async (body, attachmentIds) => {
-                await sendMessage({ body, attachmentIds });
+                const replyToId = replyingTo?.id;
+                await sendMessage({ body, attachmentIds, replyToId });
+                setReplyingTo(null);
               }}
             />
           </div>
@@ -324,6 +442,116 @@ export function RoomRoute() {
           currentUser={modalCurrentUser}
           members={modalMembers}
         />
+      ) : null}
+
+      {/* Delete-confirmation dialog. Bare-bones <dialog> equivalent — a
+          centred surface-card overlay with a Cancel + Delete button pair.
+          Deliberately not a portal'd Radix dialog yet; MVP focus. */}
+      {confirmDelete ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-delete-title"
+          data-testid="confirm-delete-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmDelete(null);
+          }}
+        >
+          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+            <h2
+              id="confirm-delete-title"
+              className="font-display text-title-md font-semibold text-on-surface"
+            >
+              Delete this message?
+            </h2>
+            <p className="mt-2 font-body text-body-md text-on-surface-variant">
+              The message will be replaced with a tombstone for everyone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  void handleConfirmDelete();
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Report-message dialog. Plain modal for MVP; calls reportUser with
+          targetType='message'. */}
+      {reportTarget ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="report-message-title"
+          data-testid="report-message-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReportTarget(null);
+          }}
+        >
+          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+            <h2
+              id="report-message-title"
+              className="font-display text-title-md font-semibold text-on-surface"
+            >
+              Report message
+            </h2>
+            <p className="mt-2 font-body text-body-sm text-on-surface-variant">
+              Tell the moderators what&apos;s wrong with this message.
+            </p>
+            <textarea
+              aria-label="Reason"
+              data-testid="report-message-reason"
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="mt-3 min-h-[6rem] w-full resize-y rounded-[1rem] bg-surface-container-low px-4 py-3 font-body text-body-md text-on-surface focus:bg-surface-container focus:outline-none"
+              placeholder="What's the problem?"
+            />
+            {reportError && (
+              <p className="mt-2 font-body text-body-sm text-error" role="alert">
+                {reportError}
+              </p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setReportTarget(null)}
+                disabled={reportSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  void handleSubmitReport();
+                }}
+                disabled={reportSubmitting || reportReason.trim().length === 0}
+              >
+                Submit report
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
