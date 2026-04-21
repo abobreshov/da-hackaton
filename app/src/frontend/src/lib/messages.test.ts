@@ -77,6 +77,46 @@ describe('lib/messages', () => {
     });
   });
 
+  it('listRoomMessages() exposes attachmentsByMessageId verbatim', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        messages: [
+          {
+            id: '11',
+            roomId: 42,
+            author: { id: 1, username: 'a' },
+            body: 'with pic',
+            createdAt: '2026-04-20T10:00:00.000Z',
+          },
+        ],
+        nextCursor: null,
+        attachmentsByMessageId: {
+          '11': [
+            {
+              id: 'att-w1',
+              filename: 'pic.png',
+              mime: 'image/png',
+              sizeBytes: 10,
+              isImage: true,
+            },
+          ],
+        },
+      }),
+    );
+    const res = await listRoomMessages(42);
+    expect(res.attachmentsByMessageId).toEqual({
+      '11': [
+        expect.objectContaining({ id: 'att-w1', isImage: true }),
+      ],
+    });
+  });
+
+  it('listRoomMessages() defaults attachmentsByMessageId to {} when wire omits it', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ messages: [], nextCursor: null }));
+    const res = await listRoomMessages(42);
+    expect(res.attachmentsByMessageId).toEqual({});
+  });
+
   it('listRoomMessages() encodes cursor as before + beforeId query params', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ messages: [], nextCursor: null }));
     await listRoomMessages(42, {

@@ -1,4 +1,5 @@
 import { apiFetch } from './api-client';
+import type { AttachmentDto } from './attachments';
 
 /**
  * Messaging HTTP client (BFF-side).
@@ -46,6 +47,14 @@ export interface Message {
 export interface MessageList {
   messages: Message[];
   nextCursor: MessageCursor | null;
+  /**
+   * Per-message attachment hydration emitted by `messages.list` / `messages.since`
+   * (M4 deferral). Keys are stringified message ids (bigint over JSON would
+   * lose precision); empty when the page has no attachments at all. Caller
+   * stitches these into the messages store so scrolled-back history shows
+   * inline images / file pills.
+   */
+  attachmentsByMessageId?: Record<string, AttachmentDto[]>;
 }
 
 export interface SendMessageBody {
@@ -90,6 +99,12 @@ interface WireMessageList {
     created_at?: string;
     id: string | number;
   } | null;
+  /**
+   * Backend may emit either camelCase (preferred) or snake_case. Either way,
+   * keys are stringified message ids and values are full AttachmentDto rows.
+   */
+  attachmentsByMessageId?: Record<string, AttachmentDto[]> | null;
+  attachments_by_message_id?: Record<string, AttachmentDto[]> | null;
 }
 
 const toBig = (v: string | number | bigint): bigint => (typeof v === 'bigint' ? v : BigInt(v));
@@ -123,6 +138,7 @@ export function normaliseMessage(raw: WireMessage): Message {
 function normaliseList(raw: WireMessageList): MessageList {
   const messages = raw.messages.map(normaliseMessage);
   const cursor = raw.nextCursor ?? null;
+  const rawAtts = raw.attachmentsByMessageId ?? raw.attachments_by_message_id ?? null;
   return {
     messages,
     nextCursor:
@@ -132,6 +148,7 @@ function normaliseList(raw: WireMessageList): MessageList {
             createdAt: (cursor.createdAt ?? cursor.created_at ?? '') as string,
             id: toBig(cursor.id),
           },
+    attachmentsByMessageId: rawAtts ?? {},
   };
 }
 

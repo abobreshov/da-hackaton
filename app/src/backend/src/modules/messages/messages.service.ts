@@ -241,7 +241,10 @@ export class MessagesService {
     }
   }
 
-  async list(params: ListMessagesParams): Promise<{ messages: MessageRow[] }> {
+  async list(params: ListMessagesParams): Promise<{
+    messages: MessageRow[];
+    attachmentsByMessageId: Record<string, AttachmentRow[]>;
+  }> {
     this.assertScope(params);
     const limit = clampLimit(params.limit);
     const rows = await this.repo.listMessages({
@@ -250,10 +253,14 @@ export class MessagesService {
       before: params.before,
       limit,
     });
-    return { messages: rows };
+    const attachmentsByMessageId = await this.hydrateAttachments(rows);
+    return { messages: rows, attachmentsByMessageId };
   }
 
-  async since(params: SinceMessagesParams): Promise<{ messages: MessageRow[] }> {
+  async since(params: SinceMessagesParams): Promise<{
+    messages: MessageRow[];
+    attachmentsByMessageId: Record<string, AttachmentRow[]>;
+  }> {
     this.assertScope(params);
     const limit = clampLimit(params.limit);
     const rows = await this.repo.listMessagesSince({
@@ -262,7 +269,25 @@ export class MessagesService {
       lastSeenId: params.lastSeenId,
       limit,
     });
-    return { messages: rows };
+    const attachmentsByMessageId = await this.hydrateAttachments(rows);
+    return { messages: rows, attachmentsByMessageId };
+  }
+
+  /**
+   * Bulk-load attachments for a page of messages and return a wire-safe,
+   * string-keyed map (bigint keys would not survive JSON.stringify on the
+   * RPC boundary). Skips the lookup entirely on empty pages so the common
+   * "scrolled past the start" path stays single-query.
+   */
+  private async hydrateAttachments(
+    rows: MessageRow[],
+  ): Promise<Record<string, AttachmentRow[]>> {
+    if (rows.length === 0) return {};
+    const ids = rows.map((m) => m.id);
+    const grouped = await this.attachments.findByMessageIds(ids);
+    const out: Record<string, AttachmentRow[]> = {};
+    for (const [k, v] of grouped) out[k.toString()] = v;
+    return out;
   }
 
   async getById(id: bigint): Promise<{ message: MessageRow }> {

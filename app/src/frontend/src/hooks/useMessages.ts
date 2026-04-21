@@ -187,6 +187,29 @@ export function resetMessagesStores(): void {
   storeCache.clear();
 }
 
+/**
+ * Stitch a history-fetch's `attachmentsByMessageId` onto the messages store.
+ * Keys arrive as stringified bigints (JSON-safe wire format); we widen each
+ * to `bigint` and replay through `setAttachments` so message bubbles render
+ * inline images / file pills on reload + scroll-back.
+ */
+function applyHistoryAttachments(
+  state: MessagesStore,
+  byId: Record<string, AttachmentDto[]> | undefined,
+): void {
+  if (!byId) return;
+  for (const [k, v] of Object.entries(byId)) {
+    if (!Array.isArray(v) || v.length === 0) continue;
+    let id: bigint;
+    try {
+      id = BigInt(k);
+    } catch {
+      continue;
+    }
+    state.setAttachments(id, v);
+  }
+}
+
 // --- WS payload shapes (server → client) ------------------------------
 
 interface WireMessageNewPayload {
@@ -285,7 +308,9 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
     fetchFn()
       .then((list) => {
         if (cancelled) return;
-        store.getState().replaceAll(list.messages, list.nextCursor);
+        const state = store.getState();
+        state.replaceAll(list.messages, list.nextCursor);
+        applyHistoryAttachments(state, list.attachmentsByMessageId);
       })
       .catch((e) => {
         if (cancelled) return;
@@ -475,7 +500,9 @@ export function useMessages(args: UseMessagesArgs): UseMessagesReturn {
         ? () => listRoomMessages(args.roomId!, cursor)
         : () => listDmMessages(args.dmUserId!, cursor);
     const list = await fetchFn();
-    store.getState().prependOlder(list.messages, list.nextCursor);
+    const fresh = store.getState();
+    fresh.prependOlder(list.messages, list.nextCursor);
+    applyHistoryAttachments(fresh, list.attachmentsByMessageId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.roomId, args.dmUserId]);
 

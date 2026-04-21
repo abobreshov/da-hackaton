@@ -175,6 +175,22 @@ class FakeAttachmentsRepository implements AttachmentsRepositoryPort {
     return this.rows.filter((r) => r.messageId === messageId);
   }
 
+  findByMessageIdsCalls: bigint[][] = [];
+  async findByMessageIds(ids: bigint[]): Promise<Map<bigint, AttachmentRow[]>> {
+    this.findByMessageIdsCalls.push([...ids]);
+    const map = new Map<bigint, AttachmentRow[]>();
+    if (ids.length === 0) return map;
+    const set = new Set(ids.map((i) => i.toString()));
+    for (const r of this.rows) {
+      if (r.messageId == null) continue;
+      if (!set.has(r.messageId.toString())) continue;
+      const list = map.get(r.messageId);
+      if (list) list.push(r);
+      else map.set(r.messageId, [r]);
+    }
+    return map;
+  }
+
   async bindAttachmentsToMessage(input: BindAttachmentsInput): Promise<AttachmentRow[]> {
     this.bindCalls.push(input);
     if (input.attachmentIds.length === 0) return [];
@@ -690,6 +706,80 @@ describe('MessagesService', () => {
     });
   });
 
+  describe('list — attachments hydration (M4 deferral)', () => {
+    async function seedAtt(
+      svc: MessagesService,
+      messageId: bigint,
+      attId: string,
+      roomId = 1,
+    ): Promise<void> {
+      void svc;
+      await attachments.insertAttachment({
+        id: attId,
+        roomId,
+        dmId: null,
+        uploaderId: AUTHOR,
+        filename: `${attId}.png`,
+        mime: 'image/png',
+        sizeBytes: 1,
+        path: `/tmp/${attId}`,
+        comment: null,
+        isImage: true,
+      });
+      const r = attachments.rows.find((x) => x.id === attId)!;
+      r.messageId = messageId;
+    }
+
+    it('returns empty attachmentsByMessageId map when no rows have attachments', async () => {
+      const svc = make();
+      await svc.create({ authorId: AUTHOR, roomId: 1, body: 'hi' });
+      const out = await svc.list({ roomId: 1, limit: 10 });
+      expect(out).toMatchObject({ attachmentsByMessageId: {} });
+      expect(out.messages).toHaveLength(1);
+    });
+
+    it('groups attachments by messageId on the wire (string-keyed)', async () => {
+      const svc = make();
+      const m1 = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'one' });
+      const m2 = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'two' });
+      await seedAtt(svc, m1.message.id, 'a1');
+      await seedAtt(svc, m1.message.id, 'a2');
+      await seedAtt(svc, m2.message.id, 'b1');
+
+      const out = await svc.list({ roomId: 1, limit: 10 });
+
+      expect(Object.keys(out.attachmentsByMessageId).sort()).toEqual(
+        [m1.message.id.toString(), m2.message.id.toString()].sort(),
+      );
+      expect(out.attachmentsByMessageId[m1.message.id.toString()].map((a) => a.id).sort()).toEqual([
+        'a1',
+        'a2',
+      ]);
+      expect(out.attachmentsByMessageId[m2.message.id.toString()].map((a) => a.id)).toEqual(['b1']);
+    });
+
+    it('skips the attachments lookup entirely when the page is empty', async () => {
+      const svc = make();
+      attachments.findByMessageIdsCalls = [];
+      const out = await svc.list({ roomId: 1, limit: 10 });
+      expect(out.messages).toHaveLength(0);
+      expect(out.attachmentsByMessageId).toEqual({});
+      expect(attachments.findByMessageIdsCalls).toHaveLength(0);
+    });
+
+    it('queries findByMessageIds with exactly the page-resident message ids', async () => {
+      const svc = make();
+      const a = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'a' });
+      const b = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'b' });
+      attachments.findByMessageIdsCalls = [];
+      await svc.list({ roomId: 1, limit: 10 });
+      expect(attachments.findByMessageIdsCalls).toHaveLength(1);
+      expect([...attachments.findByMessageIdsCalls[0]].sort()).toEqual(
+        [a.message.id, b.message.id].sort(),
+      );
+    });
+  });
+
   describe('since — reconnect hydrate', () => {
     it('returns messages with id > lastSeenId (ascending)', async () => {
       const svc = make();
@@ -705,6 +795,31 @@ describe('MessagesService', () => {
       await expect(svc.since({ lastSeenId: 0n, limit: 50 } as any)).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    it('hydrates attachmentsByMessageId for the resulting page (M4 deferral)', async () => {
+      const svc = make();
+      const a = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'a' });
+      const b = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'b' });
+      await attachments.insertAttachment({
+        id: 'att-since',
+        roomId: 1,
+        dmId: null,
+        uploaderId: AUTHOR,
+        filename: 'x.png',
+        mime: 'image/png',
+        sizeBytes: 1,
+        path: '/tmp/x',
+        comment: null,
+        isImage: true,
+      });
+      attachments.rows.find((r) => r.id === 'att-since')!.messageId = b.message.id;
+
+      const out = await svc.since({ roomId: 1, lastSeenId: a.message.id, limit: 50 });
+      expect(out.messages.map((m) => m.id)).toEqual([b.message.id]);
+      expect(out.attachmentsByMessageId).toEqual({
+        [b.message.id.toString()]: expect.arrayContaining([expect.objectContaining({ id: 'att-since' })]),
+      });
     });
   });
 

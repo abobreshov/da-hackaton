@@ -52,6 +52,14 @@ export interface AttachmentsRepositoryPort {
   findByMessageId(messageId: bigint): Promise<AttachmentRow[]>;
 
   /**
+   * Bulk hydrate — given a page of message ids, returns a Map keyed by
+   * messageId with each message's attachment rows. Empty Map when `ids` is
+   * empty (caller should short-circuit). Used by `messages.list` + `messages.since`
+   * so scrolled-back history shows inline images / file pills (M4 deferral).
+   */
+  findByMessageIds(ids: bigint[]): Promise<Map<bigint, AttachmentRow[]>>;
+
+  /**
    * Bind a set of orphan attachments (messageId IS NULL) to a newly-created
    * message. Enforces: same uploader AND same scope (roomId or dmId) AND
    * not already bound. Returns bound rows. Ids that don't match are ignored

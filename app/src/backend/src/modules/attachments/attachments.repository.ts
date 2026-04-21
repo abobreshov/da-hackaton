@@ -55,6 +55,30 @@ export class DrizzleAttachmentsRepository implements AttachmentsRepositoryPort {
     return rows as AttachmentRow[];
   }
 
+  /**
+   * Bulk variant. One `WHERE message_id IN (...)` SQL round-trip; results
+   * grouped client-side into `Map<bigint, AttachmentRow[]>` so callers can
+   * stitch attachments onto each message in O(1).
+   *
+   * Returns an empty Map for an empty `ids` array — the IN-list would be
+   * invalid SQL (`IN ()`).
+   */
+  async findByMessageIds(ids: bigint[]): Promise<Map<bigint, AttachmentRow[]>> {
+    const map = new Map<bigint, AttachmentRow[]>();
+    if (ids.length === 0) return map;
+    const rows = (await (this.db as any)
+      .select()
+      .from(attachments)
+      .where(inArray(attachments.messageId, ids))) as AttachmentRow[];
+    for (const r of rows) {
+      if (r.messageId == null) continue;
+      const list = map.get(r.messageId);
+      if (list) list.push(r);
+      else map.set(r.messageId, [r]);
+    }
+    return map;
+  }
+
   async bindAttachmentsToMessage(input: BindAttachmentsInput): Promise<AttachmentRow[]> {
     if (input.attachmentIds.length === 0) return [];
     const scopeFilter =

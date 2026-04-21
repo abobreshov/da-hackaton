@@ -298,6 +298,62 @@ describe('useMessages', () => {
     expect(r).not.toBe(d);
   });
 
+  it('hydrates attachmentsByMessageId from the initial history fetch', async () => {
+    listRoomMessagesMock.mockResolvedValue({
+      messages: [seedMessage(7n, 'with image', '2026-04-20T10:00:00.000Z')],
+      nextCursor: null,
+      attachmentsByMessageId: {
+        '7': [
+          {
+            id: 'att-h1',
+            filename: 'p.png',
+            mime: 'image/png',
+            sizeBytes: 1,
+            isImage: true,
+          },
+        ],
+      },
+    });
+    const { result } = renderHook(() => useMessages({ roomId: 42 }));
+    await waitFor(() => expect(result.current.messages.length).toBe(1));
+    expect(result.current.attachmentsOf(7n)).toEqual([
+      expect.objectContaining({ id: 'att-h1', isImage: true }),
+    ]);
+  });
+
+  it('hydrates attachmentsByMessageId from a loadOlder() page', async () => {
+    listRoomMessagesMock
+      .mockResolvedValueOnce({
+        messages: [seedMessage(10n, 'newest', '2026-04-20T10:10:00.000Z')],
+        nextCursor: { createdAt: '2026-04-20T10:10:00.000Z', id: 10n },
+        attachmentsByMessageId: {},
+      })
+      .mockResolvedValueOnce({
+        messages: [seedMessage(5n, 'older', '2026-04-20T09:00:00.000Z')],
+        nextCursor: null,
+        attachmentsByMessageId: {
+          '5': [
+            {
+              id: 'att-old',
+              filename: 'o.png',
+              mime: 'image/png',
+              sizeBytes: 2,
+              isImage: true,
+            },
+          ],
+        },
+      });
+    const { result } = renderHook(() => useMessages({ roomId: 42 }));
+    await waitFor(() => expect(result.current.messages.length).toBe(1));
+    await act(async () => {
+      await result.current.loadOlder();
+    });
+    expect(result.current.attachmentsOf(5n)).toEqual([
+      expect.objectContaining({ id: 'att-old' }),
+    ]);
+    expect(result.current.attachmentsOf(10n)).toEqual([]);
+  });
+
   it('exposes fetch errors via the `error` field', async () => {
     listRoomMessagesMock.mockRejectedValue(new Error('boom'));
     const { result } = renderHook(() => useMessages({ roomId: 42 }));

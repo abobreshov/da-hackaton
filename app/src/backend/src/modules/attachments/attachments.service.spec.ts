@@ -32,6 +32,19 @@ class FakeRepo implements AttachmentsRepositoryPort {
   async findByMessageId(messageId: bigint) {
     return [...this.rows.values()].filter((r) => r.messageId === messageId);
   }
+  async findByMessageIds(ids: bigint[]) {
+    const map = new Map<bigint, AttachmentRow[]>();
+    if (ids.length === 0) return map;
+    const set = new Set(ids.map((i) => i.toString()));
+    for (const r of this.rows.values()) {
+      if (r.messageId == null) continue;
+      if (!set.has(r.messageId.toString())) continue;
+      const list = map.get(r.messageId);
+      if (list) list.push(r);
+      else map.set(r.messageId, [r]);
+    }
+    return map;
+  }
   async bindAttachmentsToMessage(input: BindAttachmentsInput) {
     const bound: AttachmentRow[] = [];
     for (const id of input.attachmentIds) {
