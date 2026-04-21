@@ -92,17 +92,47 @@ export type AuthenticatedUser = {
 
 export type LoginResponse = { requires2fa: true } | { user: AuthenticatedUser };
 
-export const loginUser = (
+export const loginUser = async (
   email: string,
   password: string,
   totpCode?: string,
-): Promise<LoginResponse> =>
-  apiFetch('/api/v1/auth/login', {
+): Promise<LoginResponse> => {
+  const res = await apiFetch<LoginResponse>('/api/v1/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password, totpCode, type: 'user' }),
   });
+  // WS handshakes attach the session cookie on the upgrade request and
+  // never re-read it. If the socket singleton was created BEFORE login
+  // (any visit to the app shell does this) it stayed stuck as
+  // "unauthenticated" — every WS-gated action (room.join, presence, sync)
+  // would then 401. Tear it down here so the next `getSocket()` call
+  // builds a fresh engine carrying the just-set cookie.
+  // Lazy require avoids importing the socket module at auth.ts top-level
+  // (would pull socket.io-client into the auth bundle for routes that
+  // don't need it).
+  if (!('requires2fa' in res)) {
+    try {
+      const { disconnect } = await import('./socket');
+      disconnect();
+    } catch {
+      /* no-op — socket module not loaded yet */
+    }
+  }
+  return res;
+};
 
-export const logout = (): Promise<void> => apiFetch('/api/v1/auth/logout', { method: 'POST' });
+export const logout = async (): Promise<void> => {
+  await apiFetch('/api/v1/auth/logout', { method: 'POST' });
+  // Same rationale as loginUser — the socket stayed connected with the
+  // now-revoked session cookie and would 401 on every subsequent action
+  // until a hard refresh.
+  try {
+    const { disconnect } = await import('./socket');
+    disconnect();
+  } catch {
+    /* no-op */
+  }
+};
 
 /**
  * Register a new user. OWASP V3.1.1 — the BFF always responds 202 with an

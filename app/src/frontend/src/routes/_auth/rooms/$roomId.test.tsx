@@ -196,16 +196,20 @@ describe('<RoomRoute /> (/rooms/$roomId)', () => {
     expect(offline.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders a WireError state when the ack returns { error }', async () => {
+  it('renders a WireError state when the ack returns { error } not matching auto-join sniff', async () => {
+    // 'banned' / 'rate limited' / similar errors are real failures we want
+    // surfaced. The 'not a member' / 'forbidden' / 'membership' keywords
+    // trigger a one-shot auto-join (covered in a separate test below) so
+    // they intentionally do NOT display through this path.
     const RoomRoute = getComponent();
     render(<RoomRoute />);
     act(() => {
       takeJoinAck()({
-        error: { code: 'NOT_A_MEMBER', message: 'You are not a member of this room.' },
+        error: { code: 'BANNED', message: 'You are banned from this room.' },
       });
     });
     await waitFor(() => {
-      expect(screen.getByText(/not a member of this room/i)).toBeInTheDocument();
+      expect(screen.getByText(/banned from this room/i)).toBeInTheDocument();
     });
     // The UI should not claim the room loaded OK.
     expect(screen.queryByRole('heading', { level: 1 })).not.toHaveTextContent(/general/i);
