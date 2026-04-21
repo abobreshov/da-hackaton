@@ -2,6 +2,7 @@
 // Hand-written route tree. Keep in sync with routes/* files.
 
 import { Route as rootRouteImport } from './routes/__root';
+import { Route as IndexRouteImport } from './routes/index';
 import { Route as PublicRouteImport } from './routes/_public';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as RegisterRouteImport } from './routes/register';
@@ -19,6 +20,12 @@ import { Route as AuthDmUserIdRouteImport } from './routes/_auth/dm/$userId';
 import { Route as AdminRouteImport } from './routes/_admin';
 import { Route as AdminReportsRouteImport } from './routes/_admin/reports';
 import { Route as AdminAuditLogRouteImport } from './routes/_admin/audit-log';
+
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 const PublicRoute = PublicRouteImport.update({
   id: '/_public',
@@ -140,6 +147,7 @@ const AdminRouteChildren = {
 const AdminRouteWithChildren = (AdminRoute as any)._addFileChildren(AdminRouteChildren);
 
 const rootRouteChildren = {
+  IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   PublicRoute: PublicRouteWithChildren,
   AdminRoute: AdminRouteWithChildren,
@@ -151,6 +159,13 @@ export const routeTree = (rootRouteImport as any)
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/_public': {
       id: '/_public';
       path: '';
