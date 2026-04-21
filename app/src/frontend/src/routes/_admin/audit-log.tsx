@@ -279,7 +279,14 @@ export function AdminAuditLogRoute() {
                 </thead>
                 <tbody>
                   {state.entries.map((e) => (
-                    <tr key={e.id} className="align-top">
+                    <tr
+                      key={e.id}
+                      className="align-top"
+                      data-testid="audit-log-row"
+                      data-actor-id={e.actorId ?? ''}
+                      data-target-id={e.targetId ?? ''}
+                      data-action={e.action}
+                    >
                       <td className="px-4 py-3 font-body text-body-sm text-on-surface-variant">
                         {new Date(e.createdAt).toLocaleString()}
                       </td>

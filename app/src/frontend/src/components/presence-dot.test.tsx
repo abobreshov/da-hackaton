@@ -44,4 +44,14 @@ describe('<PresenceDot />', () => {
     const dot = screen.getByTestId('dot-root');
     expect(dot.className).toContain('custom-ring');
   });
+
+  it('exposes canonical data-testid + data-state for E2E selectors', () => {
+    const { container, rerender } = render(<PresenceDot state="online" />);
+    for (const state of ['online', 'afk', 'offline'] as const) {
+      rerender(<PresenceDot state={state} />);
+      const dot = container.firstElementChild as HTMLElement;
+      expect(dot.getAttribute('data-testid')).toBe('presence-dot');
+      expect(dot.getAttribute('data-state')).toBe(state);
+    }
+  });
 });

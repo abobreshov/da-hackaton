@@ -193,7 +193,13 @@ export function AdminReportsRoute() {
               const reporter = r.reporterUsername ?? `user #${r.reporterId}`;
               const isActing = actioning === r.id;
               return (
-                <li key={r.id}>
+                <li
+                  key={r.id}
+                  data-testid="admin-report-row"
+                  data-report-id={r.id}
+                  data-target-type={r.targetType}
+                  data-target-id={r.targetId}
+                >
                   <GlassCard radius="lg" padding="lg" shadow="ambient">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex-1">

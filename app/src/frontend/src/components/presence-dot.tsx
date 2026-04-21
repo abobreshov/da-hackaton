@@ -49,6 +49,8 @@ export const PresenceDot = React.forwardRef<HTMLSpanElement, PresenceDotProps>(
         ref={ref}
         role="status"
         aria-label={srLabel}
+        data-testid="presence-dot"
+        data-state={state}
         className={cn(presenceDotVariants({ state }), className)}
         {...rest}
       />

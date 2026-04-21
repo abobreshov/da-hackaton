@@ -82,26 +82,25 @@ export class RoomDetailPage {
   /**
    * Locator for the presence dot belonging to a member row.
    *
-   * `<PresenceDot>` renders a `<span role="status" aria-label="Online|Away (AFK)|Offline">`
-   * with NO `data-testid="presence-dot"` attribute and NO `data-state` attr —
-   * the variant is encoded in Tailwind classes only. Tests that previously
-   * asserted `toHaveAttribute('data-state', '<state>')` are STRUCTURALLY
-   * BLOCKED today; the helpers below assert against the aria-label instead.
+   * `<PresenceDot>` exposes a canonical `[data-testid="presence-dot"]` with a
+   * `data-state` attribute in {`online`,`afk`,`offline`} (see EPIC-02
+   * AC-02-01). The aria-label remains for screen readers but tests bind to
+   * the data attribute so visual re-themes don't break selectors.
    */
   getPresenceDotFor(username: string): Locator {
-    return this.memberRow(username).getByRole('status').first();
+    return this.memberRow(username).locator('[data-testid="presence-dot"]').first();
   }
 
   async expectMemberOnline(username: string): Promise<void> {
-    await expect(this.getPresenceDotFor(username)).toHaveAttribute('aria-label', /online/i);
+    await expect(this.getPresenceDotFor(username)).toHaveAttribute('data-state', 'online');
   }
 
   async expectMemberAfk(username: string): Promise<void> {
-    await expect(this.getPresenceDotFor(username)).toHaveAttribute('aria-label', /away|afk/i);
+    await expect(this.getPresenceDotFor(username)).toHaveAttribute('data-state', 'afk');
   }
 
   async expectMemberOffline(username: string): Promise<void> {
-    await expect(this.getPresenceDotFor(username)).toHaveAttribute('aria-label', /offline/i);
+    await expect(this.getPresenceDotFor(username)).toHaveAttribute('data-state', 'offline');
   }
 
   async expectMemberListed(username: string): Promise<void> {
