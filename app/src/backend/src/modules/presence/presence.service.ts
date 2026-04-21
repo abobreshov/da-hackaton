@@ -35,6 +35,14 @@ export class PresenceService {
   /** Safety-net TTL on the derived state STRING (seconds). */
   private readonly STATE_TTL_SECONDS = 90;
   private readonly afkThresholdMs = env.AFK_THRESHOLD_SECONDS * 1_000;
+  /**
+   * Session entries older than this are treated as dead — both excluded
+   * from `derive()` and HDEL'd in `evaluate()`. Without this bound a
+   * crashed client (laptop lid / `kill -9` / network drop, no clean
+   * `presence.disconnect` delivered) would leave its HASH entry in Redis
+   * indefinitely and the user would stay `afk` forever.
+   */
+  private readonly offlineThresholdMs = env.PRESENCE_OFFLINE_THRESHOLD_SECONDS * 1_000;
 
   constructor(
     @Inject(PRESENCE_REDIS) private readonly redis: IORedis,
@@ -136,6 +144,12 @@ export class PresenceService {
         const userId = this.userIdFromHashKey(hashKey);
         if (userId === null) continue;
 
+        // Prune entries older than the offline threshold BEFORE deriving.
+        // This is what flips a crashed client from afk → offline: without
+        // the prune the HASH entry lingers, `derive()` sees ≥1 entry,
+        // returns afk, and the user is stuck there forever.
+        await this.pruneStaleEntries(hashKey, now);
+
         const [prevState, sessions] = await Promise.all([
           this.redis.get(RedisKey.presenceState(userId)),
           this.redis.hgetall(hashKey),
@@ -146,6 +160,9 @@ export class PresenceService {
 
         if (nextState === 'offline') {
           await this.redis.del(RedisKey.presenceState(userId));
+          // The HASH is empty at this point; drop the key so the next
+          // SCAN doesn't keep tripping over an empty shell.
+          await this.redis.del(hashKey);
         } else {
           await this.writeState(userId, nextState);
         }
@@ -155,10 +172,33 @@ export class PresenceService {
   }
 
   /**
+   * HDEL every session entry in the HASH whose timestamp is older than
+   * `offlineThresholdMs`. Runs inside `evaluate()` but is split out so
+   * the intent is obvious — this is the crashed-client eviction path,
+   * not domain logic.
+   */
+  private async pruneStaleEntries(hashKey: string, now: number): Promise<void> {
+    const sessions = await this.redis.hgetall(hashKey);
+    const dead: string[] = [];
+    for (const [sessionId, tsRaw] of Object.entries(sessions)) {
+      const ts = Number(tsRaw);
+      if (!Number.isFinite(ts) || now - ts > this.offlineThresholdMs) {
+        dead.push(sessionId);
+      }
+    }
+    if (dead.length > 0) await this.redis.hdel(hashKey, ...dead);
+  }
+
+  /**
    * Core derivation rule:
    *   - any session ts within the AFK window → online
-   *   - at least one session remembered (but all stale) → afk
-   *   - empty HASH → offline
+   *   - at least one session within the offline window (but stale past
+   *     AFK) → afk
+   *   - empty HASH / every entry past the offline window → offline
+   *
+   * The offline-window check keeps the read path in sync with the
+   * scheduler's prune pass — a read that lands in the ≈10 s gap between
+   * ticks still sees the user as offline instead of lingering on afk.
    */
   private derive(sessions: Record<string, string>, now: number): PresenceState {
     const entries = Object.values(sessions);
@@ -171,7 +211,9 @@ export class PresenceService {
     }
 
     if (freshest === -Infinity) return 'offline';
-    if (now - freshest <= this.afkThresholdMs) return 'online';
+    const age = now - freshest;
+    if (age <= this.afkThresholdMs) return 'online';
+    if (age > this.offlineThresholdMs) return 'offline';
     return 'afk';
   }
 

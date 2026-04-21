@@ -22,6 +22,15 @@ const schema = z
     TLS_CERT_PATH: z.string().optional(),
     TLS_KEY_PATH: z.string().optional(),
     AFK_THRESHOLD_SECONDS: z.coerce.number().int().positive().default(60),
+    /**
+     * Session entries in `presence:sessions:{userId}` older than this are
+     * treated as dead by both the derive path and the scheduler prune
+     * pass. Closes the gap where a crashed client (no clean WS
+     * disconnect) would stay `afk` forever because the HASH entry never
+     * gets evicted. Default = 3× AFK window (180 s), which gives a user
+     * ≥ 2 missed heartbeat cycles before we assume the tab is gone.
+     */
+    PRESENCE_OFFLINE_THRESHOLD_SECONDS: z.coerce.number().int().positive().default(180),
     WORKERS_ENABLED: z.coerce.boolean().default(false),
     ATTACHMENTS_DIR: z.string().default('/data/attachments'),
   })

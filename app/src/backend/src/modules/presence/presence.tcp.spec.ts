@@ -13,6 +13,7 @@ jest.mock('../../config/environment', () => ({
     REDIS_HOST: 'localhost',
     REDIS_PORT: 6379,
     AFK_THRESHOLD_SECONDS: 60,
+    PRESENCE_OFFLINE_THRESHOLD_SECONDS: 180,
   },
 }));
 

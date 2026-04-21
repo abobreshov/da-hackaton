@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/_auth';
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard';
 import { Route as AuthContactsRouteImport } from './routes/_auth/contacts';
 import { Route as AuthSessionsRouteImport } from './routes/_auth/sessions';
+import { Route as AuthSettingsRouteImport } from './routes/_auth/settings';
 import { Route as AuthRoomsIndexRouteImport } from './routes/_auth/rooms/index';
 import { Route as AuthRoomsRoomIdRouteImport } from './routes/_auth/rooms/$roomId';
 import { Route as AuthDmUserIdRouteImport } from './routes/_auth/dm/$userId';
@@ -85,6 +86,12 @@ const AuthSessionsRoute = AuthSessionsRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any);
 
+const AuthSettingsRoute = AuthSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthRoute,
+} as any);
+
 const AuthRoomsIndexRoute = AuthRoomsIndexRouteImport.update({
   id: '/rooms/',
   path: '/rooms/',
@@ -116,6 +123,7 @@ const AuthRouteChildren = {
   AuthDashboardRoute,
   AuthContactsRoute,
   AuthSessionsRoute,
+  AuthSettingsRoute,
   AuthRoomsIndexRoute,
   AuthRoomsRoomIdRoute,
   AuthDmUserIdRoute,
@@ -234,6 +242,13 @@ declare module '@tanstack/react-router' {
       path: '/sessions';
       fullPath: '/sessions';
       preLoaderRoute: typeof AuthSessionsRouteImport;
+      parentRoute: typeof AuthRouteImport;
+    };
+    '/_auth/settings': {
+      id: '/_auth/settings';
+      path: '/settings';
+      fullPath: '/settings';
+      preLoaderRoute: typeof AuthSettingsRouteImport;
       parentRoute: typeof AuthRouteImport;
     };
     '/_auth/rooms/': {

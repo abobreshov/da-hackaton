@@ -26,6 +26,10 @@ jest.mock('../../config/environment', () => ({
     REDIS_HOST: 'localhost',
     REDIS_PORT: 6379,
     AFK_THRESHOLD_SECONDS: 60,
+    // Tests below assert afk at NOW-5min / etc; raise the mock so
+    // those entries stay above the offline boundary. The shipping
+    // default is 180 s (see environment.ts).
+    PRESENCE_OFFLINE_THRESHOLD_SECONDS: 3_600,
   },
 }));
 

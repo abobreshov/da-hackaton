@@ -1,11 +1,33 @@
 import * as React from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
 import { GlassCard } from '@/components/ui/surface';
 import { AvatarDisc } from '@/components/ui/avatar-disc';
 import { Button } from '@/components/ui/button';
 import { ChatChatLogo, ChatChatWordmark } from '@/components/brand/chatchat-logo';
 import { maxWidthClass, useAppShellLayout } from '@/components/layout/app-shell';
+
+/**
+ * Primary-nav link definitions. Order matters — rendered left-to-right
+ * inside the glass pill between the brand and the user/avatar block.
+ */
+const PRIMARY_NAV_LINKS = [
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/rooms', label: 'Rooms' },
+  { to: '/contacts', label: 'Contacts' },
+  { to: '/sessions', label: 'Sessions' },
+  { to: '/settings', label: 'Settings' },
+] as const;
+
+/**
+ * Match rule: active when the current pathname equals the link target
+ * or starts with `${target}/` so nested routes (e.g. `/rooms/3`) keep
+ * the parent tab highlighted without bleeding into sibling prefixes
+ * (e.g. `/rooms-archive`).
+ */
+function isNavLinkActive(pathname: string, to: string): boolean {
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
 
 /**
  * Kinetic Playground top navigation — a single glass pill that carries
@@ -63,6 +85,13 @@ export function AppHeader({
   const layout = useAppShellLayout();
   const navMaxWidth = layout ? maxWidthClass(layout.maxWidth) : 'max-w-6xl';
 
+  // `useRouterState` returns `undefined` when rendered outside a router
+  // (standalone tests, storybook). Guard the selector so `.location` access
+  // stays safe and the header still renders without any active highlight.
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  }) as string | undefined;
+
   return (
     <nav aria-label="Primary" className={cn('mx-auto', navMaxWidth)}>
       <GlassCard
@@ -71,6 +100,32 @@ export function AppHeader({
         className={cn('flex items-center justify-between px-6 py-3', className)}
       >
         {brand ?? <DefaultBrand />}
+
+        <ul
+          className="hidden items-center gap-1 md:flex"
+          aria-label="Primary sections"
+        >
+          {PRIMARY_NAV_LINKS.map((link) => {
+            const active = pathname ? isNavLinkActive(pathname, link.to) : false;
+            return (
+              <li key={link.to}>
+                <Link
+                  to={link.to}
+                  aria-current={active ? 'page' : undefined}
+                  data-active={active ? 'true' : undefined}
+                  className={cn(
+                    'inline-flex items-center rounded-full px-3 py-1.5 font-body text-label-lg transition-colors',
+                    active
+                      ? 'bg-surface-container-high font-semibold text-on-surface'
+                      : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
+                  )}
+                >
+                  {link.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
 
         <div className="flex items-center gap-4">
           {actions}

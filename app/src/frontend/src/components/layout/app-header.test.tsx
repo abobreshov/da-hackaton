@@ -1,8 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
+// Current pathname fed into the stubbed `useRouterState`. Tests set this
+// before render to exercise the active-link logic without standing up a
+// full TanStack router context.
+let mockPathname: string | undefined = '/';
+
 // The router's <Link> needs a routing context at runtime — for unit tests we
-// stand it up as a plain <a> so the header renders in isolation.
+// stand it up as a plain <a> so the header renders in isolation. The
+// `useRouterState` selector returns the currently-set `mockPathname`.
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
@@ -16,7 +22,19 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  useRouterState: ({
+    select,
+  }: {
+    select?: (state: { location: { pathname: string | undefined } }) => unknown;
+  } = {}) => {
+    const state = { location: { pathname: mockPathname } };
+    return select ? select(state) : state;
+  },
 }));
+
+beforeEach(() => {
+  mockPathname = '/';
+});
 
 import { AppHeader } from './app-header';
 import { AppShell } from './app-shell';
@@ -112,5 +130,53 @@ describe('<AppHeader />', () => {
     render(<AppHeader user={{ name: 'Ada' }} />);
     const nav = screen.getByRole('navigation', { name: /primary/i });
     expect(nav.className).toContain('max-w-6xl');
+  });
+
+  it('renders Dashboard / Rooms / Contacts / Sessions / Settings primary-nav links', () => {
+    render(<AppHeader user={{ name: 'Ada' }} />);
+    const nav = screen.getByRole('list', { name: /primary sections/i });
+    const expected: Array<{ label: RegExp; href: string }> = [
+      { label: /^dashboard$/i, href: '/dashboard' },
+      { label: /^rooms$/i, href: '/rooms' },
+      { label: /^contacts$/i, href: '/contacts' },
+      { label: /^sessions$/i, href: '/sessions' },
+      { label: /^settings$/i, href: '/settings' },
+    ];
+    for (const { label, href } of expected) {
+      const link = screen.getByRole('link', { name: label });
+      expect(link).toHaveAttribute('href', href);
+      expect(nav.contains(link)).toBe(true);
+    }
+  });
+
+  it('highlights the active link when the pathname exactly matches', () => {
+    mockPathname = '/rooms';
+    render(<AppHeader user={{ name: 'Ada' }} />);
+    const active = screen.getByRole('link', { name: /^rooms$/i });
+    expect(active).toHaveAttribute('data-active', 'true');
+    expect(active).toHaveAttribute('aria-current', 'page');
+    expect(active.className).toContain('font-semibold');
+    expect(active.className).toContain('bg-surface-container-high');
+    // Siblings stay inactive.
+    const inactive = screen.getByRole('link', { name: /^contacts$/i });
+    expect(inactive).not.toHaveAttribute('data-active');
+    expect(inactive).not.toHaveAttribute('aria-current');
+    expect(inactive.className).toContain('text-on-surface-variant');
+  });
+
+  it('highlights the active link when on a nested sub-route', () => {
+    mockPathname = '/rooms/42/messages';
+    render(<AppHeader user={{ name: 'Ada' }} />);
+    expect(screen.getByRole('link', { name: /^rooms$/i })).toHaveAttribute(
+      'data-active',
+      'true',
+    );
+  });
+
+  it('hides the primary-nav list on small viewports (md+ only)', () => {
+    render(<AppHeader user={{ name: 'Ada' }} />);
+    const nav = screen.getByRole('list', { name: /primary sections/i });
+    expect(nav.className).toContain('hidden');
+    expect(nav.className).toContain('md:flex');
   });
 });
