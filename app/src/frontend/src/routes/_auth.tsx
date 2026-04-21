@@ -7,6 +7,7 @@ import { usePresenceMap } from '@/hooks/usePresenceMap';
 import { getSocket, disconnect as disconnectSocket } from '@/lib/socket';
 import { AppShell } from '@/components/layout/app-shell';
 import { AppHeader } from '@/components/layout/app-header';
+import { ConnectionBanner } from '@/components/connection-banner';
 
 export const Route = createFileRoute('/_auth')({
   beforeLoad: async ({ context }) => {
@@ -67,6 +68,7 @@ function AuthLayout() {
       }
     >
       <PresenceHeartbeat />
+      <ConnectionBanner />
       <Outlet />
     </AppShell>
   );
