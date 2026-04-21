@@ -3,7 +3,7 @@
 Live progress tracker MVP build-out. Updated as milestones land.
 See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-20 (M4 feature work + 5-reviewer round + critical fixes shipped)
+**Last updated:** 2026-04-21 (M4 polish + sessions backend + 2 M5 deferrals landed via 8-agent fan-out)
 
 ## Milestone map
 
@@ -39,17 +39,17 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | 15 contracts | ✅ | ✅ | ✅ | ✅ + grep-gate | `@app/contracts` wired; PASSWORD_MIN/USERNAME_MIN/USERNAME_MAX + MessageScope XOR + ErrorCode enum (14) + inline-drift CI gate |
 | design-system | — | — | 🟡 partial retheme | — | Kinetic Playground tokens partial; full UI primitives retheme + responsive breakpoints pending |
 
-## Test coverage (post-M4 feature work)
+## Test coverage (post-M4 polish + M5 deferrals)
 
 | Workspace | Tests | Notes |
 |---|---|---|
-| `@app/auth-service` | 173 | unchanged since M3 |
-| `@app/backend` | 462 | +60 since M3 (attachments service/repo/tcp + unread service/repo/tcp + unread-subscriber + messages event emit) |
-| `@app/bff` | 371 | +26 since M3 (attachments proxy/multipart + unread proxy + chat.gateway attachments unwrap) |
-| `@app/frontend` | 460 | +51 since M3 (lib/attachments + AttachmentUploader/View + lib/unread + useUnread + useAutoMarkRead + UnreadBadge) |
-| `@app/contracts` | 65 | +1 `messages.resolveDm` command |
-| **Unit total** | **1531** | +137 since M3 |
-| E2E (Playwright) | 24 | unchanged — M4 specs pending in T13/T15/T22/T27 block |
+| `@app/auth-service` | 192 | +19 since M3 (sessions writer hook + UA/IP DTO tests) |
+| `@app/backend` | 490 | +88 since M3 (M4 feature + sessions module + batched unread + history hydration) |
+| `@app/bff` | 371 | +26 since M3 (M4 feature; T26 BFF sessions proxy still pending) |
+| `@app/frontend` | 466 | +57 since M3 (M4 unread/attachments UI + moderation shape fix) |
+| `@app/contracts` | 65 | +2 (`messages.resolveDm` + `sessions.{recordLogin,listForUser,revoke}`) |
+| **Unit total** | **1584** | +190 since M3 |
+| E2E (Playwright) | 28 | +4 specs (M4 attachments, unread, session-revoke skip, PDF-requirement) — live-stack dependent |
 | Integration (testcontainers) | 3 | unchanged |
 
 ## Deferred / debt (post-M4 feature work)
@@ -68,7 +68,9 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 12. **zod 3 → 4 bump** — cascades type breakage across 4 workspaces + `@hookform/resolvers` upgrade. Deferred.
 13. **Dependabot** — 12 vulns (10 high + 2 moderate) flagged on origin/master.
 
-## M4 commits (2026-04-20)
+## M4 commits
+
+### 2026-04-20
 
 - `eb27823` — backend attachments (schema, service, storage, repo, tcp) + unread module + messages `bindAttachments`
 - `0fe4a2e` — BFF attachments multipart + RFC 5987 download + `messages.attachmentIds` passthrough
@@ -78,6 +80,15 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 - `6a88f19` — FE attachments UI (uploader, paste, inline view, composer integration) + chat.gateway unwrap
 - `feacf6f` — Playwright specs: attachment upload round-trip + unread badge round-trip (2 specs; live-stack dependent)
 - `9a82aa4` — review fixes: TCP scope XOR, broadcastTarget orphan fallback drop, UnreadSubscriber batched fan-out + self-DM guard, useAutoMarkRead dep-array
+
+### 2026-04-21 (8-agent parallel fan-out)
+
+- `b61ca11` — Playwright specs: T22 session-revoke (test.skip pending T26 FE) + T27 PDF-requirement smoke
+- `f8affcf` — T29 responsive: `sm:` breakpoints across composer, bubble, uploader chip, attachment-view image
+- `5c289f6` — T31 moderation `inviteUser` shape fix + fail-silent invite copy in `manage-room-modal`
+- `0edec86` — M5 follow-up: attachments hydrated on history (`messages.list` + `.since` carry `attachmentsByMessageId`); FE store applies it on `replaceAll` + `prependOlder` — closes the demo-visible scroll-back gap
+- `2488a17` — M5 follow-up: unread fan-out batched into one SQL via `(VALUES …)` recipient list — replaces N round-trips per room write
+- `e2cbe79` — T23-T25: sessions backend module + auth-service `recordLogin` emit (best-effort, fail-safe). New `TcpCmd.sessions.{recordLogin,listForUser,revoke}`. T26 (BFF + FE surface) still pending.
 
 ## M4 review round — consolidated (5 reviewers: oop-patterns / devils-advocate / system-architect / business-analyst / coderabbit)
 
@@ -90,8 +101,8 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 
 ### Deferred to M5 (documented, not fixed)
 
-- **Unread batched SQL** — subscriber still issues N `countSince` queries per room write (concurrency now bounded, but SQL count unchanged). R1 for M5: one SQL returning (userId, count) tuples OR publish bare `unread.bumped` + have FE hydrate.
-- **Attachments history hydration** — `messages.list` / `.since` don't JOIN attachments. Send-ack + WS push them, but scroll-back shows body-only. Ship `findAttachmentsByMessageIds` batch → service glue.
+- **Unread batched SQL** — ✅ landed in `2488a17` (one SQL per room write via `VALUES` recipient list).
+- **Attachments history hydration** — ✅ landed in `0edec86` (`findByMessageIds` + `attachmentsByMessageId` on list/since).
 - **DM lazy upsert friend/ban gate** — `resolveOrCreateDmChannelId` upserts a `dm_channels` row for any user pair an attacker addresses. Low impact in hackathon demo; add friend/ban check before upsert for hardening.
 - **AC-09-03 "1+" vs "99+" text drift** — spec says "1+", FE renders "99+". Reconcile by editing the spec (UI cap matches spec intent).
 - **AC-09-07 strict-delta `unread.changed`** — subscriber currently fires on every message.created; AC says "only on count delta". Compare prior vs next before PUBLISH.
@@ -102,9 +113,8 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 
 ## M4 pending
 
-1. **T13/T15/T22/T27** — Remaining Playwright E2E: session revoke (T22), PDF-requirement pass (T27). Attachments + unread specs landed in `feacf6f`.
-2. **T23–T26** — sessions DB writer on login, backend TCP `sessions.listForUser`/`.revoke`, BFF `/sessions` endpoints, FE `/_auth/sessions` route.
-3. **T28–T32** — polish: Kinetic Playground token audit, responsive breakpoints, emoji picker, `moderation.ts inviteUser` shape fix, dashboard copy-drift tests.
+1. **T26** — sessions FE: BFF `/sessions` GET + DELETE proxy + FE `/_auth/sessions` route + revoke UI. Backend half done in `e2cbe79`; this slice unblocks the `m4-session-revoke` spec.
+2. **T28 / T30** — non-blocking polish deferred: Kinetic Playground token audit (T28) + emoji picker (T30). Both pure UX/visual; not on the demo critical path.
 
 ## M5 candidates (reviewer-ready)
 
