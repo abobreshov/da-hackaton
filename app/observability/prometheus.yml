@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: hackathone-dev
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # NestJS backend — /metrics endpoint NOT yet implemented. Prometheus will
+  # log scrape failures (404 / connection refused) every 15s; that is expected
+  # until the app starts emitting metrics. Listed here so dashboards have a
+  # named target to bind to once it is wired.
+  - job_name: backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['backend:3004']
+        labels:
+          service: backend
+
+  - job_name: bff
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['bff:3006']
+        labels:
+          service: bff
+
+  - job_name: auth-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['auth-service:3003']
+        labels:
+          service: auth-service
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: postgres
+
+  - job_name: redis
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: redis

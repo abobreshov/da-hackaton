@@ -1,0 +1,70 @@
+# Observability add-on stack: Prometheus + Grafana + exporters.
+# Layer ON TOP of docker-compose.dev.yml so it joins the same `app-internal` network.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml -f observability/compose.yml up -d
+#
+# Stop just the observability bits:
+#   docker compose -f docker-compose.dev.yml -f observability/compose.yml stop \
+#     prometheus grafana postgres-exporter redis-exporter
+#
+# Default URLs (host):
+#   Prometheus  http://localhost:9090
+#   Grafana     http://localhost:3030  (admin / admin — changes persisted to volume)
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=24h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '9090:9090'
+    networks: [app-internal]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - '3030:3000'
+    depends_on:
+      - prometheus
+    networks: [app-internal]
+    restart: unless-stopped
+
+  # Exposes postgres internals as Prometheus metrics on :9187
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: 'postgresql://postgres:postgres@postgres:5432/appdb?sslmode=disable'
+    networks: [app-internal]
+    restart: unless-stopped
+
+  # Exposes redis stats as Prometheus metrics on :9121
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    environment:
+      REDIS_ADDR: 'redis://redis:6379'
+    networks: [app-internal]
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
