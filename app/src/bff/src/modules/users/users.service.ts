@@ -38,6 +38,27 @@ export class UsersService {
   }
 
   /**
+   * Bulk username hydration. Returns a Map keyed by user id so callers can
+   * cheaply zip into raw row arrays without re-scanning. Missing ids are
+   * absent from the map (not a thrown 404) — the friend-list aggregator falls
+   * back to a placeholder so a deleted user never crashes the whole response.
+   *
+   * Empty input short-circuits to an empty Map without an upstream call.
+   */
+  async findManyByIds(ids: number[]): Promise<Map<number, string>> {
+    const cleaned = [...new Set((ids ?? []).filter((n) => Number.isInteger(n) && n > 0))];
+    if (cleaned.length === 0) return new Map();
+    const rows = await this.proxy.forward<Array<{ id: number; name: string }>>(
+      this.client,
+      { cmd: TcpCmd.users.listByIds },
+      { ids: cleaned },
+    );
+    const map = new Map<number, string>();
+    for (const r of rows ?? []) map.set(r.id, r.name);
+    return map;
+  }
+
+  /**
    * Resolve a username (== `users.name`, per schema at
    * `backend/src/database/schema/users.ts`) to a numeric userId.
    *

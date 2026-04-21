@@ -31,6 +31,7 @@ import { THROTTLE_METADATA_KEY, ThrottleOptions } from '../../common/decorators/
 function makeServiceMock() {
   return {
     list: jest.fn(),
+    listEnvelope: jest.fn(),
     listPending: jest.fn(),
     request: jest.fn(),
     accept: jest.fn(),
@@ -55,11 +56,18 @@ describe('FriendsController (BFF)', () => {
   });
 
   describe('GET /friends', () => {
-    it('delegates to service.list with userId from session', async () => {
-      svc.list.mockResolvedValue([{ userId: 2 }]);
+    it('delegates to service.listEnvelope with userId from session', async () => {
+      // The controller hands the FE-facing envelope back as-is — aggregation
+      // (raw row → {friends, incoming, outgoing}) lives inside the service.
+      const envelope = {
+        friends: [{ userId: 2, username: 'alice' }],
+        incoming: [],
+        outgoing: [],
+      };
+      svc.listEnvelope.mockResolvedValue(envelope);
       const res = await controller.list(sessionReq(1));
-      expect(svc.list).toHaveBeenCalledWith({ userId: 1 });
-      expect(res).toEqual([{ userId: 2 }]);
+      expect(svc.listEnvelope).toHaveBeenCalledWith({ userId: 1 });
+      expect(res).toBe(envelope);
     });
   });
 

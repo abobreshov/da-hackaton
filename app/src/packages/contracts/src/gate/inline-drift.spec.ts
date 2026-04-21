@@ -61,6 +61,7 @@ const ALLOW_LIST: Record<string, string[]> = {
     'users.findById',
     'users.findByUsername',
     'users.list',
+    'users.listByIds',
   ],
   'app/src/backend/src/workers/queue.producer.ts': [
     'abuse.report.notify',

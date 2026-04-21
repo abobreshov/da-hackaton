@@ -15,6 +15,7 @@ jest.mock('../../config/environment', () => ({
 import { RpcException } from '@nestjs/microservices';
 import { FriendsService } from './friends.service';
 import { RpcProxyService } from '../../common/proxy/rpc-proxy.service';
+import { UsersService } from '../users/users.service';
 
 function makeClient() {
   return { send: jest.fn() };
@@ -26,15 +27,21 @@ function makeProxy() {
   } as unknown as jest.Mocked<RpcProxyService>;
 }
 
+function makeUsers() {
+  return { findManyByIds: jest.fn() } as unknown as jest.Mocked<UsersService>;
+}
+
 describe('FriendsService (BFF)', () => {
   let client: ReturnType<typeof makeClient>;
   let proxy: jest.Mocked<RpcProxyService>;
+  let users: jest.Mocked<UsersService>;
   let service: FriendsService;
 
   beforeEach(() => {
     client = makeClient();
     proxy = makeProxy();
-    service = new FriendsService(client as any, proxy as any);
+    users = makeUsers();
+    service = new FriendsService(client as any, proxy as any, users as any);
   });
 
   describe('request({requesterId, targetUsername, text?})', () => {
@@ -181,6 +188,88 @@ describe('FriendsService (BFF)', () => {
       const rpc = new RpcException({ status: 500, message: 'boom' });
       (proxy.forward as jest.Mock).mockRejectedValueOnce(rpc);
       await expect(service.listPending({ userId: 3 })).rejects.toBe(rpc);
+    });
+  });
+
+  describe('listEnvelope({userId})', () => {
+    it('combines accepted + pending rows and hydrates usernames in one users.listByIds call', async () => {
+      // friends.list → 2 accepted friends (ids 4 + 5)
+      // friends.listPending → 1 incoming (from 6) + 1 outgoing (to 7)
+      (proxy.forward as jest.Mock)
+        .mockResolvedValueOnce([
+          { id: 100, friendId: 4, acceptedAt: '2026-04-21T00:00:00.000Z' },
+          { id: 101, friendId: 5, acceptedAt: '2026-04-21T00:00:00.000Z' },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 200,
+            requesterId: 6,
+            otherUserId: 6,
+            incoming: true,
+            requestText: 'hey',
+            createdAt: '2026-04-21T00:00:00.000Z',
+          },
+          {
+            id: 201,
+            requesterId: 3,
+            otherUserId: 7,
+            incoming: false,
+            requestText: null,
+            createdAt: '2026-04-21T00:00:00.000Z',
+          },
+        ]);
+
+      users.findManyByIds.mockResolvedValueOnce(
+        new Map<number, string>([
+          [4, 'alice'],
+          [5, 'bob'],
+          [6, 'carol'],
+          [7, 'dave'],
+        ]),
+      );
+
+      const out = await service.listEnvelope({ userId: 3 });
+
+      expect(users.findManyByIds).toHaveBeenCalledTimes(1);
+      // Single hydration call covers every distinct id we will render — order
+      // is irrelevant but the set must match exactly.
+      const [idsArg] = users.findManyByIds.mock.calls[0];
+      expect(new Set(idsArg)).toEqual(new Set([4, 5, 6, 7]));
+
+      expect(out).toEqual({
+        friends: [
+          { userId: 4, username: 'alice' },
+          { userId: 5, username: 'bob' },
+        ],
+        incoming: [{ id: 200, from: { userId: 6, username: 'carol' } }],
+        outgoing: [{ id: 201, to: { userId: 7, username: 'dave' } }],
+      });
+    });
+
+    it('substitutes "unknown" when a referenced user id is missing from hydration', async () => {
+      (proxy.forward as jest.Mock)
+        .mockResolvedValueOnce([{ id: 1, friendId: 99, acceptedAt: null }])
+        .mockResolvedValueOnce([]);
+      // Map intentionally empty — id 99 was deleted between rows being read
+      // and the hydration call. Row should still surface, with placeholder.
+      users.findManyByIds.mockResolvedValueOnce(new Map());
+
+      const out = await service.listEnvelope({ userId: 3 });
+
+      expect(out.friends).toEqual([{ userId: 99, username: 'unknown' }]);
+      expect(out.incoming).toEqual([]);
+      expect(out.outgoing).toEqual([]);
+    });
+
+    it('returns empty envelope (no hydration call) when there are no rows at all', async () => {
+      (proxy.forward as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      users.findManyByIds.mockResolvedValueOnce(new Map());
+
+      const out = await service.listEnvelope({ userId: 3 });
+
+      expect(out).toEqual({ friends: [], incoming: [], outgoing: [] });
+      // hydration is still invoked with [] — UsersService short-circuits without an upstream call.
+      expect(users.findManyByIds).toHaveBeenCalledWith([]);
     });
   });
 });

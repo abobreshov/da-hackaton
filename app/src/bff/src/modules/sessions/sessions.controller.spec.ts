@@ -46,7 +46,7 @@ describe('SessionsController (BFF)', () => {
   });
 
   describe('GET /sessions', () => {
-    it('forwards session userId and returns service result', async () => {
+    it('maps backend SessionRow[] to FE SessionSummary[] (drops userId/revokedAt, adds current=false, ISO-formats dates)', async () => {
       const rows = [
         {
           id: '11111111-1111-1111-1111-111111111111',
@@ -63,14 +63,45 @@ describe('SessionsController (BFF)', () => {
       const out = await controller.list(sessionReq(42));
 
       expect(svc.listForUser).toHaveBeenCalledWith(42);
-      expect(out).toEqual({ sessions: rows });
+      expect(out).toEqual({
+        sessions: [
+          {
+            id: '11111111-1111-1111-1111-111111111111',
+            userAgent: 'curl/8',
+            ip: '127.0.0.1',
+            createdAt: '2026-04-19T00:00:00.000Z',
+            lastSeenAt: '2026-04-20T00:00:00.000Z',
+            current: false,
+          },
+        ],
+      });
     });
 
-    it('throws when session sub is missing', () => {
-      // `list` is synchronous — the userId guard throws before any service
-      // call is made. Asserting via plain `toThrow` keeps the failure mode
-      // honest (no swallowed promise rejection).
-      expect(() => controller.list({ session: {} } as any)).toThrow(
+    it('tolerates a bare-array backend response (fallback path)', async () => {
+      // Older / direct backend wiring may return SessionRow[] without the
+      // {sessions: ...} envelope — controller must normalise either shape.
+      svc.listForUser.mockResolvedValue([
+        {
+          id: 'abc',
+          userId: 1,
+          userAgent: null,
+          ip: null,
+          createdAt: '2026-04-19T00:00:00.000Z',
+          lastSeenAt: '2026-04-20T00:00:00.000Z',
+          revokedAt: null,
+        },
+      ] as any);
+
+      const out = await controller.list(sessionReq(1));
+      expect(out.sessions).toHaveLength(1);
+      expect(out.sessions[0]).toMatchObject({ id: 'abc', current: false });
+    });
+
+    it('throws when session sub is missing', async () => {
+      // `list` is async now (awaits the service call) — the userId guard
+      // still throws synchronously inside the async function, surfacing as
+      // a rejected promise. Test the reject path explicitly.
+      await expect(controller.list({ session: {} } as any)).rejects.toThrow(
         'no userId in session',
       );
       expect(svc.listForUser).not.toHaveBeenCalled();

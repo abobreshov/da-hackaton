@@ -38,9 +38,14 @@ function getUserId(req: SessionRequest): number {
 export class FriendsController {
   constructor(private readonly service: FriendsService) {}
 
+  /**
+   * Returns the FE-facing `FriendsResponse` envelope (accepted friends +
+   * pending requests in both directions, usernames hydrated). Aggregation
+   * lives in {@link FriendsService.listEnvelope}.
+   */
   @Get()
   list(@Req() req: SessionRequest) {
-    return this.service.list({ userId: getUserId(req) });
+    return this.service.listEnvelope({ userId: getUserId(req) });
   }
 
   @Get('pending')

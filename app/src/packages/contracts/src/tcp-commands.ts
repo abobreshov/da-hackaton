@@ -20,6 +20,12 @@ export const TcpCmd = {
   },
   users: {
     list: 'users.list',
+    /**
+     * Bulk lookup by ids — returns `{id, name}` rows for every id that exists.
+     * Used by BFF aggregators (friends list, etc.) to hydrate usernames in a
+     * single round-trip instead of fanning out N `users.findById` calls.
+     */
+    listByIds: 'users.listByIds',
     findById: 'users.findById',
     findByUsername: 'users.findByUsername',
     ban: 'users.ban',

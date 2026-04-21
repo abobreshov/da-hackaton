@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { users } from '../../database/schema';
@@ -25,6 +25,23 @@ export class UsersService {
     const [user] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
     if (!user) throw new NotFoundException(`User ${id} not found`);
     return user;
+  }
+
+  /**
+   * Bulk lookup — returns one `{id, name}` row per existing id. Missing ids
+   * are silently dropped; callers MUST handle the gap (typically by
+   * substituting a placeholder username). Empty input short-circuits to `[]`
+   * to avoid a degenerate `WHERE id IN ()` query.
+   */
+  async findByIds(ids: number[]): Promise<Array<{ id: number; name: string }>> {
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+    // De-dup + drop non-positive ids before hitting the DB.
+    const cleaned = [...new Set(ids.filter((n) => Number.isInteger(n) && n > 0))];
+    if (cleaned.length === 0) return [];
+    return this.db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(inArray(users.id, cleaned));
   }
 
   /**
