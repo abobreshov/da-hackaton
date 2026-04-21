@@ -49,6 +49,24 @@ const redisConnectionProvider: Provider = {
 };
 
 /**
+ * Per-queue wall-clock budgets for the processor body. Beyond this we
+ * reject the job (BullMQ then handles attempts/backoff). Picked per-queue
+ * so a slow but expected workload (retention seq scan) doesn't get killed
+ * while a snappy notify still fails fast.
+ *
+ *   user.cascade.delete  60s — multi-table delete + FK cascade
+ *   retention.prune      90s — large scan across messages/attachments
+ *   attachments.cleanup  30s — per-batch FS unlinks
+ *   abuse.report.notify  15s — log + (eventually) one email send
+ */
+const QUEUE_PROCESSOR_TIMEOUTS_MS: Record<string, number> = {
+  [QueueName.userCascadeDelete]: 60_000,
+  [QueueName.retentionPrune]: 90_000,
+  [QueueName.attachmentsCleanup]: 30_000,
+  [QueueName.abuseReportNotify]: 15_000,
+};
+
+/**
  * Build a queue+worker provider for one named queue.
  * The returned pair is also pushed onto the central registry for shutdown.
  */
@@ -57,7 +75,10 @@ function queuePairProvider(token: string, name: string, processor: Processor<any
     provide: token,
     inject: [WORKERS_REDIS_CONNECTION, WORKERS_REGISTRY],
     useFactory: (connection: IORedis, registry: WorkersRegistry): Queue => {
-      const pair: QueueFactoryResult = createQueuePair(name, processor, connection);
+      const processorTimeoutMs = QUEUE_PROCESSOR_TIMEOUTS_MS[name];
+      const pair: QueueFactoryResult = createQueuePair(name, processor, connection, {
+        processorTimeoutMs,
+      });
       registry.queues.push(pair.queue);
       registry.workers.push(pair.worker);
       registry.events.push(pair.events);
