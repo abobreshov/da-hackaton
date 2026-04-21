@@ -2,42 +2,70 @@ import { test, expect } from '../fixtures/test';
 import { LoginPage } from '../pages/login.page';
 import { DashboardPage } from '../pages/dashboard.page';
 import { ContactsPage } from '../pages/contacts.page';
+import { fetchVerifyTokenFromMailpit } from '../helpers/mailpit';
 
 /**
  * M2 demo journey — friend request lifecycle (EPIC-04).
  *
- * Two browser contexts so each seeded user maintains their own session
- * cookies:
- *  - userCtx  → user@example.com (username `user`)
- *  - adminCtx → admin@example.com (username `admin`)
+ * Two scenarios, each with its own freshly registered user so the demo seed's
+ * pre-accepted `admin↔user` friendship can't short-circuit the flow. The
+ * fresh user is minted through the real register → Mailpit verify-email path
+ * so the BFF mints the session cookie the same way the UI would.
  *
- * Flow:
- *   1. user sends friend request to admin by username.
- *   2. admin logs in, sees the pending incoming request.
- *   3. admin accepts.
- *   4. Both see each other in their friends list.
+ * Scenarios:
+ *   1. Fresh user requests Dev Admin → admin accepts → both see each other.
+ *   2. Fresh user requests Dev Admin → admin rejects → pending row disappears.
  *
  * Exercises AC-04-01..04-04 + the BFF endpoints listed in
  * `mng/specs/04-contacts-friends.md` §API.
  */
 
-const USER = { email: 'user@example.com', password: 'User1234!', username: 'user' };
 const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'admin' };
-
-// Matches the WS push SLA from EPIC-03 (≤2s) with a small jitter envelope.
 const WS_PUSH_MS = 3_000;
 
+interface FreshUser {
+  email: string;
+  username: string;
+  password: string;
+}
+
+function makeFreshUser(tag: string): FreshUser {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  return {
+    email: `m2-${tag}-${ts}-${rand}@example.com`,
+    username: `m2_${tag}_${ts}_${rand}`,
+    password: 'FriendPass-1!',
+  };
+}
+
+/**
+ * Registers a fresh user through the real BFF flow, consumes the verify-email
+ * link from Mailpit, and leaves the context authenticated (session cookie
+ * set). Mirrors the helper in m5-delete-account-cascade.spec.ts.
+ */
+async function registerAndVerifyFreshUser(
+  page: import('@playwright/test').Page,
+  u: FreshUser,
+): Promise<void> {
+  const registerRes = await page.request.post('/api/v1/auth/register', {
+    data: { email: u.email, username: u.username, password: u.password },
+  });
+  expect(registerRes.status(), 'register returns 202').toBe(202);
+
+  const token = await fetchVerifyTokenFromMailpit(u.email);
+  const verifyRes = await page.request.post('/api/v1/auth/verify-email', {
+    data: { token },
+  });
+  expect(verifyRes.status(), 'verify-email succeeds').toBeLessThan(300);
+}
+
 test.describe('M2 — friend request lifecycle', () => {
-  // SKIP: the demo seed (`app/src/backend/scripts/seed-demo.ts`) inserts an
-  // already-accepted admin↔user friendship, so `sendFriendRequest('admin')`
-  // returns "already friends" and the pending-incoming assertion can never
-  // fire. The natural alternative — register a fresh third user — is also
-  // unavailable post-OWASP V3.1.1 because /register no longer auto-logs-in;
-  // the verify-email link must be consumed via Mailpit before a session is
-  // minted, and that flow is owned by m5-delete-account-cascade. Re-enable
-  // this spec once either (a) the seed drops the pre-accepted friendship,
-  // or (b) we move the Mailpit verify helper into a shared fixture.
-  test.skip('user requests, admin accepts, both see each other as friend', async ({ browser }) => {
+  test('fresh user requests Dev Admin → admin accepts → both see each other', async ({
+    browser,
+  }) => {
+    test.setTimeout(60_000);
+    const fresh = makeFreshUser('accept');
     const userCtx = await browser.newContext();
     const adminCtx = await browser.newContext();
 
@@ -45,48 +73,87 @@ test.describe('M2 — friend request lifecycle', () => {
       const userPage = await userCtx.newPage();
       const adminPage = await adminCtx.newPage();
 
-      const userLogin = new LoginPage(userPage);
-      const userDash = new DashboardPage(userPage);
+      // 1. Bootstrap a verified fresh user (register + Mailpit verify).
+      await userPage.goto('/login');
+      await registerAndVerifyFreshUser(userPage, fresh);
+
+      // 2. Fresh user opens /contacts and requests admin by username.
       const userContacts = new ContactsPage(userPage);
-
-      const adminLogin = new LoginPage(adminPage);
-      const adminDash = new DashboardPage(adminPage);
-      const adminContacts = new ContactsPage(adminPage);
-
-      // --- 1. user signs in, navigates to /contacts, sends a friend request.
-      await userLogin.goto();
-      await userLogin.login(USER.email, USER.password);
-      await userDash.expectLoaded();
-
       await userContacts.goto();
       await userContacts.expectLoaded();
       await userContacts.sendFriendRequest(ADMIN.username);
 
-      // --- 2. admin signs in and opens /contacts — should see pending.
+      // 3. Admin signs in and sees the pending incoming row.
+      const adminLogin = new LoginPage(adminPage);
+      const adminDash = new DashboardPage(adminPage);
+      const adminContacts = new ContactsPage(adminPage);
       await adminLogin.goto();
       await adminLogin.login(ADMIN.email, ADMIN.password);
       await adminDash.expectLoaded();
-
       await adminContacts.goto();
       await adminContacts.expectLoaded();
 
       await expect(async () => {
-        await adminContacts.expectPendingIncoming(USER.username);
+        await adminContacts.expectPendingIncoming(fresh.username);
       }).toPass({ timeout: WS_PUSH_MS });
 
-      // --- 3. admin accepts.
-      await adminContacts.acceptRequest(USER.username);
+      // 4. Admin accepts → friend row appears on both sides.
+      await adminContacts.acceptRequest(fresh.username);
+      await adminContacts.expectFriend(fresh.username);
 
-      // --- 4. Both sides now have each other as friends.
-      // Admin sees `user` in their friends list immediately.
-      await adminContacts.expectFriend(USER.username);
-
-      // User's /contacts page was opened before acceptance; allow the WS push
-      // (`friend.request.accepted`) to update the list without a manual
-      // reload. Polling via toPass covers both eager WS update and any
-      // explicit refetch-on-focus hook the FE may add.
       await expect(async () => {
         await userContacts.expectFriend(ADMIN.username);
+      }).toPass({ timeout: WS_PUSH_MS });
+    } finally {
+      await userCtx.close();
+      await adminCtx.close();
+    }
+  });
+
+  test('fresh user requests Dev Admin → admin rejects → pending row clears', async ({
+    browser,
+  }) => {
+    test.setTimeout(60_000);
+    const fresh = makeFreshUser('reject');
+    const userCtx = await browser.newContext();
+    const adminCtx = await browser.newContext();
+
+    try {
+      const userPage = await userCtx.newPage();
+      const adminPage = await adminCtx.newPage();
+
+      await userPage.goto('/login');
+      await registerAndVerifyFreshUser(userPage, fresh);
+
+      const userContacts = new ContactsPage(userPage);
+      await userContacts.goto();
+      await userContacts.expectLoaded();
+      await userContacts.sendFriendRequest(ADMIN.username);
+
+      const adminLogin = new LoginPage(adminPage);
+      const adminDash = new DashboardPage(adminPage);
+      const adminContacts = new ContactsPage(adminPage);
+      await adminLogin.goto();
+      await adminLogin.login(ADMIN.email, ADMIN.password);
+      await adminDash.expectLoaded();
+      await adminContacts.goto();
+      await adminContacts.expectLoaded();
+
+      await expect(async () => {
+        await adminContacts.expectPendingIncoming(fresh.username);
+      }).toPass({ timeout: WS_PUSH_MS });
+
+      // Reject → the incoming row must clear and no friendship is created.
+      await adminContacts.rejectRequest(fresh.username);
+
+      await expect(async () => {
+        await adminContacts.expectNoPendingIncoming(fresh.username);
+      }).toPass({ timeout: WS_PUSH_MS });
+      await adminContacts.expectNotFriend(fresh.username);
+
+      // Fresh user's outgoing pending row must disappear too.
+      await expect(async () => {
+        await userContacts.expectNotFriend(ADMIN.username);
       }).toPass({ timeout: WS_PUSH_MS });
     } finally {
       await userCtx.close();
