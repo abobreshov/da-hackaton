@@ -79,26 +79,87 @@ flowchart TB
 
 | Path | Protocol | Why |
 |---|---|---|
-| FE ↔ BFF | HTTPS + Socket.IO WebSocket | Single edge, cookie-based auth |
-| BFF → Auth | NestJS TCP microservice | Internal RPC, RpcException mapping |
-| BFF → BE | NestJS TCP microservice | Internal RPC for commands |
-| BE → BFF (push) | Redis pub/sub | Fan-out of real-time events to BFF replicas |
-| BE ↔ XMPP | XMPP (s2s) | EPIC-13 federation |
+| FE ↔ BFF (HTTP) | HTTPS + signed session cookie | Single edge, cookie-based auth, CSRF double-submit |
+| FE ↔ BFF (realtime) | Socket.IO (WSS + cookie handshake) | Cookie auth on upgrade (ADR-003) |
+| BFF → Auth | NestJS TCP microservice + **mTLS** + `_sys` envelope | Internal RPC, `SystemKeyRpcGuard` rejects forged calls |
+| BFF → BE | NestJS TCP microservice + **mTLS** + `_sys` envelope | Same |
+| BE → BFF (push) | Redis pub/sub via `@socket.io/redis-adapter` | Fan-out across BFF replicas (ADR-004) |
+| BE ↔ XMPP | XMPP (s2s) | EPIC-13 federation — **deferred post-MVP** |
 
 ## Auth flow summary
 
-1. FE POST `/auth/login` → BFF → Auth (TCP `auth.customer.login`)
-2. Auth returns `{user, accessToken, refreshToken}` OR `{requires2fa:true}`
-3. BFF sets two-layer signed cookies (JWT session + refresh)
-4. FE opens Socket.IO with `credentials:'include'`; BFF `SessionGuard` validates cookie on WS upgrade
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as Browser
+    participant FE as Frontend (React)
+    participant BFF as BFF (NestJS)
+    participant AUTH as Auth Service
+    participant R as Redis
+
+    U->>FE: enter email + password
+    FE->>BFF: POST /auth/login {email, password}
+    BFF->>AUTH: TCP auth.customer.login (mTLS + _sys)
+    AUTH->>AUTH: bcrypt verify + 2FA gate
+    alt 2FA enabled
+        AUTH-->>BFF: { requires2fa: true }
+        BFF-->>FE: 200 { requires2fa: true }
+        FE->>BFF: POST /auth/login { email, password, totpCode }
+        BFF->>AUTH: TCP auth.customer.login (+ totp)
+    end
+    AUTH->>R: refresh:u:{id}:{hash} SET
+    AUTH-->>BFF: { user, accessToken, refreshToken, sid }
+    BFF-->>FE: Set-Cookie: session + refresh (HMAC-signed JWTs)
+    FE->>BFF: Socket.IO connect (cookie handshake)
+    BFF->>BFF: SessionGuard validates on upgrade
+    BFF-->>FE: ws open
+```
 
 ## Real-time flow summary
 
-1. FE `socket.emit('message.send', {roomId, text})`
-2. BFF WS handler validates session, calls BE via TCP `messages.create`
-3. BE persists, publishes `channel room:{id}` on Redis
-4. BFF subscribers for that room receive event → broadcast to Socket.IO clients in room
-5. Sender de-duplicates by message id
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Sender (Browser A)
+    participant BA as BFF-replica-A
+    participant BE as Backend
+    participant R as Redis (pub/sub + socket.io-redis-adapter)
+    participant BB as BFF-replica-B
+    participant B as Receiver (Browser B)
+
+    A->>BA: socket.emit('message.send', {roomId, body})
+    BA->>BE: TCP messages.create (mTLS + _sys)
+    BE->>BE: persist row + hydrate author
+    BE-->>BA: ack { message }
+    BA-->>A: ack (optimistic → convergent)
+    BE->>R: PUBLISH room:{id} message.new
+    R-->>BA: fan-out message.new
+    R-->>BB: fan-out message.new
+    BA-->>A: emit message.new (dedup by id)
+    BB-->>B: emit message.new
+```
+
+## Presence flow summary
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant FE as Frontend
+    participant BFF as BFF WS Gateway
+    participant BE as Backend (presence service)
+    participant R as Redis (presence hash + pub/sub)
+
+    FE->>BFF: socket connect (cookie handshake)
+    BFF->>BE: TCP presence.touch {userId, sessionId}
+    BE->>R: HSET presence:user:{id} status=online ts=now
+    BE->>R: PUBLISH presence:user:{id} online
+    R-->>BFF: fan-out presence event
+    BFF-->>FE: emit presence.update {userId, status}
+    note over FE: AFK threshold (dev 5s, prod 60s)<br/>scheduler prunes dead keys every 10s (ADR-001)
+    FE-->>BFF: socket disconnect (tab close)
+    BFF->>BE: TCP presence.dropSession
+    BE->>R: HDEL / publish offline when last session gone
+```
 
 ## Scale model
 
@@ -109,11 +170,14 @@ flowchart TB
 
 ## Security boundaries
 
-- Only BFF and FE exposed to internet. Auth/BE services listen on docker-internal network only.
+- Only BFF + FE are exposed to the internet. Auth-service + BE listen on `127.0.0.1` (host) or the internal docker network (containers). `TCP_BIND` defaults to `127.0.0.1`; docker-compose overrides to `0.0.0.0`.
 - BE never reads `COOKIE_SECRET` or `SESSION_COOKIE_SECRET`.
-- Rate limiting + request logging at BFF edge.
-- CSRF double-submit on state-changing REST (X-CSRF-Token); WS origin checked at handshake (ALLOWED_WS_ORIGINS); rate-limit counters in Redis (login 5/15m, reset 1/min, msg 30/5s).
-- System-to-system calls use `x-system-key` header (existing `SystemKeyGuard`).
+- Rate limiting + request logging at the BFF edge.
+- CSRF double-submit on state-changing REST (`X-CSRF-Token`); WS origin checked at handshake (`ALLOWED_WS_ORIGINS`); Redis sliding-window counters (login 5/15 min, reset 1/min, msg 30/5 s).
+- **Two independent defenses on every TCP RPC** (see `app/CLAUDE.md` → Inter-service security):
+  1. **`_sys` envelope** — `withSys(payload)` injects `_sys: SYSTEM_KEY`; `SystemKeyRpcGuard` (`APP_GUARD`) rejects mismatches with `RpcException 401`.
+  2. **Mutual TLS** — `Transport.TCP` built with `tlsOptions: { ca, cert, key, requestCert: true, rejectUnauthorized: true }`. Certs minted by `app/scripts/gen-certs.sh` into `app/secrets/internal-ca/` (gitignored).
+- **Session revocation** — every access JWT carries a `sid` UUID claim bound at mint; `validateToken` probes `sessions.isRevoked(sid)` over TCP on every hit (ADR-007).
 
 ## Non-functional targets mapping
 
