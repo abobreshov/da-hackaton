@@ -14,6 +14,7 @@ function makeService(): jest.Mocked<SessionsService> {
     listActive: jest.fn(),
     revoke: jest.fn(),
     isRevoked: jest.fn(),
+    touch: jest.fn(),
   } as unknown as jest.Mocked<SessionsService>;
 }
 
@@ -134,5 +135,24 @@ describe('SessionsTcpController', () => {
     service.isRevoked.mockResolvedValue(false);
     await controller.isRevoked({ sessionId: 'uuid-1', _sys: 'secret' } as any);
     expect(service.isRevoked).toHaveBeenCalledWith('uuid-1');
+  });
+
+  it('sessions.touch forwards sessionId and returns service result', async () => {
+    service.touch.mockResolvedValue({ touched: true });
+    const out = await controller.touch({ sessionId: 'uuid-1' });
+    expect(service.touch).toHaveBeenCalledWith('uuid-1');
+    expect(out).toEqual({ touched: true });
+  });
+
+  it('sessions.touch returns { touched: false } for missing / revoked rows', async () => {
+    service.touch.mockResolvedValue({ touched: false });
+    const out = await controller.touch({ sessionId: 'no-such' });
+    expect(out).toEqual({ touched: false });
+  });
+
+  it('sessions.touch tolerates `_sys` and forwards only the domain field', async () => {
+    service.touch.mockResolvedValue({ touched: true });
+    await controller.touch({ sessionId: 'uuid-1', _sys: 'secret' } as any);
+    expect(service.touch).toHaveBeenCalledWith('uuid-1');
   });
 });

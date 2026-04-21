@@ -45,4 +45,14 @@ export class SessionsService {
   isRevoked(sessionId: string): Promise<boolean> {
     return this.repo.isRevoked(sessionId);
   }
+
+  /**
+   * Bump `last_seen_at` heartbeat. Called from auth-service `validateToken`
+   * on every successful (non-revoked) probe so the active-sessions UI
+   * surfaces a real "last seen" instead of the row's creation time. Returns
+   * `{ touched: false }` on missing / already-revoked rows.
+   */
+  touch(sessionId: string): Promise<{ touched: boolean }> {
+    return this.repo.touch(sessionId);
+  }
 }

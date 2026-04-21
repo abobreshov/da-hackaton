@@ -352,13 +352,22 @@ export class CustomerAuthService {
     if (!user || user.accessStatus !== 'ACTIVE' || user.deletedAt)
       throw new UnauthorizedException();
 
-    const newRefreshToken = await this.refreshTokenService.validateAndRotate('u', userId, token);
+    // Rotation preserves the `sid` claim across refreshes (M5 review): the
+    // refresh-token store binds `sid` to the family at login, hands it back
+    // here, and we re-stamp it onto both the new access JWT and the new
+    // refresh token so a single `sessions.revoke` still kills the line.
+    const { token: newRefreshToken, sid } = await this.refreshTokenService.validateAndRotate(
+      'u',
+      userId,
+      token,
+    );
     const accessToken = this.jwtService.signUser({
       sub: makeSub('user', user.id),
       type: 'user',
       email: user.email,
       name: user.name,
       scopes: user.scopes ?? [],
+      ...(sid ? { sid } : {}),
     });
 
     return {
@@ -415,6 +424,25 @@ export class CustomerAuthService {
         if (err instanceof UnauthorizedException) throw err;
         this.logger.warn(`sessions.isRevoked probe failed: ${(err as Error).message}`);
       }
+
+      // sys-arch MED 5 — bump `last_seen_at` so the active-sessions UI
+      // surfaces a real heartbeat instead of the row's creation timestamp.
+      // Fire-and-forget: never block the auth probe on a tracker hiccup.
+      // Already-revoked sessions return early above, so this only fires for
+      // live ones (the touch repo is also a no-op on revoked rows as a
+      // belt-and-braces guard).
+      try {
+        const touch$ = this.backend.send<{ touched: boolean }>(
+          { cmd: TcpCmd.sessions.touch },
+          withSys({ sessionId: claims.sid }),
+        );
+        touch$.subscribe({
+          error: (err) =>
+            this.logger.warn(`sessions.touch fire-and-forget failed: ${(err as Error).message}`),
+        });
+      } catch (err) {
+        this.logger.warn(`sessions.touch send threw: ${(err as Error).message}`);
+      }
     }
 
     const { numericId } = parseSub(claims.sub);
@@ -440,7 +468,10 @@ export class CustomerAuthService {
       scopes: user.scopes ?? [],
       ...(sid ? { sid } : {}),
     });
-    const refreshToken = await this.refreshTokenService.create('u', user.id);
+    // Bind sid to the refresh family so subsequent rotations re-stamp the
+    // same sid on the new access token (M5 review — refresh-rotation must
+    // not drop the active-sessions revoke link).
+    const refreshToken = await this.refreshTokenService.create('u', user.id, sid ? { sid } : {});
 
     return {
       user: {

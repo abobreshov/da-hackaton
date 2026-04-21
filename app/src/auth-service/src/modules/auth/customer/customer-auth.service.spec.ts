@@ -127,7 +127,7 @@ function makeJwtService(): jest.Mocked<JwtService> {
 function makeRefreshTokenService(): jest.Mocked<RefreshTokenService> {
   return {
     create: jest.fn().mockResolvedValue('u:1:abcd'),
-    validateAndRotate: jest.fn().mockResolvedValue('u:1:rotated'),
+    validateAndRotate: jest.fn().mockResolvedValue({ token: 'u:1:rotated' }),
     revoke: jest.fn().mockResolvedValue(undefined),
     revokeAll: jest.fn().mockResolvedValue(undefined),
   } as any;
@@ -261,7 +261,7 @@ describe('CustomerAuthService', () => {
         name: user.name,
         scopes: user.scopes,
       });
-      expect(refresh.create).toHaveBeenCalledWith('u', user.id);
+      expect(refresh.create).toHaveBeenCalledWith('u', user.id, {});
       expect(result).toMatchObject({
         user: { id: user.id, email: user.email, name: user.name, role: 'USER' },
         accessToken: 'user.jwt',
@@ -386,6 +386,33 @@ describe('CustomerAuthService', () => {
         await svc.login({ email: user.email, password: 'pw' });
         const claims = jwt.signUser.mock.calls[0][0];
         expect((claims as any).sid).toBe('sess-uuid-bound');
+      });
+
+      it('binds the same sid into the refresh-token family so rotation preserves it', async () => {
+        const user = baseUser();
+        deps.selectBuilder.__setTerminal('limit', [user]);
+        backend.send.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.recordLogin') {
+            return of({ id: 'sess-uuid-bound' }) as any;
+          }
+          return of(undefined) as any;
+        });
+        await svc.login({ email: user.email, password: 'pw' });
+        expect(refresh.create).toHaveBeenCalledWith('u', user.id, { sid: 'sess-uuid-bound' });
+      });
+
+      it('does NOT bind sid to refresh family when sessions.recordLogin returned no id', async () => {
+        const user = baseUser();
+        deps.selectBuilder.__setTerminal('limit', [user]);
+        backend.send.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.recordLogin') {
+            return throwError(() => new Error('tcp down')) as any;
+          }
+          return of(undefined) as any;
+        });
+        await svc.login({ email: user.email, password: 'pw' });
+        // No sid available → call with no third arg / empty opts.
+        expect(refresh.create).toHaveBeenCalledWith('u', user.id, {});
       });
     });
   });
@@ -585,7 +612,7 @@ describe('CustomerAuthService', () => {
         }),
       );
       expect(jwt.signUser).toHaveBeenCalled();
-      expect(refresh.create).toHaveBeenCalledWith('u', 11);
+      expect(refresh.create).toHaveBeenCalledWith('u', 11, {});
       expect(res).toMatchObject({
         user: { id: 11, email: user.email },
         accessToken: 'user.jwt',
@@ -738,7 +765,7 @@ describe('CustomerAuthService', () => {
         name: user.name,
         scopes: user.scopes,
       });
-      expect(refresh.create).toHaveBeenCalledWith('u', 7);
+      expect(refresh.create).toHaveBeenCalledWith('u', 7, {});
       expect(result).toMatchObject({
         user: { id: 7, email: user.email, name: user.name, role: 'USER' },
         accessToken: 'user.jwt',
@@ -847,7 +874,7 @@ describe('CustomerAuthService', () => {
     it('rotates the refresh token and issues a fresh access token', async () => {
       const user = baseUser({ id: 3 });
       deps.selectBuilder.__setTerminal('limit', [user]);
-      refresh.validateAndRotate.mockResolvedValue('u:3:rotated');
+      refresh.validateAndRotate.mockResolvedValue({ token: 'u:3:rotated' } as any);
 
       const result = await svc.refresh('u:3:abcd');
       expect(refresh.validateAndRotate).toHaveBeenCalledWith('u', 3, 'u:3:abcd');
@@ -861,7 +888,7 @@ describe('CustomerAuthService', () => {
     it('defaults role to USER and scopes to [] when the user row has nullish values', async () => {
       const user = baseUser({ id: 4, role: null, scopes: null });
       deps.selectBuilder.__setTerminal('limit', [user]);
-      refresh.validateAndRotate.mockResolvedValue('u:4:rotated');
+      refresh.validateAndRotate.mockResolvedValue({ token: 'u:4:rotated' } as any);
 
       const result = await svc.refresh('u:4:abcd');
       expect(jwt.signUser).toHaveBeenCalledWith({
@@ -872,6 +899,29 @@ describe('CustomerAuthService', () => {
         scopes: [],
       });
       expect(result.user.scopes).toEqual([]);
+    });
+
+    it('SID: re-stamps sid from rotated refresh family onto the new access token', async () => {
+      const user = baseUser({ id: 6 });
+      deps.selectBuilder.__setTerminal('limit', [user]);
+      refresh.validateAndRotate.mockResolvedValue({
+        token: 'u:6:rotated',
+        sid: 'sess-uuid-bound',
+      } as any);
+
+      await svc.refresh('u:6:abcd');
+      const claims = jwt.signUser.mock.calls[0][0];
+      expect((claims as any).sid).toBe('sess-uuid-bound');
+    });
+
+    it('SID: omits sid claim when rotation did not return one (back-compat)', async () => {
+      const user = baseUser({ id: 7 });
+      deps.selectBuilder.__setTerminal('limit', [user]);
+      refresh.validateAndRotate.mockResolvedValue({ token: 'u:7:rotated' } as any);
+
+      await svc.refresh('u:7:abcd');
+      const claims = jwt.signUser.mock.calls[0][0];
+      expect((claims as any).sid).toBeUndefined();
     });
   });
 
@@ -984,6 +1034,80 @@ describe('CustomerAuthService', () => {
           sid: 'sess-uuid-9',
         } as never);
         backend.send.mockReturnValue(throwError(() => new Error('tcp down')) as any);
+        const out = await svc.validateToken('tok');
+        expect(out).toMatchObject({ sub: 'u:9', sid: 'sess-uuid-9' });
+      });
+    });
+
+    describe('sessions.touch heartbeat (sys-arch MED 5)', () => {
+      it('fires sessions.touch with sid after a successful (non-revoked) probe', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+          sid: 'sess-uuid-9',
+        } as never);
+        backend.send.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.isRevoked') return of({ revoked: false }) as any;
+          if (pattern?.cmd === 'sessions.touch') return of({ touched: true }) as any;
+          return of(undefined) as any;
+        });
+        await svc.validateToken('tok');
+        expect(backend.send).toHaveBeenCalledWith(
+          { cmd: 'sessions.touch' },
+          expect.objectContaining({ sessionId: 'sess-uuid-9', _sys: expect.any(String) }),
+        );
+      });
+
+      it('does NOT fire sessions.touch when the token has no sid claim', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+        } as never);
+        await svc.validateToken('tok');
+        const touchCalls = backend.send.mock.calls.filter(
+          (c) => (c[0] as any)?.cmd === 'sessions.touch',
+        );
+        expect(touchCalls).toHaveLength(0);
+      });
+
+      it('does NOT fire sessions.touch when the session was already revoked', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+          sid: 'sess-uuid-revoked',
+        } as never);
+        backend.send.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.isRevoked') return of({ revoked: true }) as any;
+          return of(undefined) as any;
+        });
+        await expect(svc.validateToken('tok')).rejects.toBeInstanceOf(UnauthorizedException);
+        const touchCalls = backend.send.mock.calls.filter(
+          (c) => (c[0] as any)?.cmd === 'sessions.touch',
+        );
+        expect(touchCalls).toHaveLength(0);
+      });
+
+      it('validateToken still resolves when sessions.touch observable errors (fire-and-forget)', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+          sid: 'sess-uuid-9',
+        } as never);
+        backend.send.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.isRevoked') return of({ revoked: false }) as any;
+          if (pattern?.cmd === 'sessions.touch') {
+            return throwError(() => new Error('touch tcp down')) as any;
+          }
+          return of(undefined) as any;
+        });
         const out = await svc.validateToken('tok');
         expect(out).toMatchObject({ sub: 'u:9', sid: 'sess-uuid-9' });
       });

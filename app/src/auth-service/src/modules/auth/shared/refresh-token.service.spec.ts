@@ -89,13 +89,15 @@ describe('RefreshTokenService', () => {
   describe('validateAndRotate', () => {
     it('returns a fresh token and invalidates the old one', async () => {
       const original = await svc.create('u', 5);
-      const rotated = await svc.validateAndRotate('u', 5, original);
+      const { token: rotated } = await svc.validateAndRotate('u', 5, original);
 
       expect(rotated).not.toEqual(original);
       expect(rotated).toMatch(/^u:5:[0-9a-f]{64}$/);
 
       // The new one still works once.
-      await expect(svc.validateAndRotate('u', 5, rotated)).resolves.toMatch(/^u:5:/);
+      await expect(svc.validateAndRotate('u', 5, rotated)).resolves.toMatchObject({
+        token: expect.stringMatching(/^u:5:/),
+      });
     });
 
     it('throws on an unknown/expired token', async () => {
@@ -129,7 +131,7 @@ describe('RefreshTokenService', () => {
 
     it('REUSE: replaying an already-rotated token kills the entire family', async () => {
       const original = await svc.create('u', 100);
-      const rotated = await svc.validateAndRotate('u', 100, original);
+      const { token: rotated } = await svc.validateAndRotate('u', 100, original);
       // Presenting the old token again ⇒ reuse.
       await expect(svc.validateAndRotate('u', 100, original)).rejects.toThrow(/reuse detected/i);
       // The rotated (previously-valid) sibling must now also be dead.
@@ -139,8 +141,8 @@ describe('RefreshTokenService', () => {
     it('REUSE: family revocation also kills any later-issued tokens from the same login', async () => {
       // A -> rotate -> B -> rotate -> C. All three share familyId.
       const a = await svc.create('u', 101);
-      const b = await svc.validateAndRotate('u', 101, a);
-      const c = await svc.validateAndRotate('u', 101, b);
+      const { token: b } = await svc.validateAndRotate('u', 101, a);
+      const { token: c } = await svc.validateAndRotate('u', 101, b);
       // Attacker replays the oldest token. `c` (the currently valid one)
       // must die along with everything else in the family.
       await expect(svc.validateAndRotate('u', 101, a)).rejects.toThrow(/reuse detected/i);
@@ -158,7 +160,9 @@ describe('RefreshTokenService', () => {
       // Reuse on family 1 → must not touch family 2.
       await expect(svc.validateAndRotate('u', 102, fam1Initial)).rejects.toThrow(/reuse detected/i);
       // Family 2 can still rotate.
-      await expect(svc.validateAndRotate('u', 102, fam2)).resolves.toMatch(/^u:102:/);
+      await expect(svc.validateAndRotate('u', 102, fam2)).resolves.toMatchObject({
+        token: expect.stringMatching(/^u:102:/),
+      });
     });
 
     it('REUSE: user A replay does not kill user B', async () => {
@@ -170,7 +174,9 @@ describe('RefreshTokenService', () => {
         /reuse detected/i,
       );
       // User B is fully insulated.
-      await expect(svc.validateAndRotate('u', 201, userBToken)).resolves.toMatch(/^u:201:/);
+      await expect(svc.validateAndRotate('u', 201, userBToken)).resolves.toMatchObject({
+        token: expect.stringMatching(/^u:201:/),
+      });
     });
 
     it('REUSE: admin scope is revoked independently of customer scope', async () => {
@@ -180,7 +186,35 @@ describe('RefreshTokenService', () => {
       const customerToken = await svc.create('u', 7);
 
       await expect(svc.validateAndRotate('a', 7, adminOriginal)).rejects.toThrow(/reuse detected/i);
-      await expect(svc.validateAndRotate('u', 7, customerToken)).resolves.toMatch(/^u:7:/);
+      await expect(svc.validateAndRotate('u', 7, customerToken)).resolves.toMatchObject({
+        token: expect.stringMatching(/^u:7:/),
+      });
+    });
+
+    it('SID: rotation hands back the sid bound to the family at create-time', async () => {
+      const original = await svc.create('u', 300, { sid: 'sess-uuid-300' });
+      const out = await svc.validateAndRotate('u', 300, original);
+      expect(out.token).toMatch(/^u:300:/);
+      expect(out.sid).toBe('sess-uuid-300');
+      // Sid is preserved across multiple rotations within the family.
+      const out2 = await svc.validateAndRotate('u', 300, out.token);
+      expect(out2.sid).toBe('sess-uuid-300');
+    });
+
+    it('SID: omitted on rotation when create() was called without sid (back-compat)', async () => {
+      const original = await svc.create('u', 301);
+      const out = await svc.validateAndRotate('u', 301, original);
+      expect(out.token).toMatch(/^u:301:/);
+      expect(out.sid).toBeUndefined();
+    });
+
+    it('SID: separate logins keep their own sid binding', async () => {
+      const a = await svc.create('u', 302, { sid: 'sess-A' });
+      const b = await svc.create('u', 302, { sid: 'sess-B' });
+      const aRot = await svc.validateAndRotate('u', 302, a);
+      const bRot = await svc.validateAndRotate('u', 302, b);
+      expect(aRot.sid).toBe('sess-A');
+      expect(bRot.sid).toBe('sess-B');
     });
   });
 
@@ -193,7 +227,9 @@ describe('RefreshTokenService', () => {
 
       // Revocation of a *spent* token is not reuse — it just no longer rotates.
       await expect(svc.validateAndRotate('u', 4, t1)).rejects.toThrow(/Invalid or expired/);
-      await expect(svc.validateAndRotate('u', 4, t2)).resolves.toMatch(/^u:4:/);
+      await expect(svc.validateAndRotate('u', 4, t2)).resolves.toMatchObject({
+        token: expect.stringMatching(/^u:4:/),
+      });
     });
   });
 
@@ -215,7 +251,9 @@ describe('RefreshTokenService', () => {
       await svc.revokeAll('u', 10);
 
       // User 11's token must still rotate.
-      await expect(svc.validateAndRotate('u', 11, victim)).resolves.toMatch(/^u:11:/);
+      await expect(svc.validateAndRotate('u', 11, victim)).resolves.toMatchObject({
+        token: expect.stringMatching(/^u:11:/),
+      });
     });
   });
 });

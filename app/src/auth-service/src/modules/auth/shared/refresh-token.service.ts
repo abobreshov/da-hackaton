@@ -7,6 +7,14 @@ interface RefreshTokenData {
   id: number;
   familyId: string;
   sessionStartedAt: number;
+  /**
+   * Optional `user_sessions.id` (UUID) bound to this refresh family. When
+   * present, `validateAndRotate` returns it alongside the rotated token so
+   * the caller can re-stamp the same `sid` claim into the new access token —
+   * preserving the active-sessions revoke link across rotations (M5 review
+   * fix). Absent on tokens minted before this field shipped (back-compat).
+   */
+  sid?: string;
 }
 
 /**
@@ -90,17 +98,32 @@ export class RefreshTokenService {
   }
 
   /**
-   * Seed a new token family. Called on login / register.
+   * Seed a new token family. Called on login / register. `opts.sid` binds an
+   * `user_sessions.id` to the family so subsequent `validateAndRotate` calls
+   * can hand it back to the caller — needed so refresh-rotation keeps the
+   * same `sid` claim on the access token (M5 review).
    */
-  async create(type: 'a' | 'u', id: number): Promise<string> {
+  async create(type: 'a' | 'u', id: number, opts: { sid?: string } = {}): Promise<string> {
     const familyId = randomUUID();
-    return this.issue(type, id, { id, familyId, sessionStartedAt: Date.now() });
+    return this.issue(type, id, {
+      id,
+      familyId,
+      sessionStartedAt: Date.now(),
+      ...(opts.sid ? { sid: opts.sid } : {}),
+    });
   }
 
   /**
    * Rotate a valid token (single-use), or detect reuse and revoke the family.
+   * Returns both the new opaque token and the `sid` that the consumed family
+   * was bound to (if any) so callers can re-stamp it onto the new access
+   * token without losing the active-sessions revoke link.
    */
-  async validateAndRotate(type: 'a' | 'u', id: number, token: string): Promise<string> {
+  async validateAndRotate(
+    type: 'a' | 'u',
+    id: number,
+    token: string,
+  ): Promise<{ token: string; sid?: string }> {
     const hash = this.hashOf(token);
     const liveKey = this.tokenKey(type, id, hash);
     const raw = await this.cache.get(liveKey);
@@ -150,7 +173,8 @@ export class RefreshTokenService {
     // issue() on initial creation) — its presence is what catches future
     // replays of this hash.
 
-    return this.issue(type, id, { ...data, id });
+    const newToken = await this.issue(type, id, { ...data, id });
+    return { token: newToken, ...(data.sid ? { sid: data.sid } : {}) };
   }
 
   async revoke(type: 'a' | 'u', id: number, token: string): Promise<void> {

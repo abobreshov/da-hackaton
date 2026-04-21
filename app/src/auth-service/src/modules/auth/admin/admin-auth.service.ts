@@ -81,7 +81,11 @@ export class AdminAuthService {
     const [admin] = await this.db.select().from(admins).where(eq(admins.id, adminId)).limit(1);
     if (!admin || admin.accessStatus !== 'ACTIVE') throw new UnauthorizedException();
 
-    const newRefreshToken = await this.refreshTokenService.validateAndRotate('a', adminId, token);
+    const { token: newRefreshToken } = await this.refreshTokenService.validateAndRotate(
+      'a',
+      adminId,
+      token,
+    );
     const accessToken = this.jwtService.signAdmin({
       sub: makeSub('admin', admin.id),
       type: 'admin',

@@ -54,6 +54,13 @@ export interface SessionsRepositoryPort {
    * non-revoked row.
    */
   isRevoked(sessionId: string): Promise<boolean>;
+  /**
+   * Bump `last_seen_at = NOW()` for the given session id when it exists and
+   * is not revoked. Returns `{ touched: true }` on a successful UPDATE,
+   * `{ touched: false }` for missing / already-revoked rows. Idempotent and
+   * safe to fire-and-forget from auth-service `validateToken`.
+   */
+  touch(sessionId: string): Promise<{ touched: boolean }>;
 }
 
 export const SESSIONS_REPOSITORY = 'SESSIONS_REPOSITORY';

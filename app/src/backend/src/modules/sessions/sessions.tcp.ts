@@ -44,6 +44,11 @@ interface IsRevokedPayload {
   _sys?: string;
 }
 
+interface TouchPayload {
+  sessionId: string;
+  _sys?: string;
+}
+
 @Controller()
 export class SessionsTcpController {
   constructor(private readonly service: SessionsService) {}
@@ -73,5 +78,10 @@ export class SessionsTcpController {
   async isRevoked(@Payload() data: IsRevokedPayload): Promise<{ revoked: boolean }> {
     const revoked = await this.service.isRevoked(data.sessionId);
     return { revoked };
+  }
+
+  @MessagePattern({ cmd: TcpCmd.sessions.touch })
+  touch(@Payload() data: TouchPayload): Promise<{ touched: boolean }> {
+    return this.service.touch(data.sessionId);
   }
 }

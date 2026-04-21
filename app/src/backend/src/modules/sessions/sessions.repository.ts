@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { userSessions } from '../../database/schema';
@@ -56,6 +56,15 @@ export class DrizzleSessionsRepository implements SessionsRepositoryPort {
     const row = rows[0];
     if (!row) return true; // fail-closed on unknown id
     return row.revokedAt != null;
+  }
+
+  async touch(sessionId: string): Promise<{ touched: boolean }> {
+    const updated = await this.db
+      .update(userSessions)
+      .set({ lastSeenAt: sql`NOW()` })
+      .where(and(eq(userSessions.id, sessionId), isNull(userSessions.revokedAt)))
+      .returning({ id: userSessions.id });
+    return { touched: updated.length > 0 };
   }
 
   async revoke(input: RevokeInput): Promise<{ revoked: boolean }> {

@@ -73,7 +73,7 @@ describe('AdminAuthService', () => {
     } as any;
     refresh = {
       create: jest.fn().mockResolvedValue('a:1:abcd'),
-      validateAndRotate: jest.fn().mockResolvedValue('a:1:rotated'),
+      validateAndRotate: jest.fn().mockResolvedValue({ token: 'a:1:rotated' }),
       revoke: jest.fn().mockResolvedValue(undefined),
       revokeAll: jest.fn().mockResolvedValue(undefined),
     } as any;
@@ -186,7 +186,7 @@ describe('AdminAuthService', () => {
     it('rotates the refresh token and issues a fresh access token', async () => {
       const admin = baseAdmin({ id: 3 });
       deps.selectBuilder.__setTerminal('limit', [admin]);
-      refresh.validateAndRotate.mockResolvedValue('a:3:rotated');
+      refresh.validateAndRotate.mockResolvedValue({ token: 'a:3:rotated' } as any);
 
       const result = await svc.refresh('a:3:abcd');
       expect(refresh.validateAndRotate).toHaveBeenCalledWith('a', 3, 'a:3:abcd');

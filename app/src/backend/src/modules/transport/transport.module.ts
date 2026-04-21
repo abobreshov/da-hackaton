@@ -31,6 +31,6 @@ const redisPubProvider: Provider = {
 @Global()
 @Module({
   providers: [redisPubProvider, PresencePublisher],
-  exports: [PresencePublisher],
+  exports: [PresencePublisher, TRANSPORT_REDIS_PUB],
 })
 export class TransportModule {}

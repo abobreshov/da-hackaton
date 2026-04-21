@@ -55,6 +55,15 @@ class FakeSessionsRepository implements SessionsRepositoryPort {
     if (!row) return true; // fail-closed
     return row.revokedAt != null;
   }
+
+  touchCalls: string[] = [];
+  async touch(sessionId: string): Promise<{ touched: boolean }> {
+    this.touchCalls.push(sessionId);
+    const idx = this.rows.findIndex((r) => r.id === sessionId && r.revokedAt == null);
+    if (idx < 0) return { touched: false };
+    this.rows[idx] = { ...this.rows[idx], lastSeenAt: new Date() };
+    return { touched: true };
+  }
 }
 
 const USER = 42;
@@ -165,6 +174,29 @@ describe('SessionsService', () => {
 
     it('returns true (fail-closed) for an unknown session id', async () => {
       await expect(svc.isRevoked('no-such-uuid')).resolves.toBe(true);
+    });
+  });
+
+  describe('touch', () => {
+    it('bumps lastSeenAt on an active session and returns { touched: true }', async () => {
+      const row = await svc.recordLogin({ userId: USER });
+      const before = row.lastSeenAt.getTime();
+      await new Promise((r) => setTimeout(r, 5));
+      const out = await svc.touch(row.id);
+      expect(out).toEqual({ touched: true });
+      const [active] = await svc.listActive(USER);
+      expect(active.lastSeenAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(repo.touchCalls).toEqual([row.id]);
+    });
+
+    it('returns { touched: false } for an unknown session id', async () => {
+      await expect(svc.touch('no-such-uuid')).resolves.toEqual({ touched: false });
+    });
+
+    it('returns { touched: false } once the session is revoked', async () => {
+      const row = await svc.recordLogin({ userId: USER });
+      await svc.revoke({ id: row.id, userId: USER });
+      await expect(svc.touch(row.id)).resolves.toEqual({ touched: false });
     });
   });
 });

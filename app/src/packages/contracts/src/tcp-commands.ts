@@ -104,5 +104,12 @@ export const TcpCmd = {
      * Returns `true` for revoked OR unknown session ids (fail-closed).
      */
     isRevoked: 'sessions.isRevoked',
+    /**
+     * Bump `last_seen_at = NOW()` for an active (non-revoked) session row.
+     * Best-effort fire-and-forget from auth-service `validateToken` — keeps
+     * the active-sessions UI's "last seen" timestamp fresh without blocking
+     * the auth probe. No-op when the row is missing or already revoked.
+     */
+    touch: 'sessions.touch',
   },
 } as const;
