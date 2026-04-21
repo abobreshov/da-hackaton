@@ -149,7 +149,7 @@ All scripts live under `app/` (boot scripts) or `app/scripts/` (helpers). Run fr
 | Script | Purpose | Common flags |
 |---|---|---|
 | `./scripts/smoke.sh` | Reviewer-ready test gauntlet: build + unit-test every workspace, typecheck E2E, print a coloured summary table with per-workspace pass/fail counts. Exit 0 = all green. | `--skip-build`, `--skip-tests`, `--workspace=@app/<name>` |
-| `./scripts/demo-verify.sh` | Automated demo-day verification: boots the stack, seeds, runs Playwright + k6, captures pass/fail + p95 latencies, writes a timestamped markdown report to `app/demo-reports/demo-verify-<ts>.md`. Auto-skips k6 if not installed. | `--use-local`, `--keep-data`, `--skip-e2e`, `--skip-load` |
+| `./scripts/demo-verify.sh` | Automated demo-day verification: boots the stack, seeds, runs Playwright + k6, captures pass/fail + p95 latencies, writes a timestamped markdown report to `app/demo-reports/demo-verify-<ts>.md`. Auto-skips k6 if not installed. | `--local` (use `dev-local.sh` instead of `dev.sh`), `--keep-data`, `--skip-e2e`, `--skip-load` |
 | `./scripts/logs.sh` | Live-tail the dev-local stack logs under `app/.dev-logs/` with coloured `[service]` prefixes + `pino-pretty` formatting. Requires `./dev-local.sh`. | `--service=<auth-service\|backend\|bff\|frontend>`, `--filter='<grep pattern>'` |
 
 ### Load testing
