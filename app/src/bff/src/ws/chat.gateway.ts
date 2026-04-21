@@ -167,7 +167,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async onRoomJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { roomId: number },
-  ): Promise<{ ok: boolean; roomId?: number; members?: any[]; error?: string }> {
+  ): Promise<{
+    ok: boolean;
+    roomId?: number;
+    room?: { id: number; name: string; description: string | null };
+    members?: any[];
+    error?: string;
+  }> {
     const userId = client.data?.userId as number | undefined;
     if (!userId) return { ok: false, error: 'unauthenticated' };
     const roomId = Number(body?.roomId);
@@ -179,16 +185,48 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         { cmd: TcpCmd.rooms.ensureMember },
         { userId, roomId },
       );
-      const members = await this.proxy.forward<any[]>(
+      // membersOf returns the {members:[…]} envelope — unwrap it so the FE
+      // gets a flat array (it iterates `ack.members` directly).
+      const membersResp = await this.proxy.forward<{ members: any[] } | any[]>(
         this.backend,
         { cmd: TcpCmd.rooms.membersOf },
         { roomId },
       );
+      const members = Array.isArray(membersResp)
+        ? membersResp
+        : Array.isArray(membersResp?.members)
+          ? membersResp.members
+          : [];
+
+      // Look up the room row so the FE can render the header (name +
+      // description). No dedicated rooms.findById TCP exists yet, so we
+      // pluck from the catalog. Cheap until the catalog grows past a few
+      // hundred rooms — at which point a dedicated TCP is the right fix.
+      let roomMeta: { id: number; name: string; description: string | null } | undefined;
+      try {
+        const catalog = await this.proxy.forward<
+          Array<{ id: number; name: string; description: string | null }>
+        >(this.backend, { cmd: TcpCmd.rooms.catalog }, {});
+        const found = Array.isArray(catalog) ? catalog.find((r) => r?.id === roomId) : undefined;
+        if (found) {
+          roomMeta = {
+            id: found.id,
+            name: found.name,
+            description: found.description ?? null,
+          };
+        }
+      } catch (lookupErr) {
+        this.logger.warn(`room.join: catalog lookup failed: ${(lookupErr as Error).message}`);
+      }
+      // Defensive fallback — if catalog lookup miss/fail, give the FE a
+      // minimal placeholder so the page renders instead of erroring.
+      if (!roomMeta) {
+        roomMeta = { id: roomId, name: `Room #${roomId}`, description: null };
+      }
+
       // Socket.IO room join — redis-adapter replicates cross-replica.
-      // NOTE: no custom redis SUBSCRIBE for `room:{id}` messages — the
-      // adapter already handles it and double-subscribing wastes connections.
       client.join(RedisChannel.room(roomId));
-      return { ok: true, roomId, members: members ?? [] };
+      return { ok: true, roomId, room: roomMeta, members };
     } catch (e: any) {
       return { ok: false, error: e?.message ?? 'room.join failed' };
     }

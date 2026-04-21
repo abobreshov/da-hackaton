@@ -251,9 +251,17 @@ describe('ChatGateway', () => {
       proxy.forward.mockImplementation(async (_client, pattern: any) => {
         if (pattern.cmd === 'rooms.ensureMember') return { ok: true } as any;
         if (pattern.cmd === 'rooms.membersOf') {
+          return {
+            members: [
+              { userId: 7, role: 'member' },
+              { userId: 8, role: 'owner' },
+            ],
+          } as any;
+        }
+        if (pattern.cmd === 'rooms.catalog') {
           return [
-            { userId: 7, role: 'member' },
-            { userId: 8, role: 'owner' },
+            { id: 5, name: 'general', description: 'hi' },
+            { id: 6, name: 'random', description: null },
           ] as any;
         }
         throw new Error(`unexpected ${pattern.cmd}`);
@@ -278,6 +286,7 @@ describe('ChatGateway', () => {
       expect(ack).toEqual({
         ok: true,
         roomId: 5,
+        room: { id: 5, name: 'general', description: 'hi' },
         members: [
           { userId: 7, role: 'member' },
           { userId: 8, role: 'owner' },
