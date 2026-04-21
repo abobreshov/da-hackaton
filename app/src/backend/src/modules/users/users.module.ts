@@ -13,5 +13,6 @@ import { PresenceModule } from '../presence/presence.module';
   ],
   controllers: [UsersController, UsersTcpController],
   providers: [UsersService],
+  exports: [UsersService],
 })
 export class UsersModule {}

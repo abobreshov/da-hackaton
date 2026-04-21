@@ -34,18 +34,20 @@ export class UsersService {
   }
 
   /**
-   * Bulk lookup — returns one `{id, name}` row per existing id. Missing ids
-   * are silently dropped; callers MUST handle the gap (typically by
-   * substituting a placeholder username). Empty input short-circuits to `[]`
-   * to avoid a degenerate `WHERE id IN ()` query.
+   * Bulk lookup — returns `{id, name, deletedAt}` per existing id so callers
+   * can render a "(deleted)" marker for soft-deleted authors without losing
+   * the original display name. Missing ids are silently dropped; callers MUST
+   * handle the gap (typically by substituting a placeholder username). Empty
+   * input short-circuits to `[]` to avoid a degenerate `WHERE id IN ()`.
    */
-  async findByIds(ids: number[]): Promise<Array<{ id: number; name: string }>> {
+  async findByIds(
+    ids: number[],
+  ): Promise<Array<{ id: number; name: string; deletedAt: Date | null }>> {
     if (!Array.isArray(ids) || ids.length === 0) return [];
-    // De-dup + drop non-positive ids before hitting the DB.
     const cleaned = [...new Set(ids.filter((n) => Number.isInteger(n) && n > 0))];
     if (cleaned.length === 0) return [];
     return this.db
-      .select({ id: users.id, name: users.name })
+      .select({ id: users.id, name: users.name, deletedAt: users.deletedAt })
       .from(users)
       .where(inArray(users.id, cleaned));
   }

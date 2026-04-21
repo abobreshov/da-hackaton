@@ -5,13 +5,11 @@ import { downloadUrl, type AttachmentDto } from '@/lib/attachments';
 /**
  * Renders the attachment list for a single message bubble.
  *
- * - Images → thumbnail that opens the original on click. `max-h-80` keeps
- *   tall portraits from blowing up the thread; `object-contain` avoids
- *   distortion.
- * - Other types → file pill with filename + size hint. Click = download.
- *
- * All hrefs point to the BFF `/attachments/:id/download` endpoint, which
- * re-authorises every request (session cookie + scope ACL).
+ * Every attachment — images included — renders as a file pill (filename +
+ * size). Click = download via the BFF `/attachments/:id/download` endpoint
+ * which re-authorises on every hit (session cookie + scope ACL). Inline
+ * thumbnails were dropped so the chat stays readable at scroll speed and
+ * so the same affordance works regardless of mime type.
  */
 
 export interface AttachmentViewProps {
@@ -44,26 +42,6 @@ export const AttachmentView: React.FC<AttachmentViewProps> = ({
     >
       {attachments.map((a) => {
         const href = downloadUrl(a.id);
-        if (a.isImage) {
-          return (
-            <li key={a.id} data-testid={`attachment-image-${a.id}`}>
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block overflow-hidden rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                aria-label={`Open image ${a.filename}`}
-              >
-                <img
-                  src={href}
-                  alt={a.filename}
-                  loading="lazy"
-                  className="max-h-60 w-auto max-w-full object-contain sm:max-h-80"
-                />
-              </a>
-            </li>
-          );
-        }
         return (
           <li key={a.id} data-testid={`attachment-file-${a.id}`}>
             <a

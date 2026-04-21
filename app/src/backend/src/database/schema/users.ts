@@ -22,6 +22,10 @@ export const users = pgTable(
     accessStatus: accessStatusEnum('access_status').default('ACTIVE'),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
+    // Mirror of the auth-service column. Backend reads it to mark deleted
+    // authors in chat history (messages are preserved post-delete). Do NOT
+    // include in generated migrations — auth-service owns the DDL.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (t) => ({
     // Functional index powers the case-insensitive username lookup used by

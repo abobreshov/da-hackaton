@@ -17,6 +17,13 @@ export interface MessageRow {
   editedAt: Date | null;
   deletedAt: Date | null;
   createdAt: Date | null;
+  /**
+   * Populated by MessagesService after the repo returns — the repo stays
+   * single-table. `deleted: true` means the author account has been
+   * soft-deleted (auth-service flipped `users.deleted_at`); the UI renders a
+   * "(deleted)" marker but preserves the original name for readability.
+   */
+  author?: { id: number; username: string; deleted?: boolean };
 }
 
 export interface DmChannelRow {
@@ -134,3 +141,18 @@ export interface IsFriendChecker {
 }
 
 export const FRIENDS_CHECKER = 'FRIENDS_CHECKER';
+
+/**
+ * Bulk username lookup port. Adapter is `UsersService.findByIds` in prod;
+ * unit tests inject a fake so the messages specs don't have to pull the
+ * users module's DI chain (which in turn loads the env-validated Drizzle
+ * connection). Returning `deletedAt` lets the service mark soft-deleted
+ * authors so the UI can show "(deleted)".
+ */
+export interface UsersLookupPort {
+  findByIds(
+    ids: number[],
+  ): Promise<Array<{ id: number; name: string; deletedAt: Date | null }>>;
+}
+
+export const USERS_LOOKUP = 'USERS_LOOKUP';

@@ -20,26 +20,18 @@ describe('<AttachmentView />', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders an <img> for image attachments pointing at the download URL', () => {
+  it('renders images as file pills too (no inline thumbnail)', () => {
     render(
       <AttachmentView
         attachments={[make('img-1', { filename: 'cat.png', isImage: true, mime: 'image/png' })]}
       />,
     );
-    const img = screen.getByAltText('cat.png') as HTMLImageElement;
-    expect(img).toBeInTheDocument();
-    expect(img.src).toMatch(/\/api\/v1\/attachments\/img-1\/download$/);
-  });
-
-  it('wraps the image in a link with noopener noreferrer', () => {
-    render(
-      <AttachmentView
-        attachments={[make('img-1', { filename: 'cat.png', isImage: true, mime: 'image/png' })]}
-      />,
-    );
-    const link = screen.getByRole('link', { name: /open image cat.png/i });
+    // No <img> tag — inline thumbnails are intentionally dropped.
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /cat\.png/ });
+    expect(link).toHaveAttribute('download', 'cat.png');
+    expect(link).toHaveAttribute('href', expect.stringMatching(/\/attachments\/img-1\/download$/));
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(link).toHaveAttribute('target', '_blank');
   });
 
   it('renders a file pill with download attribute for non-images', () => {

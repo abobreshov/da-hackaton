@@ -20,6 +20,7 @@ import type {
   MessageRow,
   MessagesRepositoryPort,
   SinceMessagesInput,
+  UsersLookupPort,
 } from './messages.types';
 import type {
   AttachmentRow,
@@ -248,21 +249,40 @@ class FakeFriendsChecker implements IsFriendChecker {
   }
 }
 
+class FakeUsersLookup implements UsersLookupPort {
+  users = new Map<number, { id: number; name: string; deletedAt: Date | null }>();
+  async findByIds(ids: number[]) {
+    return ids.flatMap((id) => (this.users.has(id) ? [this.users.get(id)!] : []));
+  }
+  set(id: number, name: string, deletedAt: Date | null = null) {
+    this.users.set(id, { id, name, deletedAt });
+  }
+}
+
 describe('MessagesService', () => {
   let repo: FakeMessagesRepository;
   let attachments: FakeAttachmentsRepository;
   let publisher: FakeEventPublisher;
   let friends: FakeFriendsChecker;
+  let usersLookup: FakeUsersLookup;
 
   beforeEach(() => {
     repo = new FakeMessagesRepository();
     attachments = new FakeAttachmentsRepository();
     publisher = new FakeEventPublisher();
     friends = new FakeFriendsChecker();
+    usersLookup = new FakeUsersLookup();
   });
 
   function make(rooms: any = makeRoomsAuth(), messagesRepo: any = repo): MessagesService {
-    return new MessagesService(messagesRepo, rooms, attachments, publisher as any, friends);
+    return new MessagesService(
+      messagesRepo,
+      rooms,
+      attachments,
+      publisher as any,
+      friends,
+      usersLookup,
+    );
   }
 
   describe('create — XOR scope', () => {
@@ -273,6 +293,7 @@ describe('MessagesService', () => {
         attachments,
         publisher as any,
         friends,
+        usersLookup,
       );
       await expect(svc.create({ authorId: AUTHOR, body: 'hi' })).rejects.toBeInstanceOf(
         BadRequestException,

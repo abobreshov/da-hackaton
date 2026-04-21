@@ -7,14 +7,16 @@ import {
 import { MessagesTcpController } from './messages.tcp';
 import { MessagesService } from './messages.service';
 import { DrizzleMessagesRepository } from './messages.repository';
-import { FRIENDS_CHECKER, MESSAGES_REPOSITORY } from './messages.types';
+import { FRIENDS_CHECKER, MESSAGES_REPOSITORY, USERS_LOOKUP } from './messages.types';
 import { RoomsModule } from '../rooms/rooms.module';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { FriendsModule } from '../friends/friends.module';
 import { FriendsService } from '../friends/friends.service';
+import { UsersModule } from '../users/users.module';
+import { UsersService } from '../users/users.service';
 
 @Module({
-  imports: [RoomsModule, AttachmentsModule, FriendsModule],
+  imports: [RoomsModule, AttachmentsModule, FriendsModule, UsersModule],
   controllers: [
     MessagesController,
     RoomMessagesController,
@@ -27,6 +29,9 @@ import { FriendsService } from '../friends/friends.service';
     // Wire FriendsService into the IsFriendChecker port so the messages
     // module stays decoupled from the friends Drizzle schema at type level.
     { provide: FRIENDS_CHECKER, useExisting: FriendsService },
+    // Same pattern for user hydration — keeps MessagesService unit-testable
+    // without pulling the users module's env-validated DB chain.
+    { provide: USERS_LOOKUP, useExisting: UsersService },
   ],
   exports: [MessagesService],
 })

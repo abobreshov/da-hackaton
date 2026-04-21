@@ -170,15 +170,23 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
           )}
 
           <div className="flex flex-col gap-0.5">
-            {/* Author surfaces on every live bubble so group chats are legible. */}
+            {/* Author surfaces on every live bubble so group chats are legible.
+                Soft-deleted accounts get a "(deleted)" suffix so readers know
+                the poster is gone — the original name is preserved for
+                context (messages survive user delete). */}
             {!tombstoned && (
               <p
+                data-testid="message-bubble-author"
                 className={cn(
                   'font-display text-label-md font-semibold',
                   isMe ? 'text-on-primary/80' : 'text-on-surface-variant',
+                  message.author.deleted && 'italic opacity-70',
                 )}
               >
-                {message.author.username}
+                {message.author.username || 'Unknown'}
+                {message.author.deleted && (
+                  <span className="ml-1 font-body text-label-sm">(deleted)</span>
+                )}
               </p>
             )}
 

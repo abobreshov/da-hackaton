@@ -14,6 +14,8 @@ import {
   MESSAGES_REPOSITORY,
   MessageRow,
   MessagesRepositoryPort,
+  USERS_LOOKUP,
+  UsersLookupPort,
 } from './messages.types';
 import { RoomsService } from '../rooms/rooms.service';
 import {
@@ -120,7 +122,44 @@ export class MessagesService {
     private readonly publisher: IEventPublisher,
     @Inject(FRIENDS_CHECKER)
     private readonly friends: IsFriendChecker,
+    @Inject(USERS_LOOKUP)
+    private readonly usersLookup: UsersLookupPort,
   ) {}
+
+  /**
+   * Bulk-hydrate `author: {id, username, deleted?}` onto a page of messages.
+   * Deleted-author rows get `deleted: true` so the UI can mark the bubble
+   * without losing the original display name (AC: messages survive user
+   * soft-delete; readers must still know who posted).
+   *
+   * Mutates rows in place for the common case where the service built them;
+   * callers that need isolation should pass a shallow copy.
+   */
+  private async hydrateAuthors(rows: MessageRow[]): Promise<MessageRow[]> {
+    if (rows.length === 0) return rows;
+    const ids = [...new Set(rows.map((r) => r.authorId).filter((n) => Number.isInteger(n) && n > 0))];
+    if (ids.length === 0) return rows;
+    const lookup = await this.usersLookup.findByIds(ids);
+    const byId = new Map(lookup.map((u) => [u.id, u]));
+    for (const row of rows) {
+      const u = byId.get(row.authorId);
+      if (u) {
+        row.author = {
+          id: u.id,
+          username: u.name,
+          ...(u.deletedAt ? { deleted: true } : {}),
+        };
+      } else {
+        row.author = { id: row.authorId, username: '', deleted: true };
+      }
+    }
+    return rows;
+  }
+
+  private async hydrateAuthor(row: MessageRow): Promise<MessageRow> {
+    await this.hydrateAuthors([row]);
+    return row;
+  }
 
   async create(
     params: CreateMessageParams,
@@ -159,6 +198,7 @@ export class MessagesService {
         authorId: params.authorId,
         roomId: params.roomId as number,
       } satisfies MessageCreatedEvent);
+      await this.hydrateAuthor(row);
       return { message: row, attachments: bound };
     }
 
@@ -193,6 +233,7 @@ export class MessagesService {
       dmId: channel.id,
       peerUserId: params.dmUserId as number,
     } satisfies MessageCreatedEvent);
+    await this.hydrateAuthor(row);
     return { message: row, attachments: bound };
   }
 
@@ -232,6 +273,7 @@ export class MessagesService {
       // Racy soft-delete between SELECT and UPDATE.
       throw new NotFoundException(`message ${params.id} not found`);
     }
+    await this.hydrateAuthor(updated);
     return { message: updated };
   }
 
@@ -285,6 +327,7 @@ export class MessagesService {
       before: params.before,
       limit,
     });
+    await this.hydrateAuthors(rows);
     const attachmentsByMessageId = await this.hydrateAttachments(rows);
     return { messages: rows, attachmentsByMessageId };
   }
@@ -301,6 +344,7 @@ export class MessagesService {
       lastSeenId: params.lastSeenId,
       limit,
     });
+    await this.hydrateAuthors(rows);
     const attachmentsByMessageId = await this.hydrateAttachments(rows);
     return { messages: rows, attachmentsByMessageId };
   }
@@ -325,6 +369,7 @@ export class MessagesService {
   async getById(id: bigint): Promise<{ message: MessageRow }> {
     const row = await this.repo.findMessageById(id);
     if (!row) throw new NotFoundException(`message ${id} not found`);
+    await this.hydrateAuthor(row);
     return { message: row };
   }
 

@@ -16,6 +16,9 @@ import type { AttachmentDto } from './attachments';
 export interface MessageAuthor {
   id: number;
   username: string;
+  /** Set when the author account has been soft-deleted. UI marks the bubble
+   *  with a "(deleted)" suffix but keeps the original username for context. */
+  deleted?: boolean;
 }
 
 /**
@@ -76,7 +79,7 @@ interface WireMessage {
   room_id?: number | null;
   dmId?: number | null;
   dm_id?: number | null;
-  author?: { id: number; username: string };
+  author?: { id: number; username: string; deleted?: boolean };
   authorId?: number;
   author_id?: number;
   authorUsername?: string;
@@ -116,12 +119,16 @@ const toNullableBig = (v: string | number | null | undefined): bigint | null =>
  *  or camelCase on timestamps / foreign keys because the BFF + direct backend
  *  responses historically drift — we want exactly one consumer-facing shape. */
 export function normaliseMessage(raw: WireMessage): Message {
-  const author =
-    raw.author ??
-    ({
-      id: (raw.authorId ?? raw.author_id) as number,
-      username: raw.authorUsername ?? '',
-    } as MessageAuthor);
+  const author: MessageAuthor = raw.author
+    ? {
+        id: raw.author.id,
+        username: raw.author.username,
+        ...(raw.author.deleted ? { deleted: true } : {}),
+      }
+    : {
+        id: (raw.authorId ?? raw.author_id) as number,
+        username: raw.authorUsername ?? '',
+      };
   return {
     id: toBig(raw.id),
     roomId: raw.roomId ?? raw.room_id ?? null,
