@@ -53,6 +53,15 @@ export class LoginPage extends BasePage {
       await this.fillTotp(totp);
       await this.submitTotp();
     }
+    // Wait for BFF to mint the session cookie + router to redirect out of
+    // /login. Without this, callers that immediately navigate elsewhere can
+    // hit the `_auth` guard before the cookie is set and bounce back to
+    // /login, producing confusing 'heading not visible' failures.
+    await this.page
+      .waitForURL((url) => !/\/login(\/|$|\?)/.test(url.pathname), { timeout: 10_000 })
+      .catch(() => {
+        /* surface failure via the next assertion instead of throwing here */
+      });
   }
 
   async expectError(message?: string | RegExp): Promise<void> {
