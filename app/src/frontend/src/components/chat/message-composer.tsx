@@ -153,7 +153,12 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
       <div
         className={cn(
           'flex items-end gap-2 rounded-[1.5rem] bg-surface-container-low p-2 sm:gap-3 sm:rounded-[1.75rem] sm:p-3',
-          'focus-within:bg-surface-container focus-within:shadow-ambient',
+          // Visible affordance — outline-variant tint at low opacity (no
+          // raw hex, design-system tonal). Brightens on focus to the
+          // primary ghost ring + ambient glow so users see exactly where
+          // to click to start typing.
+          'ring-1 ring-outline-variant/40 transition-shadow',
+          'focus-within:bg-surface-container focus-within:shadow-ambient focus-within:ring-2 focus-within:ring-primary/40',
         )}
       >
         <textarea

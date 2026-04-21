@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import fastifyCookie from '@fastify/cookie';
 import type { Socket } from 'socket.io';
 import { CookieService, parseSub } from '../auth/cookie.service';
@@ -34,6 +34,8 @@ export interface CookieSigner {
  */
 @Injectable()
 export class WsAuthenticator {
+  private readonly logger = new Logger(WsAuthenticator.name);
+
   constructor(
     private readonly cookieSvc: CookieService,
     @Inject(COOKIE_SIGNER) private readonly signer: CookieSigner,
@@ -41,10 +43,18 @@ export class WsAuthenticator {
 
   authenticate(socket: Socket): WsSessionIdentity | null {
     const header = socket.handshake?.headers?.cookie as string | undefined;
-    if (!header) return null;
+    if (!header) {
+      this.logger.warn(`ws auth fail: no Cookie header on handshake (sid=${socket.id})`);
+      return null;
+    }
 
     const cookies = (fastifyCookie as any).parse(header) as Record<string, string>;
-    if (!cookies || !cookies['session']) return null;
+    if (!cookies || !cookies['session']) {
+      this.logger.warn(
+        `ws auth fail: no 'session' cookie in handshake (sid=${socket.id}, keys=${Object.keys(cookies ?? {}).join(',')})`,
+      );
+      return null;
+    }
 
     const req = {
       cookies,
@@ -52,12 +62,24 @@ export class WsAuthenticator {
     } as any;
 
     const inner = this.cookieSvc.readSessionCookie(req);
-    if (!inner) return null;
+    if (!inner) {
+      this.logger.warn(`ws auth fail: signed cookie unsign rejected (sid=${socket.id})`);
+      return null;
+    }
 
     const session = this.cookieSvc.verifySession(inner);
-    if (!session) return null;
-    if (session.type !== 'user') return null;
-    if (!session.sub) return null;
+    if (!session) {
+      this.logger.warn(`ws auth fail: JWT verify rejected (sid=${socket.id})`);
+      return null;
+    }
+    if (session.type !== 'user') {
+      this.logger.warn(`ws auth fail: non-user session type=${session.type} (sid=${socket.id})`);
+      return null;
+    }
+    if (!session.sub) {
+      this.logger.warn(`ws auth fail: session has no sub (sid=${socket.id})`);
+      return null;
+    }
 
     // OIDC-style `sub` → numeric user id. A malformed sub (unlikely
     // post-SessionGuard) is treated as an unauthenticated socket.
