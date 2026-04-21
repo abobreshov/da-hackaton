@@ -34,7 +34,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | 10 ui-shell | — | — | ✅ login/register/reset/2FA/dashboard/rooms catalog+detail/contacts/chat/DM/admin + ManageRoom + UserPopover + attachments + unread badges | ✅ | chat composer responsive breakpoints + sessions-management page pending |
 | 11 scale-reliability | ✅ workers + scheduler | ✅ throttle on register/login/reset | ⏳ | ✅ | BullMQ 4 queues + nightly retention.prune; Redis sliding-window |
 | 12 deployment | ✅ compose + shutdown hooks | — | — | — | Postgres, Redis, Mailpit, Dozzle, attachments volume; mTLS certs; Redis `.quit()` on SIGTERM |
-| 13 xmpp-federation | ⏸ DEFERRED | ⏸ | ⏸ | ⏸ | post-MVP per product decision |
+| 13 xmpp-federation | ❌ OUT OF SCOPE | ❌ | ❌ | ❌ | Jabber federation intentionally dropped from submission. Also removes the only brief-mandatory load test (§6 "50+50 clients federation load test"). Unit/E2E scale targets in §3.1/§3.2 remain but are NFR, not deliverables. |
 | 14 security-nfrs | ✅ global RpcExceptionFilter + main.ts invariant-throw | ✅ CSRF + OriginGuard + WireError + mTLS + throttle mounted + WS connect limit + spam limits | ✅ CSRF cookie wired | ✅ | AC-14-04 scope: 30 msg/5s create, 60/min edit+delete; AC-14-12/13 mounted; `INTERNAL_ERROR` code distinct from `UPSTREAM_UNAVAILABLE` |
 | 15 contracts | ✅ | ✅ | ✅ | ✅ + grep-gate | `@app/contracts` wired; PASSWORD_MIN/USERNAME_MIN/USERNAME_MAX + MessageScope XOR + ErrorCode enum (14) + inline-drift CI gate |
 | design-system | — | — | 🟡 partial retheme | — | Kinetic Playground tokens partial; full UI primitives retheme + responsive breakpoints pending |
@@ -51,7 +51,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | **Unit total** | **1665** | +81 since M4 |
 | E2E (Playwright) | 30+ | T22 session-revoke unblocked + T27 PDF + critical ship-blocker specs — live-stack run pending |
 | Integration (testcontainers) | 3 | unchanged |
-| Load (k6) | 2 scaffolds | message-burst + presence-fanout — `b246c38`; live run pending |
+| Load (k6) | 2 scaffolds (optional) | message-burst + presence-fanout — `b246c38`. Not required by brief after EPIC-13 dropped; kept as optional p95 harness. |
 
 ## Deferred / debt (post-M5 critical fixes)
 
@@ -71,7 +71,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 ### Still open
 
 1. **Live-stack E2E run** — `app/e2e-tests` specs need stack up + green pass. Compose smoke landed (`0f65f34`); full suite run pending.
-2. **k6 load-test live run** — scaffolds in `b246c38` (message-burst + presence-fanout). Execute against running stack, record p95/p99.
+2. ~~**k6 load-test live run**~~ — DROPPED. Brief's only mandatory load test was §6 Jabber-federation (50+50 clients); EPIC-13 is out of scope. §3.1/§3.2 numbers remain as NFR targets, no live run required. Scaffolds stay in `app/load-tests/` as an opt-in harness.
 3. **Retention prune verification** — run nightly job against seeded 10k-msg room.
 4. **Design-system refactor** — full Kinetic Playground retheme of remaining UI primitives + ManageRoom modal breakpoints.
 5. **M1-era contracts drift backfill** — inline wire-string literals allow-listed in grep-gate (unchanged list from M3).
@@ -149,7 +149,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 ## M5 remaining
 
 1. **Live-stack E2E run** — full Playwright suite against running compose stack; confirm M2 + M3 + M4 + M5 specs green.
-2. **Live k6 load run** — execute `b246c38` scaffolds (message-burst + presence-fanout) at 300 concurrent × 1000 members × 6 msg/s; record p95/p99.
+2. ~~**Live k6 load run**~~ — DROPPED (Jabber out of scope; brief's only mandatory load test was §6 federation). k6 scaffolds remain opt-in.
 3. **Retention prune verification** — run against seeded 10k-msg room; check non-blocking + batch sizing.
 4. **Dependabot cleanup** — resolve 12 flagged vulns.
 5. **Migration 0009/0010 rewrite CONCURRENTLY** — prod-safe variant.
