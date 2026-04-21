@@ -48,6 +48,16 @@ class FakeUnreadRepository implements UnreadRepositoryPort {
     const raw = this.countResponses.get(key) ?? 0;
     return Math.min(raw, UNREAD_CAP);
   }
+
+  async countSinceForRoomMembers(
+    roomId: number,
+    userIds: number[],
+  ): Promise<Array<{ userId: number; count: number }>> {
+    return userIds.map((userId) => {
+      const raw = this.countResponses.get(`${userId}:${roomId}:0`) ?? 0;
+      return { userId, count: Math.min(raw, UNREAD_CAP) };
+    });
+  }
 }
 
 function scopeKey(m: { userId: number; roomId?: number; dmId?: number }): string {
@@ -161,6 +171,31 @@ describe('UnreadService', () => {
       repo.countResponses.set(`${USER}:9:0`, 500);
       const out = await svc.countSince({ userId: USER, roomId: 9 });
       expect(out).toBe(UNREAD_CAP);
+    });
+  });
+
+  describe('countsSinceForRoomMembers', () => {
+    it('returns one tuple per requested userId in input order', async () => {
+      repo.countResponses.set(`20:7:0`, 3);
+      repo.countResponses.set(`30:7:0`, 1);
+      const out = await svc.countsSinceForRoomMembers(7, [20, 30]);
+      expect(out).toEqual([
+        { userId: 20, count: 3 },
+        { userId: 30, count: 1 },
+      ]);
+    });
+
+    it('returns an empty array when given no userIds (no SQL round-trip)', async () => {
+      const spy = jest.spyOn(repo, 'countSinceForRoomMembers');
+      const out = await svc.countsSinceForRoomMembers(7, []);
+      expect(out).toEqual([]);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('caps each per-user count at 99', async () => {
+      repo.countResponses.set(`20:7:0`, 5000);
+      const out = await svc.countsSinceForRoomMembers(7, [20]);
+      expect(out).toEqual([{ userId: 20, count: UNREAD_CAP }]);
     });
   });
 });

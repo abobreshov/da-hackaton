@@ -37,6 +37,20 @@ export class UnreadService {
     return this.repo.countSince(input);
   }
 
+  /**
+   * Batched per-recipient room unread counts. Used by `UnreadSubscriber`
+   * to fan out `unread.changed` after a room message — one SQL round-trip
+   * instead of one per recipient. Returns `[]` early when `userIds` is empty
+   * to avoid issuing a degenerate query.
+   */
+  async countsSinceForRoomMembers(
+    roomId: number,
+    userIds: number[],
+  ): Promise<Array<{ userId: number; count: number }>> {
+    if (userIds.length === 0) return [];
+    return this.repo.countSinceForRoomMembers(roomId, userIds);
+  }
+
   private assertScope(p: { roomId?: number; dmId?: number }): void {
     const hasRoom = p.roomId != null;
     const hasDm = p.dmId != null;

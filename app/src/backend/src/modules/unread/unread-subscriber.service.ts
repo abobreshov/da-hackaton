@@ -74,12 +74,6 @@ export class UnreadSubscriber implements OnApplicationBootstrap {
     }
   }
 
-  /** Per-message room fan-out concurrency. Keeps SQL + Redis pressure
-   *  bounded for large rooms (N members × one countSince + one PUBLISH
-   *  each). 16 matches the default pg pool fan-out sweet spot on a hackathon
-   *  demo box; larger deployments should revisit with a batched SQL. */
-  private static readonly FANOUT_CONCURRENCY = 16;
-
   private async handleRoom(roomId: number, authorId: number): Promise<void> {
     let members: Array<{ userId: number }>;
     try {
@@ -93,41 +87,51 @@ export class UnreadSubscriber implements OnApplicationBootstrap {
     const recipients = members
       .filter((m) => m.userId !== authorId)
       .map((m) => m.userId);
-    await this.runBatched(recipients, UnreadSubscriber.FANOUT_CONCURRENCY, (userId) =>
-      this.publishUnreadChanged(userId, { roomId }),
-    );
-  }
+    if (recipients.length === 0) return;
 
-  /** Run `task` over `items` in batches of `concurrency`. Errors from each
-   *  task are already swallowed inside `publishUnreadChanged`; this helper
-   *  only bounds the in-flight count so a 10k-member room doesn't open
-   *  10k simultaneous pg connections + PUBLISHes. */
-  private async runBatched<T>(
-    items: T[],
-    concurrency: number,
-    task: (item: T) => Promise<void>,
-  ): Promise<void> {
-    for (let i = 0; i < items.length; i += concurrency) {
-      const slice = items.slice(i, i + concurrency);
-      await Promise.all(slice.map(task));
+    // Single SQL round-trip for all recipients — replaces the prior
+    // per-member countSince fan-out (M4 review HIGH deferral). Failure
+    // here aborts the whole fan-out: an unread badge update is best-effort,
+    // and a degraded DB shouldn't trigger N retries either.
+    let counts: Array<{ userId: number; count: number }>;
+    try {
+      counts = await this.unread.countsSinceForRoomMembers(roomId, recipients);
+    } catch (err) {
+      this.logger.warn(
+        `unread.subscriber countsSinceForRoomMembers(${roomId}) failed: ${(err as Error).message}`,
+      );
+      return;
     }
+
+    await Promise.all(
+      counts.map(({ userId, count }) =>
+        this.publishUnreadChanged(userId, { roomId }, count),
+      ),
+    );
   }
 
   private async publishUnreadChanged(
     userId: number,
     scope: { roomId: number } | { dmId: number; peerUserId: number },
+    precomputedCount?: number,
   ): Promise<void> {
-    // UnreadService.countSince only needs { roomId } or { dmId } — strip
-    // peerUserId before delegating (it's a client-addressing hint, not a
-    // query input).
-    const countScope: { roomId?: number; dmId?: number } =
-      'roomId' in scope ? { roomId: scope.roomId } : { dmId: scope.dmId };
     let count: number;
-    try {
-      count = await this.unread.countSince({ userId, ...countScope });
-    } catch (err) {
-      this.logger.warn(`unread.subscriber countSince(${userId}) failed: ${(err as Error).message}`);
-      return;
+    if (typeof precomputedCount === 'number') {
+      count = precomputedCount;
+    } else {
+      // UnreadService.countSince only needs { roomId } or { dmId } — strip
+      // peerUserId before delegating (it's a client-addressing hint, not a
+      // query input).
+      const countScope: { roomId?: number; dmId?: number } =
+        'roomId' in scope ? { roomId: scope.roomId } : { dmId: scope.dmId };
+      try {
+        count = await this.unread.countSince({ userId, ...countScope });
+      } catch (err) {
+        this.logger.warn(
+          `unread.subscriber countSince(${userId}) failed: ${(err as Error).message}`,
+        );
+        return;
+      }
     }
 
     const payload = JSON.stringify({

@@ -73,6 +73,21 @@ export interface UnreadRepositoryPort {
    * message delivery. Capped at {@link UNREAD_CAP}.
    */
   countSince(input: CountSinceInput): Promise<number>;
+
+  /**
+   * Batched per-recipient unread counts for a single room — fan-out helper
+   * for `UnreadSubscriber.handleRoom`. Returns one tuple per requested
+   * `userId`, each capped at {@link UNREAD_CAP}. Avoids N round-trips when
+   * a message lands in a large room.
+   *
+   * Userids that are not members still get a tuple back; the count is
+   * computed against `last_read_id = 0` in that case (LEFT JOIN), which is
+   * harmless because the subscriber only invokes this for known members.
+   */
+  countSinceForRoomMembers(
+    roomId: number,
+    userIds: number[],
+  ): Promise<Array<{ userId: number; count: number }>>;
 }
 
 export const UNREAD_REPOSITORY = 'UNREAD_REPOSITORY';

@@ -109,6 +109,43 @@ export class DrizzleUnreadRepository implements UnreadRepositoryPort {
     }));
   }
 
+  async countSinceForRoomMembers(
+    roomId: number,
+    userIds: number[],
+  ): Promise<Array<{ userId: number; count: number }>> {
+    if (userIds.length === 0) return [];
+    // Single round-trip: build a `VALUES (uid), ...` list of recipient
+    // userIds, LEFT JOIN user_last_read scoped to this room, then LATERAL
+    // count of messages.id > COALESCE(last_read_id, 0). One row per input
+    // userId, count capped at 99 in SQL — mirrors `unreadRoomsFor` shape.
+    const valuesSql = sql.join(
+      userIds.map((uid) => sql`(${uid}::int)`),
+      sql`, `,
+    );
+    const rows: Array<{ userId: number; count: number | string }> = await executeRows(
+      this.db,
+      sql`
+          SELECT
+            v.user_id AS "userId",
+            LEAST(
+              (
+                SELECT COUNT(*)
+                  FROM messages m
+                 WHERE m.room_id = ${roomId}
+                   AND m.deleted_at IS NULL
+                   AND m.id > COALESCE(ulr.last_read_id, 0)
+              ),
+              ${UNREAD_CAP}
+            )::int AS "count"
+            FROM (VALUES ${valuesSql}) AS v(user_id)
+            LEFT JOIN user_last_read ulr
+              ON ulr.user_id = v.user_id
+             AND ulr.room_id = ${roomId}
+        `,
+    );
+    return rows.map((r) => ({ userId: r.userId, count: toInt(r.count) }));
+  }
+
   async countSince(input: CountSinceInput): Promise<number> {
     if (input.roomId != null) {
       const rows: Array<{ count: number | string }> = await executeRows(

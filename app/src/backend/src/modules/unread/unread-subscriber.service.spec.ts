@@ -52,12 +52,17 @@ function makeRooms(members: Array<{ userId: number }>): MembersFake {
 describe('UnreadSubscriber', () => {
   let publisher: FakeEventPublisher;
   let redis: FakeRedis;
-  let unread: { countSince: jest.Mock };
+  let unread: { countSince: jest.Mock; countsSinceForRoomMembers: jest.Mock };
 
   beforeEach(() => {
     publisher = new FakeEventPublisher();
     redis = new FakeRedis();
-    unread = { countSince: jest.fn(async (i: any) => (i.userId === 20 ? 3 : 7)) };
+    unread = {
+      countSince: jest.fn(async (i: any) => (i.userId === 20 ? 3 : 7)),
+      countsSinceForRoomMembers: jest.fn(async (_roomId: number, userIds: number[]) =>
+        userIds.map((userId) => ({ userId, count: userId === 20 ? 3 : 7 })),
+      ),
+    };
   });
 
   function boot(rooms: MembersFake): UnreadSubscriber {
@@ -67,7 +72,7 @@ describe('UnreadSubscriber', () => {
   }
 
   describe('room-scope message.created', () => {
-    it('publishes unread.changed to each member except the author', async () => {
+    it('publishes unread.changed to each member except the author via a single batched count', async () => {
       const rooms = makeRooms([{ userId: 10 }, { userId: 20 }, { userId: 30 }]);
       boot(rooms);
 
@@ -79,9 +84,10 @@ describe('UnreadSubscriber', () => {
       });
 
       expect(rooms.membersOf).toHaveBeenCalledWith(7);
-      expect(unread.countSince).toHaveBeenCalledTimes(2);
-      expect(unread.countSince).toHaveBeenCalledWith({ userId: 20, roomId: 7 });
-      expect(unread.countSince).toHaveBeenCalledWith({ userId: 30, roomId: 7 });
+      // One round-trip per room, not one per recipient.
+      expect(unread.countsSinceForRoomMembers).toHaveBeenCalledTimes(1);
+      expect(unread.countsSinceForRoomMembers).toHaveBeenCalledWith(7, [20, 30]);
+      expect(unread.countSince).not.toHaveBeenCalled();
 
       expect(redis.publishes).toHaveLength(2);
       const byChannel = Object.fromEntries(redis.publishes.map((p) => [p.channel, p.payload]));
@@ -109,7 +115,40 @@ describe('UnreadSubscriber', () => {
       });
 
       expect(redis.publishes).toHaveLength(0);
-      expect(unread.countSince).not.toHaveBeenCalled();
+      expect(unread.countsSinceForRoomMembers).not.toHaveBeenCalled();
+    });
+
+    it('skips the batched count call when there are no non-author recipients', async () => {
+      const rooms = makeRooms([]);
+      boot(rooms);
+
+      await publisher.dispatch('message.created', {
+        scope: 'room',
+        messageId: 1n,
+        authorId: 10,
+        roomId: 7,
+      });
+
+      expect(unread.countsSinceForRoomMembers).not.toHaveBeenCalled();
+      expect(redis.publishes).toHaveLength(0);
+    });
+
+    it('swallows errors from countsSinceForRoomMembers', async () => {
+      const rooms = makeRooms([{ userId: 20 }]);
+      unread.countsSinceForRoomMembers.mockImplementationOnce(async () => {
+        throw new Error('db down');
+      });
+      boot(rooms);
+
+      await expect(
+        publisher.dispatch('message.created', {
+          scope: 'room',
+          messageId: 1n,
+          authorId: 10,
+          roomId: 7,
+        }),
+      ).resolves.not.toThrow();
+      expect(redis.publishes).toHaveLength(0);
     });
 
     it('swallows errors from membersOf without throwing', async () => {
