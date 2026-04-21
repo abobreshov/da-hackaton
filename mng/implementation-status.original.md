@@ -1,20 +1,20 @@
 # Implementation Status
 
-Live progress tracker for MVP build-out. Updated as milestones land.
-See `mng/specs/` for specifications + `mng/architecture/` for diagrams.
+Live progress tracker MVP build-out. Updated as milestones land.
+See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-20 (M3 plan)
+**Last updated:** 2026-04-21 (M5 critical fixes complete — 8-agent review-fix fan-out landed)
 
 ## Milestone map
 
 | Milestone | Demo state | Status |
 |---|---|---|
 | **M1 — Auth loop** | Register → login → 2FA → /dashboard → browse empty /rooms catalog → logout. Mailpit observable. | **DONE** (2026-04-20) |
-| **M2a — WS + presence pipeline** | Internal integration: WS gateway mounted, cookie handshake, PresenceService + eager publish + scheduler, 2-browser presence demo in devtools. | **DONE** (2026-04-20) |
-| **M2b — Rooms & membership UI** | Demo-able: browse/join/leave rooms; presence online/AFK/offline dots in members pane; friends pane; rate-limit decorators on register/login/reset. | **DONE** (2026-04-20) |
-| **M3 — Messaging core** | Room + DM messaging, admin delete, friend → DM flow, moderation basics. | NOT STARTED |
-| **M4 — Attachments & unread** | Upload image/file; unread badges; offline delivery. | NOT STARTED |
-| **M5 — Reviewer-ready** | Top-5 reviewer journeys green; rate-limits + CSRF + OriginGuard tightened; retention tested. | NOT STARTED |
+| **M2a — WS + presence pipeline** | WS gateway mounted, cookie handshake, PresenceService + eager publish + scheduler, 2-browser presence demo. | **DONE** (2026-04-20) |
+| **M2b — Rooms & membership UI** | Browse/join/leave rooms; presence dots on members pane; friends pane; rate-limits on register/login/reset. | **DONE** (2026-04-20) |
+| **M3 — Messaging core** | Room + DM messaging, admin delete, friend → DM flow, moderation basics, admin FE panel. | **DONE** (2026-04-20) |
+| **M4 — Attachments & unread** | Upload image/file; unread badges; offline delivery. | **DONE** (2026-04-21) — sessions FE + E2E + polish landed |
+| **M5 — Reviewer-ready** | Top-5 reviewer journeys green; load test; retention tested; dep-hygiene. | **CRITICAL FIXES DONE** (2026-04-21) — live-stack E2E + load-test runs pending |
 
 ## Per-EPIC status
 
@@ -22,84 +22,145 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 
 | EPIC | Backend | BFF | Frontend | Tests | Notes |
 |---|---|---|---|---|---|
-| 01 accounts-auth | ✅ | ✅ | ✅ | ✅ | register, reset (email-token via Mailpit), change, delete w/ async cascade; JWT + TOTP 2FA; refresh rotation |
-| 02 sessions-presence | ✅ | ✅ WS-driven | ✅ hooks + PresenceDot | ✅ | PresenceService eager-publish + scheduler; `presence:sessions:{id}` + `presence:state:{id}` Redis layout; AFK_THRESHOLD_SECONDS env |
-| 03 realtime-transport | ✅ PresencePublisher | ✅ gateway + subscriber | ✅ Socket.IO client | ✅ | WS gateway on `/ws`, Redis IoAdapter mounted, cookie handshake, interest-graph fan-out via `presence:global` coalesced 500ms |
-| 04 contacts-friends | ✅ | ✅ proxy + list endpoints | ✅ contacts route | ✅ | atomic ban-tx, friends.list + listPending wired end-to-end |
-| 05 rooms | ✅ + membersOf/ensureMember | ✅ proxy | ✅ catalog + detail | ✅ | rooms detail renders members w/ live PresenceDot |
-| 06 moderation | ✅ moderation + reports + audit | ✅ proxy + admin-gated | ⏳ admin modal | ✅ | ModerationTcpController added; AdminGuard in BFF; FE admin modal pending |
-| 07 messaging | 🟡 schema | ⏳ | ⏳ | — | FKs + indexes; service + WS wiring pending (M3) |
-| 08 attachments | 🟡 schema | ⏳ | ⏳ | — | schema + indexes; service + FS storage pending (M4) |
-| 09 notifications-unread | 🟡 schema | ⏳ | ⏳ | — | `user_last_read` functional unique index; observer logic pending (M4) |
-| 10 ui-shell | — | — | 🟡 partial | ✅ | login, register, reset, verify-2fa, dashboard, rooms catalog + detail, contacts; chat composer + admin modal + responsive pending |
-| 11 scale-reliability | ✅ workers + scheduler | ✅ rate-limiter + throttle-mounted | ⏳ | ✅ | BullMQ 4 queues + nightly retention.prune; Redis sliding-window throttle on register/login/reset |
-| 12 deployment | ✅ compose | — | — | — | Postgres, Redis, Mailpit, Dozzle, attachments volume; mTLS certs |
+| 01 accounts-auth | ✅ | ✅ | ✅ | ✅ | register, reset via Mailpit, change, delete w/ async cascade; JWT + TOTP 2FA; refresh rotation + family invalidation |
+| 02 sessions-presence | ✅ | ✅ | ✅ | ✅ | presence Redis pipeline (eager + 10s scheduler) + sessions FE w/ revoke (sid-claim binding — ADR-007); BFF `/sessions` proxy live |
+| 03 realtime-transport | ✅ PresencePublisher | ✅ gateway + subscriber + msg fan-out | ✅ Socket.IO client + hooks | ✅ | `/ws` cookie handshake; presence via interest-graph + coalesced `presence:global`; messages via `io.to(room:{id}).emit` (ADR-004) |
+| 04 contacts-friends | ✅ + atomic ban-tx | ✅ proxy + list endpoints + block-UX | ✅ contacts route + UserPopover | ✅ | friends.list + listPending + bans wired end-to-end |
+| 05 rooms | ✅ membersOf/ensureMember/update | ✅ proxy (RpcProxyService) | ✅ catalog + detail + Manage Room modal | ✅ | PATCH room (name/desc/visibility) owner-only; username-resolve invite (ADR-005 fail-silent) |
+| 06 moderation | ✅ moderation + reports + audit (Observer-driven) | ✅ proxy + AdminGuard | ✅ Manage Room tabs + admin layout | ✅ | ModerationRepositoryPort + AbuseReportsRepositoryPort extracted; AuditSubscriber via IEventPublisher |
+| 07 messaging | ✅ MessagesService + repository + TCP | ✅ proxy + WS send/edit/delete/sync.since | ✅ MessageList + Composer + Bubble + useMessages split | ✅ | Atomic DM-frozen INSERT...WHERE NOT EXISTS guard; composite `(created_at, id)` keyset; migration 0009 |
+| 08 attachments | ✅ service + FS storage + magic-byte sniff + 20/3 MiB caps + path-traversal guard + UUID gen + bind-on-create | ✅ multipart upload (rooms + DMs) + RFC 5987 download + Content-Disposition hardening + `dmUserId`→`dmId` resolve | ✅ `lib/attachments` + `<AttachmentUploader>` chip strip + paste handler + `<AttachmentView>` inline image/file | ✅ | security-review applied (Vuln 1–5 fixed); history listing does NOT carry attachments yet (follow-up) |
+| 09 notifications-unread | ✅ UnreadService + repo + TCP + `UnreadSubscriber` via IEventPublisher fan-out on `user:{id}` | ✅ proxy (GET /unread, POST /rooms/:id/read, POST /dms/:userId/read) + WS delta passthrough | ✅ `useUnread` zustand store + `useAutoMarkRead` (visibility-gated) + `<UnreadBadge>` (99+ cap) | ✅ | DM badges keyed by peerUserId (not dmId) so FE can address via route param |
+| 10 ui-shell | — | — | ✅ login/register/reset/2FA/dashboard/rooms catalog+detail/contacts/chat/DM/admin + ManageRoom + UserPopover + attachments + unread badges | ✅ | chat composer responsive breakpoints + sessions-management page pending |
+| 11 scale-reliability | ✅ workers + scheduler | ✅ throttle on register/login/reset | ⏳ | ✅ | BullMQ 4 queues + nightly retention.prune; Redis sliding-window |
+| 12 deployment | ✅ compose + shutdown hooks | — | — | — | Postgres, Redis, Mailpit, Dozzle, attachments volume; mTLS certs; Redis `.quit()` on SIGTERM |
 | 13 xmpp-federation | ⏸ DEFERRED | ⏸ | ⏸ | ⏸ | post-MVP per product decision |
-| 14 security-nfrs | — | ✅ | ✅ partial | ✅ | CSRF double-submit, WS OriginGuard mounted, WireError envelope, mTLS, throttle decorator; AC-14-12/13 spam limits pending |
-| 15 contracts | ✅ | ✅ | ✅ | ✅ + grep-gate | `@app/contracts` wired; inline-drift CI gate w/ 76-literal allow-list |
-| design-system | — | — | 🟡 spec only + partial retheme | — | Kinetic Playground tokens partially landed in login/auth shell; full UI primitives refactor pending |
+| 14 security-nfrs | ✅ global RpcExceptionFilter + main.ts invariant-throw | ✅ CSRF + OriginGuard + WireError + mTLS + throttle mounted + WS connect limit + spam limits | ✅ CSRF cookie wired | ✅ | AC-14-04 scope: 30 msg/5s create, 60/min edit+delete; AC-14-12/13 mounted; `INTERNAL_ERROR` code distinct from `UPSTREAM_UNAVAILABLE` |
+| 15 contracts | ✅ | ✅ | ✅ | ✅ + grep-gate | `@app/contracts` wired; PASSWORD_MIN/USERNAME_MIN/USERNAME_MAX + MessageScope XOR + ErrorCode enum (14) + inline-drift CI gate |
+| design-system | — | — | 🟡 partial retheme | — | Kinetic Playground tokens partial; full UI primitives retheme + responsive breakpoints pending |
 
-## Test coverage (post-M2)
+## Test coverage (post-M5 critical fixes)
 
 | Workspace | Tests | Notes |
 |---|---|---|
-| `@app/auth-service` | 137 | Coverage 99.8% stmt |
-| `@app/backend` | 286 | +83 since M1 |
-| `@app/bff` | 226 | +84 since M1 |
-| `@app/frontend` | 143 | +49 since M1; 3 pre-existing copy-drift failures |
-| `@app/contracts` | 32 | +3 grep-gate |
-| **Unit total** | **824** | |
-| E2E (Playwright) | 16 | +3 M2 specs (red until live stack) |
-| Integration (testcontainers) | 1 | |
+| `@app/auth-service` | 199 | +7 since M4 (sid-claim binding on validate + revoke chain + refresh rotation) |
+| `@app/backend` | 515 | +25 since M4 (DM friend/freeze gate + worker timeout backstop + sync.since reconnect) |
+| `@app/bff` | 380 | +9 since M4 (UA/IP injection from request headers + sessions DELETE proxy) |
+| `@app/frontend` | 488 | +22 since M4 (`/_auth/sessions` route + per-chip attachment caption + page-object retheme) |
+| `@app/contracts` | 83 | +18 since M4 (`sessions.{isRevoked,revoke}` + caption field on attachments + DM gate errors) |
+| **Unit total** | **1665** | +81 since M4 |
+| E2E (Playwright) | 30+ | T22 session-revoke unblocked + T27 PDF + critical ship-blocker specs — live-stack run pending |
+| Integration (testcontainers) | 3 | unchanged |
+| Load (k6) | 2 scaffolds | message-burst + presence-fanout — `b246c38`; live run pending |
 
-## Deferred / debt (post-M2)
+## Deferred / debt (post-M5 critical fixes)
 
-1. **Design-system refactor** — `tailwind.config.ts` default shadcn; login/auth shell partially themed to Kinetic Playground. Full UI primitives retheme + route audit pending. Applies to rooms-detail + contacts + admin modal when built.
-2. **M1 contracts drift backfill** — inline wire-string literals allow-listed in grep-gate:
-   - `bff/src/auth/auth.service.ts` — 12 `auth.*`
-   - `bff/src/modules/users/users.service.ts` — `users.list`, `users.findById`
-   - `backend/src/common/guards/jwt.guard.ts` — `auth.customer.validateToken`
-   - `backend/src/modules/audit/audit.controller.ts` — `auth.customer.validateToken`
-   - `backend/src/modules/bans/bans.service.ts` — `dm.frozen`, `friend.removed`
-   - `backend/src/modules/friends/friends.service.ts` — `friend.removed`, `friend.request.accepted`, `friend.request.new`
-   - `backend/src/modules/users/users.tcp.ts` — `users.list`, `users.findById`
-   - `backend/src/workers/queue.producer.ts` — 4 `QueueName` values
-   - `auth-service/src/modules/auth/admin/admin-auth.tcp.ts` — 3 `auth.admin.*`
-3. **E2E M2 specs red** — live-stack dependent; bring up stack + re-run for green.
-4. **Dashboard copy-drift tests** — 3 pre-existing failures in `dashboard.test.tsx` asserting old `scopes:read/write` / `no scopes assigned` / `user` type copy removed in Kinetic Playground redesign.
-5. **Backend schema index.ts coverage** — Drizzle barrel accessors uncovered (40-66%); covered by integration tests only.
-6. **EPIC-02 session DB row** — `user_sessions` table migration exists; backend service still writes only to Redis. Durable session record + active-sessions UI (§2.2.4) pending.
+### ✅ Landed in the M5 critical-fix block
 
-## M3 candidates (split)
+- **Unread fan-out batched SQL** — `2488a17` (one SQL per room write, `VALUES` recipient list).
+- **Attachments history hydration** — `0edec86` (`findByMessageIds` + `attachmentsByMessageId` on list/since).
+- **DM friend/freeze gate** — `021e902` (gate on `resolveOrCreateDmChannelId` blocks lazy upsert from blocked/non-friend pairs).
+- **Sessions revoke chain end-to-end** — `e2cbe79` + `ffee0f5` + `af8d1dd` (sid-claim binding — see ADR-007).
+- **BFF UA/IP injection** — `45ff888` (request-header derived; XSS hardening on session-list display).
+- **Workers wall-clock timeout** — `1bd6b80` (per-queue backstop prevents indefinite stalls).
+- **`sync.since` on WS reconnect** — `128baa2` (backfills missed messages on transient disconnects).
+- **AC-08-04 per-chip caption** — `0acfe76` (uploader exposes caption input per attachment).
+- **M4 Playwright E2E** — `0f65f34` + `b61ca11` + `4cb20da` (T22 session-revoke unblocked; ship-blocker specs in place).
+- **Sessions FE surface** — `ffee0f5` (`/_auth/sessions` route + revoke UI live; T26 done).
 
-**M3a — Messaging pipe (backend + BFF + WS handlers + OOP refactors + seed)**
+### Still open
 
-1. OOP refactor: global RpcExceptionFilter on backend + auth-service microservice bootstrap; delete 6 toRpc copies across modules (rooms, moderation, abuse-reports, audit, friends, bans). Controllers become pure dispatch.
-2. OOP refactor: slim ChatGateway — extract `WsAuthenticator` (cookie → session), inject `RpcProxyService` in place of raw `this.backend.send(...)` calls (currently bypasses the new proxy).
-3. Backend `MessagesModule` + `MessagesService` + `MessagesRepository` (port/adapter to match rooms) + `MessagesTcpController`. AC-07-16 lazy dm_channels upsert, AC-07-19 atomic INSERT...WHERE NOT EXISTS frozen guard, AC-07-20 composite `(created_at, id)` keyset cursor. Migration for index extension if needed.
-4. Backend `messages.getById` TCP cmd (reply hover + admin report target hydration).
-5. Backend `rooms.update` TCP cmd + service method (owner PATCH).
-6. BFF `MessagesModule` proxy via `RpcProxyService` + `GET /rooms/:id/messages` + `GET /dms/:userId/messages` + `GET /messages/:id` + `PATCH /rooms/:id` (owner).
-7. BFF `ChatGateway` extended with `@SubscribeMessage('message.send'|'message.edit'|'message.delete'|'sync.since')`. Fan-out via `io.to('room:'+id).emit(...)` using Socket.IO + redis-adapter (drop custom BFF subscriber for msg fan-out; keep for presence).
-8. AC-14-04 refined rate-limit: 30 msg/5s create, 60/min edit+delete budget. Mount on send/edit/delete WS handlers.
-9. `seed:demo` real impl: `#general`, `#random`, `#demo` rooms + 10-20 sample messages each (mix regular/reply/edited).
-10. E2E specs: backend messaging integration test via testcontainers; BFF WS send-receive spec via socket.io-client.
+1. **Live-stack E2E run** — `app/e2e-tests` specs need stack up + green pass. Compose smoke landed (`0f65f34`); full suite run pending.
+2. **k6 load-test live run** — scaffolds in `b246c38` (message-burst + presence-fanout). Need to execute against running stack and record p95/p99.
+3. **Retention prune verification** — run nightly job against seeded 10k-msg room.
+4. **Design-system refactor** — full Kinetic Playground retheme of remaining UI primitives + ManageRoom modal breakpoints.
+5. **M1-era contracts drift backfill** — inline wire-string literals allow-listed in grep-gate (unchanged list from M3).
+6. **Pre-existing backend messages.controller spec fails** — bigint JSON serialization test mock (unaffected).
+7. **Migration 0009/0010 not CONCURRENTLY** — prod day-one lock risk; MVP-safe only.
+8. **zod 3 → 4 bump** — cascades type breakage across 4 workspaces + `@hookform/resolvers` upgrade. Deferred.
+9. **Dependabot** — 12 vulns (10 high + 2 moderate) flagged on origin/master.
+10. **Sidless token gap on backend-down login** — `recordLogin` is best-effort (ADR-007 trade-off). Tokens minted while backend is down survive until natural expiry. Post-MVP outbox.
 
-**M3b — Frontend chat viewport + Track B admin FE + Manage Room + ban UX**
+## M4 commits
 
-11. Frontend chat viewport on `/rooms/$roomId`: `MessageList` (keyset infinite scroll), `MessageComposer` (send + reply quote), `MessageBubble` w/ Kinetic Playground asymmetric rounding + gradient "me" bubbles, edit indicator, tombstone render.
-12. `useMessages(roomId|dmId)` hook — normalized Map cache keyed by messageId; WS subscribe to message.new/edited/deleted; applies mutations regardless of viewport.
-13. `UserPopover` component (AC-10-15) — hookable to avatar/name/mention clicks. Exposes Open DM, Add friend, Block, Report.
-14. `/_auth/admin/*` layout + routes: `reports`, `audit-log`, `users`, `rooms` (AC-10-12 superseded). Guard via `session.type === 'admin'` in beforeLoad.
-15. Manage Room modal (AC-10-16): 5 tabs Members / Admins / Banned users / Invitations / Settings. Invitations tab wires backend `rooms.invite` — close §2.4.9 PDF gap.
-16. DM path: `/_auth/dm/$userId` route via lazy dm_channel resolve. Composer disabled + "frozen" banner when dm_channels.frozen_at set (AC-04-07).
-17. Spam rate-limits AC-14-13: friend-request 20/hr, room-create 10/hr, report-create 10/hr — decorator mount on respective endpoints.
-18. WS connect rate-limit AC-14-12: 10 connects/60s per userId — mount on handshake.
-19. E2E: send-receive 2-browser ≤3s, edit indicator, author-delete, admin-delete, report → admin resolve → audit visible, block-from-popover → DM frozen.
+### 2026-04-20
+
+- `eb27823` — backend attachments (schema, service, storage, repo, tcp) + unread module + messages `bindAttachments`
+- `0fe4a2e` — BFF attachments multipart + RFC 5987 download + `messages.attachmentIds` passthrough
+- `35c7fcf` — `message.created` event emit + UnreadSubscriber → `unread.changed` Redis fan-out
+- `9917323` — BFF unread endpoints + backend `dmUserId` → `dmId` resolution in unread tcp
+- `1046088` — FE unread badges + auto-mark-read + DM peer-keyed counts
+- `6a88f19` — FE attachments UI (uploader, paste, inline view, composer integration) + chat.gateway unwrap
+- `feacf6f` — Playwright specs: attachment upload round-trip + unread badge round-trip (2 specs; live-stack dependent)
+- `9a82aa4` — review fixes: TCP scope XOR, broadcastTarget orphan fallback drop, UnreadSubscriber batched fan-out + self-DM guard, useAutoMarkRead dep-array
+
+### 2026-04-21 (8-agent parallel fan-out)
+
+- `b61ca11` — Playwright specs: T22 session-revoke (test.skip pending T26 FE) + T27 PDF-requirement smoke
+- `f8affcf` — T29 responsive: `sm:` breakpoints across composer, bubble, uploader chip, attachment-view image
+- `5c289f6` — T31 moderation `inviteUser` shape fix + fail-silent invite copy in `manage-room-modal`
+- `0edec86` — M5 follow-up: attachments hydrated on history (`messages.list` + `.since` carry `attachmentsByMessageId`); FE store applies it on `replaceAll` + `prependOlder` — closes the demo-visible scroll-back gap
+- `2488a17` — M5 follow-up: unread fan-out batched into one SQL via `(VALUES …)` recipient list — replaces N round-trips per room write
+- `e2cbe79` — T23-T25: sessions backend module + auth-service `recordLogin` emit (best-effort, fail-safe). New `TcpCmd.sessions.{recordLogin,listForUser,revoke}`. T26 (BFF + FE surface) still pending.
+
+### 2026-04-21 (M5 critical-fix block — 8-agent fan-out)
+
+- `8368a45` — docs: M4 fan-out outcomes (6 commits, 2 M5 deferrals cleared).
+- `0f65f34` — E2E coverage for critical ship-blockers + compose smoke spec.
+- `ffee0f5` — T26 sessions BFF proxy + FE `/_auth/sessions` route w/ revoke UI.
+- `4d113a3` — quick-wins from 5-reviewer round (devils + oop + sys-arch consolidated).
+- `e533561` — README demo walkthrough + features + arch + test status sections.
+- `b246c38` — k6 load-test scaffold (message-burst + presence-fanout).
+- `0acfe76` — AC-08-04 per-chip attachment caption input.
+- `128baa2` — `sync.since` on WS reconnect to backfill missed messages.
+- `1bd6b80` — per-queue wall-clock timeout backstop on BullMQ workers.
+- `021e902` — friend/freeze gate on DM channel resolution (closes lazy-upsert hardening gap).
+- `45ff888` — BFF injects `userAgent`/`ip` from request headers (XSS hardening on sessions display).
+- `af8d1dd` — session revoke invalidates the cookie path via sid claim (binds ADR-007).
+- `4cb20da` — E2E page-objects realigned to Kinetic Playground copy.
+
+13 commits in this block (`8368a45..4cb20da`).
+
+## M4 review round — consolidated (5 reviewers: oop-patterns / devils-advocate / system-architect / business-analyst / coderabbit)
+
+### Applied in `9a82aa4`
+
+- Scope-XOR runtime guard on `TcpCmd.attachments.upload` (closes: could persist row with both roomId + dmId).
+- `broadcastTarget` orphan fallback dropped — no more `room:orphan` leak vector; malformed upstream = log + skip fan-out.
+- `UnreadSubscriber` room fan-out batched at concurrency 16 + self-DM echo guard.
+- `useAutoMarkRead` dep array flattened to primitives.
+
+### Deferred to M5 (documented, not fixed)
+
+- **Unread batched SQL** — ✅ landed in `2488a17` (one SQL per room write via `VALUES` recipient list).
+- **Attachments history hydration** — ✅ landed in `0edec86` (`findByMessageIds` + `attachmentsByMessageId` on list/since).
+- **DM lazy upsert friend/ban gate** — `resolveOrCreateDmChannelId` upserts a `dm_channels` row for any user pair an attacker addresses. Low impact in hackathon demo; add friend/ban check before upsert for hardening.
+- **AC-09-03 "1+" vs "99+" text drift** — spec says "1+", FE renders "99+". Reconcile by editing the spec (UI cap matches spec intent).
+- **AC-09-07 strict-delta `unread.changed`** — subscriber currently fires on every message.created; AC says "only on count delta". Compare prior vs next before PUBLISH.
+- **AC-08-04 comment UI** — DB + API accept `comment` field, but uploader doesn't expose an input.
+- **Controller SRP / DTO unification** — `bff/attachments.controller.ts` mixes HTTP + multipart + header encoding; `AttachmentDto` + `BffAttachment` + `AttachmentRow` are three near-identical shapes worth unifying into `@app/contracts`.
+- **`<img src>` vs octet-stream UX** — Safari may refuse to render images from `Content-Disposition: attachment` responses. Add a `/attachments/:id/inline` route with `Content-Disposition: inline` + sandbox CSP for known-safe image MIMEs.
+- **Attachments paste cap** — composer paste-upload skips the `MAX_FILES_PER_UPLOAD` check (uploader enforces, paste doesn't). Move cap enforcement into `uploadAttachments`.
+
+## M4 pending
+
+1. **T28 / T30** — non-blocking polish deferred: Kinetic Playground token audit (T28) + emoji picker (T30). Both pure UX/visual; not on the demo critical path.
+
+## M5 remaining
+
+1. **Live-stack E2E run** — full Playwright suite against running compose stack; confirm M2 + M3 + M4 + M5 specs all green.
+2. **Live k6 load run** — execute `b246c38` scaffolds (message-burst + presence-fanout) at 300 concurrent × 1000 members × 6 msg/s; record p95/p99.
+3. **Retention prune verification** — run against seeded 10k-msg room; check non-blocking + batch sizing.
+4. **Dependabot cleanup** — resolve 12 flagged vulns.
+5. **Migration 0009/0010 rewrite CONCURRENTLY** — prod-safe variant.
+6. **Observability** — Dozzle + Prometheus/Loki scaffolding for demo dashboards.
 
 ## ADR index
 
-- **ADR-001** — Presence source of truth: EPIC-02 owns state + DB writes; EPIC-03 provides `PresencePublisher` primitive; EPIC-09 observer only.
-- **ADR-002** — Async account-delete cascade: auth-service invokes backend TCP `users.cascade.enqueue`; backend owns BullMQ enqueue to `user.cascade.delete`; consumer in EPIC-11.
-- **ADR-003** — WS handshake auth: cookie-only for MVP (same-origin BFF). No session-ticket endpoint. Cross-origin / native clients POST-MVP.
-- **ADR-004** — Message fan-out: Socket.IO room + @socket.io/redis-adapter native broadcast (`io.to('room:'+id).emit`). Drop custom BFF subscriber for message channel. Presence keeps explicit interest-graph subscriber (different semantics).
+- **ADR-001** — Presence source of truth: EPIC-02 owns state + DB writes; EPIC-03 `PresencePublisher` primitive; EPIC-09 observer only.
+- **ADR-002** — Async account-delete cascade: auth-service → backend TCP `users.cascade.enqueue` → BullMQ `user.cascade.delete`; consumer EPIC-11.
+- **ADR-003** — WS handshake auth: cookie-only MVP (same-origin BFF). No session-ticket endpoint. Cross-origin POST-MVP.
+- **ADR-004** — Message fan-out: Socket.IO room + @socket.io/redis-adapter (`io.to('room:'+id).emit`). Presence keeps explicit interest-graph subscriber (different semantics).
+- **ADR-005** — Invite username enumeration: BFF `resolveUserIdByUsername` returns `{queued:true, invited:null}` on miss (fail-silent). Rate-limit via AC-14-13 friend-req bucket. Prevents auth'd users probing directory via invite API.
+- **ADR-006** — Message fan-out scaling envelope: 300 concurrent × 1000 members/room × 6 msg/s = 6000 socket-emits/s/room. @socket.io/redis-adapter stream-per-room default. Re-visit if p99 > 250ms or hot rooms > 10. Resharding trigger: Redis aggregate > 50k msg/s.
+- **ADR-007** — Session-id claim binding for revoke chain: bind `sid` UUID to access + refresh JWT at mint, validate via per-request `sessions.isRevoked(sid)` TCP probe (~5 ms localhost mTLS). Fails OPEN on backend bounce; refresh rotation must preserve sid. See `mng/architecture/adr/ADR-007-session-sid-claim-binding.md`.

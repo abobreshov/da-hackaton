@@ -3,7 +3,7 @@
 Live progress tracker MVP build-out. Updated as milestones land.
 See `mng/specs/` for specs + `mng/architecture/` for diagrams.
 
-**Last updated:** 2026-04-21 (M5 critical fixes complete — 8-agent review-fix fan-out landed)
+**Last updated:** 2026-04-21 (M5 critical fixes done — 8-agent review-fix fan-out landed)
 
 ## Milestone map
 
@@ -29,8 +29,8 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 | 05 rooms | ✅ membersOf/ensureMember/update | ✅ proxy (RpcProxyService) | ✅ catalog + detail + Manage Room modal | ✅ | PATCH room (name/desc/visibility) owner-only; username-resolve invite (ADR-005 fail-silent) |
 | 06 moderation | ✅ moderation + reports + audit (Observer-driven) | ✅ proxy + AdminGuard | ✅ Manage Room tabs + admin layout | ✅ | ModerationRepositoryPort + AbuseReportsRepositoryPort extracted; AuditSubscriber via IEventPublisher |
 | 07 messaging | ✅ MessagesService + repository + TCP | ✅ proxy + WS send/edit/delete/sync.since | ✅ MessageList + Composer + Bubble + useMessages split | ✅ | Atomic DM-frozen INSERT...WHERE NOT EXISTS guard; composite `(created_at, id)` keyset; migration 0009 |
-| 08 attachments | ✅ service + FS storage + magic-byte sniff + 20/3 MiB caps + path-traversal guard + UUID gen + bind-on-create | ✅ multipart upload (rooms + DMs) + RFC 5987 download + Content-Disposition hardening + `dmUserId`→`dmId` resolve | ✅ `lib/attachments` + `<AttachmentUploader>` chip strip + paste handler + `<AttachmentView>` inline image/file | ✅ | security-review applied (Vuln 1–5 fixed); history listing does NOT carry attachments yet (follow-up) |
-| 09 notifications-unread | ✅ UnreadService + repo + TCP + `UnreadSubscriber` via IEventPublisher fan-out on `user:{id}` | ✅ proxy (GET /unread, POST /rooms/:id/read, POST /dms/:userId/read) + WS delta passthrough | ✅ `useUnread` zustand store + `useAutoMarkRead` (visibility-gated) + `<UnreadBadge>` (99+ cap) | ✅ | DM badges keyed by peerUserId (not dmId) so FE can address via route param |
+| 08 attachments | ✅ service + FS storage + magic-byte sniff + 20/3 MiB caps + path-traversal guard + UUID gen + bind-on-create | ✅ multipart upload (rooms + DMs) + RFC 5987 download + Content-Disposition hardening + `dmUserId`→`dmId` resolve | ✅ `lib/attachments` + `<AttachmentUploader>` chip strip + paste handler + `<AttachmentView>` inline image/file | ✅ | security-review applied (Vuln 1–5 fixed); history listing no attachments yet (follow-up) |
+| 09 notifications-unread | ✅ UnreadService + repo + TCP + `UnreadSubscriber` via IEventPublisher fan-out on `user:{id}` | ✅ proxy (GET /unread, POST /rooms/:id/read, POST /dms/:userId/read) + WS delta passthrough | ✅ `useUnread` zustand store + `useAutoMarkRead` (visibility-gated) + `<UnreadBadge>` (99+ cap) | ✅ | DM badges keyed by peerUserId (not dmId) so FE address via route param |
 | 10 ui-shell | — | — | ✅ login/register/reset/2FA/dashboard/rooms catalog+detail/contacts/chat/DM/admin + ManageRoom + UserPopover + attachments + unread badges | ✅ | chat composer responsive breakpoints + sessions-management page pending |
 | 11 scale-reliability | ✅ workers + scheduler | ✅ throttle on register/login/reset | ⏳ | ✅ | BullMQ 4 queues + nightly retention.prune; Redis sliding-window |
 | 12 deployment | ✅ compose + shutdown hooks | — | — | — | Postgres, Redis, Mailpit, Dozzle, attachments volume; mTLS certs; Redis `.quit()` on SIGTERM |
@@ -55,7 +55,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 
 ## Deferred / debt (post-M5 critical fixes)
 
-### ✅ Landed in the M5 critical-fix block
+### ✅ Landed in M5 critical-fix block
 
 - **Unread fan-out batched SQL** — `2488a17` (one SQL per room write, `VALUES` recipient list).
 - **Attachments history hydration** — `0edec86` (`findByMessageIds` + `attachmentsByMessageId` on list/since).
@@ -71,7 +71,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 ### Still open
 
 1. **Live-stack E2E run** — `app/e2e-tests` specs need stack up + green pass. Compose smoke landed (`0f65f34`); full suite run pending.
-2. **k6 load-test live run** — scaffolds in `b246c38` (message-burst + presence-fanout). Need to execute against running stack and record p95/p99.
+2. **k6 load-test live run** — scaffolds in `b246c38` (message-burst + presence-fanout). Execute against running stack, record p95/p99.
 3. **Retention prune verification** — run nightly job against seeded 10k-msg room.
 4. **Design-system refactor** — full Kinetic Playground retheme of remaining UI primitives + ManageRoom modal breakpoints.
 5. **M1-era contracts drift backfill** — inline wire-string literals allow-listed in grep-gate (unchanged list from M3).
@@ -79,7 +79,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 7. **Migration 0009/0010 not CONCURRENTLY** — prod day-one lock risk; MVP-safe only.
 8. **zod 3 → 4 bump** — cascades type breakage across 4 workspaces + `@hookform/resolvers` upgrade. Deferred.
 9. **Dependabot** — 12 vulns (10 high + 2 moderate) flagged on origin/master.
-10. **Sidless token gap on backend-down login** — `recordLogin` is best-effort (ADR-007 trade-off). Tokens minted while backend is down survive until natural expiry. Post-MVP outbox.
+10. **Sidless token gap on backend-down login** — `recordLogin` best-effort (ADR-007 trade-off). Tokens minted while backend down survive until natural expiry. Post-MVP outbox.
 
 ## M4 commits
 
@@ -99,7 +99,7 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 - `b61ca11` — Playwright specs: T22 session-revoke (test.skip pending T26 FE) + T27 PDF-requirement smoke
 - `f8affcf` — T29 responsive: `sm:` breakpoints across composer, bubble, uploader chip, attachment-view image
 - `5c289f6` — T31 moderation `inviteUser` shape fix + fail-silent invite copy in `manage-room-modal`
-- `0edec86` — M5 follow-up: attachments hydrated on history (`messages.list` + `.since` carry `attachmentsByMessageId`); FE store applies it on `replaceAll` + `prependOlder` — closes the demo-visible scroll-back gap
+- `0edec86` — M5 follow-up: attachments hydrated on history (`messages.list` + `.since` carry `attachmentsByMessageId`); FE store applies on `replaceAll` + `prependOlder` — closes demo-visible scroll-back gap
 - `2488a17` — M5 follow-up: unread fan-out batched into one SQL via `(VALUES …)` recipient list — replaces N round-trips per room write
 - `e2cbe79` — T23-T25: sessions backend module + auth-service `recordLogin` emit (best-effort, fail-safe). New `TcpCmd.sessions.{recordLogin,listForUser,revoke}`. T26 (BFF + FE surface) still pending.
 
@@ -112,14 +112,14 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 - `e533561` — README demo walkthrough + features + arch + test status sections.
 - `b246c38` — k6 load-test scaffold (message-burst + presence-fanout).
 - `0acfe76` — AC-08-04 per-chip attachment caption input.
-- `128baa2` — `sync.since` on WS reconnect to backfill missed messages.
+- `128baa2` — `sync.since` on WS reconnect, backfills missed messages.
 - `1bd6b80` — per-queue wall-clock timeout backstop on BullMQ workers.
 - `021e902` — friend/freeze gate on DM channel resolution (closes lazy-upsert hardening gap).
 - `45ff888` — BFF injects `userAgent`/`ip` from request headers (XSS hardening on sessions display).
-- `af8d1dd` — session revoke invalidates the cookie path via sid claim (binds ADR-007).
+- `af8d1dd` — session revoke invalidates cookie path via sid claim (binds ADR-007).
 - `4cb20da` — E2E page-objects realigned to Kinetic Playground copy.
 
-13 commits in this block (`8368a45..4cb20da`).
+13 commits in block (`8368a45..4cb20da`).
 
 ## M4 review round — consolidated (5 reviewers: oop-patterns / devils-advocate / system-architect / business-analyst / coderabbit)
 
@@ -134,21 +134,21 @@ Legend: ✅ shipped · 🟡 partial · ⏳ not started · ⏸ deferred
 
 - **Unread batched SQL** — ✅ landed in `2488a17` (one SQL per room write via `VALUES` recipient list).
 - **Attachments history hydration** — ✅ landed in `0edec86` (`findByMessageIds` + `attachmentsByMessageId` on list/since).
-- **DM lazy upsert friend/ban gate** — `resolveOrCreateDmChannelId` upserts a `dm_channels` row for any user pair an attacker addresses. Low impact in hackathon demo; add friend/ban check before upsert for hardening.
-- **AC-09-03 "1+" vs "99+" text drift** — spec says "1+", FE renders "99+". Reconcile by editing the spec (UI cap matches spec intent).
-- **AC-09-07 strict-delta `unread.changed`** — subscriber currently fires on every message.created; AC says "only on count delta". Compare prior vs next before PUBLISH.
-- **AC-08-04 comment UI** — DB + API accept `comment` field, but uploader doesn't expose an input.
-- **Controller SRP / DTO unification** — `bff/attachments.controller.ts` mixes HTTP + multipart + header encoding; `AttachmentDto` + `BffAttachment` + `AttachmentRow` are three near-identical shapes worth unifying into `@app/contracts`.
-- **`<img src>` vs octet-stream UX** — Safari may refuse to render images from `Content-Disposition: attachment` responses. Add a `/attachments/:id/inline` route with `Content-Disposition: inline` + sandbox CSP for known-safe image MIMEs.
-- **Attachments paste cap** — composer paste-upload skips the `MAX_FILES_PER_UPLOAD` check (uploader enforces, paste doesn't). Move cap enforcement into `uploadAttachments`.
+- **DM lazy upsert friend/ban gate** — `resolveOrCreateDmChannelId` upserts `dm_channels` row for any user pair attacker addresses. Low impact in hackathon demo; add friend/ban check before upsert for hardening.
+- **AC-09-03 "1+" vs "99+" text drift** — spec says "1+", FE renders "99+". Reconcile by editing spec (UI cap matches spec intent).
+- **AC-09-07 strict-delta `unread.changed`** — subscriber fires on every message.created; AC says "only on count delta". Compare prior vs next before PUBLISH.
+- **AC-08-04 comment UI** — DB + API accept `comment` field, but uploader no input exposed.
+- **Controller SRP / DTO unification** — `bff/attachments.controller.ts` mixes HTTP + multipart + header encoding; `AttachmentDto` + `BffAttachment` + `AttachmentRow` three near-identical shapes worth unifying into `@app/contracts`.
+- **`<img src>` vs octet-stream UX** — Safari may refuse to render images from `Content-Disposition: attachment` responses. Add `/attachments/:id/inline` route with `Content-Disposition: inline` + sandbox CSP for known-safe image MIMEs.
+- **Attachments paste cap** — composer paste-upload skips `MAX_FILES_PER_UPLOAD` check (uploader enforces, paste not). Move cap enforcement into `uploadAttachments`.
 
 ## M4 pending
 
-1. **T28 / T30** — non-blocking polish deferred: Kinetic Playground token audit (T28) + emoji picker (T30). Both pure UX/visual; not on the demo critical path.
+1. **T28 / T30** — non-blocking polish deferred: Kinetic Playground token audit (T28) + emoji picker (T30). Both pure UX/visual; not on demo critical path.
 
 ## M5 remaining
 
-1. **Live-stack E2E run** — full Playwright suite against running compose stack; confirm M2 + M3 + M4 + M5 specs all green.
+1. **Live-stack E2E run** — full Playwright suite against running compose stack; confirm M2 + M3 + M4 + M5 specs green.
 2. **Live k6 load run** — execute `b246c38` scaffolds (message-burst + presence-fanout) at 300 concurrent × 1000 members × 6 msg/s; record p95/p99.
 3. **Retention prune verification** — run against seeded 10k-msg room; check non-blocking + batch sizing.
 4. **Dependabot cleanup** — resolve 12 flagged vulns.

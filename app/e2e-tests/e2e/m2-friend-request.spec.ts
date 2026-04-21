@@ -20,7 +20,11 @@ import { fetchVerifyTokenFromMailpit } from '../helpers/mailpit';
  * `mng/specs/04-contacts-friends.md` §API.
  */
 
-const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'admin' };
+// NB: `username` is stored in `users.name` (the BFF users.service looks up
+// via `lower(name) = lower(needle)`). The seeded admin is rendered in the UI
+// as "Dev Admin"; the literal "admin" is only valid for backend 'admins'
+// table lookups (not exposed to the user-facing friends graph).
+const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'Dev Admin' };
 const WS_PUSH_MS = 3_000;
 
 interface FreshUser {
@@ -48,13 +52,19 @@ async function registerAndVerifyFreshUser(
   page: import('@playwright/test').Page,
   u: FreshUser,
 ): Promise<void> {
+  // BFF OriginGuard rejects state-changing requests without an allow-listed
+  // Origin header — Playwright's `page.request.post` (a standalone API
+  // context) doesn't auto-stamp Origin the way a browser fetch would.
+  const headers = { Origin: 'http://localhost:3007' };
   const registerRes = await page.request.post('/api/v1/auth/register', {
+    headers,
     data: { email: u.email, username: u.username, password: u.password },
   });
   expect(registerRes.status(), 'register returns 202').toBe(202);
 
   const token = await fetchVerifyTokenFromMailpit(u.email);
   const verifyRes = await page.request.post('/api/v1/auth/verify-email', {
+    headers,
     data: { token },
   });
   expect(verifyRes.status(), 'verify-email succeeds').toBeLessThan(300);

@@ -52,10 +52,17 @@ async function bootstrap() {
   // path (see app/observability/prometheus.yml).
   app.setGlobalPrefix('api/v1', { exclude: ['/metrics'] });
 
+  // Register the custom RpcExceptionFilter BEFORE connecting the microservice
+  // and enable `inheritAppConfig` so the filter propagates to the TCP
+  // microservice context. Without this, Nest's default microservice error
+  // handler wraps every thrown error as `{status:'error', message:'Internal
+  // server error'}` and our structured {status,code,message} payload never
+  // reaches the BFF.
+  app.useGlobalFilters(new RpcExceptionFilter());
   app.connectMicroservice<MicroserviceOptions>(
     buildTcpMicroserviceOptions(env.TCP_BIND, env.TCP_PORT),
+    { inheritAppConfig: true },
   );
-  app.useGlobalFilters(new RpcExceptionFilter());
 
   await app.startAllMicroservices();
   await app.listen(env.PORT, '0.0.0.0');
