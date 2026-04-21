@@ -177,7 +177,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     roomId?: number;
     room?: { id: number; name: string; description: string | null };
     members?: any[];
-    error?: string;
+    error?: string | { status?: number; code?: string; message?: string };
   }> {
     const userId = client.data?.userId as number | undefined;
     if (!userId) return { ok: false, error: 'unauthenticated' };
@@ -233,7 +233,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       client.join(RedisChannel.room(roomId));
       return { ok: true, roomId, room: roomMeta, members };
     } catch (e: any) {
-      return { ok: false, error: e?.message ?? 'room.join failed' };
+      // RpcException stores the structured payload under `getError()`.
+      // Reading `e.message` alone yields the wrapper's default
+      // 'Internal server error' string — losing the real upstream code +
+      // message that the FE auto-join sniff (and error panel) need.
+      return { ok: false, error: this.wireError(e) };
     }
   }
 
