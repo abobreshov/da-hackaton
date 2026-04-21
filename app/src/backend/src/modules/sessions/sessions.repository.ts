@@ -47,6 +47,17 @@ export class DrizzleSessionsRepository implements SessionsRepositoryPort {
     return rows.map(toSessionRow);
   }
 
+  async isRevoked(sessionId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ revokedAt: userSessions.revokedAt })
+      .from(userSessions)
+      .where(eq(userSessions.id, sessionId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return true; // fail-closed on unknown id
+    return row.revokedAt != null;
+  }
+
   async revoke(input: RevokeInput): Promise<{ revoked: boolean }> {
     const updated = await this.db
       .update(userSessions)

@@ -35,4 +35,14 @@ export class SessionsService {
   revoke(input: RevokeInput): Promise<{ revoked: boolean }> {
     return this.repo.revoke(input);
   }
+
+  /**
+   * Probe used by auth-service `validateToken` to short-circuit a JWT-valid
+   * cookie whose underlying session row has been revoked. Fail-closed:
+   * unknown ids resolve to `true` so a forged or stale `sid` claim never
+   * extends authentication past the revoke moment.
+   */
+  isRevoked(sessionId: string): Promise<boolean> {
+    return this.repo.isRevoked(sessionId);
+  }
 }

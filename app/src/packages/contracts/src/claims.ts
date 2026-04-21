@@ -22,6 +22,14 @@ export interface AccessTokenClaims {
   name?: string;
   /** OAuth resource scopes. Admin tokens carry `[]` unless wired otherwise. */
   scopes: string[];
+  /**
+   * Optional session id (UUID) — links the access token to the
+   * `user_sessions` row minted on login. When present, auth-service's
+   * `validateToken` checks `sessions.isRevoked` so a revoke takes effect
+   * within one BFF round-trip instead of waiting for the JWT to expire.
+   * Absent on tokens minted before this field shipped (back-compat).
+   */
+  sid?: string;
   iat?: number;
   exp?: number;
 }

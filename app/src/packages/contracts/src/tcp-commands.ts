@@ -97,5 +97,12 @@ export const TcpCmd = {
     listForUser: 'sessions.listForUser',
     /** Revoke a single session by id, scoped to the owning user. */
     revoke: 'sessions.revoke',
+    /**
+     * Cheap "is this session id revoked?" probe. Used by auth-service
+     * `validateToken` to invalidate the cookie path the moment a session
+     * row's `revoked_at` is set — without waiting on the 15-min JWT exp.
+     * Returns `true` for revoked OR unknown session ids (fail-closed).
+     */
+    isRevoked: 'sessions.isRevoked',
   },
 } as const;

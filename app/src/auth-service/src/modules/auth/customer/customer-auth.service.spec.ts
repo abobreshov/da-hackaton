@@ -302,16 +302,17 @@ describe('CustomerAuthService', () => {
     });
 
     describe('sessions.recordLogin TCP hook (EPIC-02 §2.2.4)', () => {
-      it('emits sessions.recordLogin with userId, userAgent, ip after successful login', async () => {
+      it('sends sessions.recordLogin with userId, userAgent, ip after successful login', async () => {
         const user = baseUser();
         deps.selectBuilder.__setTerminal('limit', [user]);
+        backend.send.mockReturnValue(of({ id: 'sess-uuid-1' }) as any);
         await svc.login({
           email: user.email,
           password: 'pw',
           userAgent: 'Mozilla/5.0',
           ip: '203.0.113.7',
         } as any);
-        expect(backend.emit).toHaveBeenCalledWith(
+        expect(backend.send).toHaveBeenCalledWith(
           { cmd: 'sessions.recordLogin' },
           expect.objectContaining({
             userId: user.id,
@@ -322,31 +323,32 @@ describe('CustomerAuthService', () => {
         );
       });
 
-      it('still emits sessions.recordLogin when UA/IP are absent (nulls)', async () => {
+      it('still sends sessions.recordLogin when UA/IP are absent (nulls)', async () => {
         const user = baseUser();
         deps.selectBuilder.__setTerminal('limit', [user]);
+        backend.send.mockReturnValue(of({ id: 'sess-uuid-2' }) as any);
         await svc.login({ email: user.email, password: 'pw' });
-        expect(backend.emit).toHaveBeenCalledWith(
+        expect(backend.send).toHaveBeenCalledWith(
           { cmd: 'sessions.recordLogin' },
           expect.objectContaining({ userId: user.id, _sys: expect.any(String) }),
         );
       });
 
-      it('does NOT emit sessions.recordLogin when login returns requires2fa', async () => {
+      it('does NOT send sessions.recordLogin when login returns requires2fa', async () => {
         deps.selectBuilder.__setTerminal('limit', [
           baseUser({ twoFactorEnabled: true, twoFactorSecret: 'SEC' }),
         ]);
         await svc.login({ email: 'u@example.com', password: 'pw' });
-        const recordLoginEmits = backend.emit.mock.calls.filter(
+        const recordLoginSends = backend.send.mock.calls.filter(
           (c) => (c[0] as any)?.cmd === 'sessions.recordLogin',
         );
-        expect(recordLoginEmits).toHaveLength(0);
+        expect(recordLoginSends).toHaveLength(0);
       });
 
-      it('login still resolves when sessions.recordLogin emit observable errors', async () => {
+      it('login still resolves when sessions.recordLogin send observable errors', async () => {
         const user = baseUser();
         deps.selectBuilder.__setTerminal('limit', [user]);
-        backend.emit.mockImplementation((pattern: any) => {
+        backend.send.mockImplementation((pattern: any) => {
           if (pattern?.cmd === 'sessions.recordLogin') {
             return throwError(() => new Error('tcp down')) as any;
           }
@@ -357,18 +359,33 @@ describe('CustomerAuthService', () => {
         ).resolves.toMatchObject({ accessToken: 'user.jwt' });
       });
 
-      it('login still resolves when backend.emit throws synchronously', async () => {
+      it('login still resolves (no sid in JWT) when backend.send throws synchronously', async () => {
         const user = baseUser();
         deps.selectBuilder.__setTerminal('limit', [user]);
-        backend.emit.mockImplementation((pattern: any) => {
+        backend.send.mockImplementation((pattern: any) => {
           if (pattern?.cmd === 'sessions.recordLogin') {
             throw new Error('client exploded');
           }
           return of(undefined) as any;
         });
-        await expect(
-          svc.login({ email: user.email, password: 'pw' }),
-        ).resolves.toMatchObject({ accessToken: 'user.jwt' });
+        await svc.login({ email: user.email, password: 'pw' });
+        // JWT signed without sid (back-compat fallback when tracker is down).
+        const claims = jwt.signUser.mock.calls[0][0];
+        expect((claims as any).sid).toBeUndefined();
+      });
+
+      it('binds returned session id into the access token sid claim', async () => {
+        const user = baseUser();
+        deps.selectBuilder.__setTerminal('limit', [user]);
+        backend.send.mockImplementation((pattern: any) => {
+          if (pattern?.cmd === 'sessions.recordLogin') {
+            return of({ id: 'sess-uuid-bound' }) as any;
+          }
+          return of(undefined) as any;
+        });
+        await svc.login({ email: user.email, password: 'pw' });
+        const claims = jwt.signUser.mock.calls[0][0];
+        expect((claims as any).sid).toBe('sess-uuid-bound');
       });
     });
   });
@@ -912,6 +929,64 @@ describe('CustomerAuthService', () => {
         throw new Error('bad sig');
       });
       await expect(svc.validateToken('tok')).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    describe('sid revoke check (M5 review)', () => {
+      it('does NOT call sessions.isRevoked when token has no sid claim (back-compat)', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+        } as never);
+        await svc.validateToken('tok');
+        const probe = backend.send.mock.calls.filter(
+          (c) => (c[0] as any)?.cmd === 'sessions.isRevoked',
+        );
+        expect(probe).toHaveLength(0);
+      });
+
+      it('calls sessions.isRevoked with sid when present, allows when revoked=false', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+          sid: 'sess-uuid-9',
+        } as never);
+        backend.send.mockReturnValue(of({ revoked: false }) as any);
+        const out = await svc.validateToken('tok');
+        expect(backend.send).toHaveBeenCalledWith(
+          { cmd: 'sessions.isRevoked' },
+          expect.objectContaining({ sessionId: 'sess-uuid-9', _sys: expect.any(String) }),
+        );
+        expect(out).toMatchObject({ sub: 'u:9', sid: 'sess-uuid-9' });
+      });
+
+      it('throws UnauthorizedException when sessions.isRevoked returns revoked=true', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+          sid: 'sess-uuid-revoked',
+        } as never);
+        backend.send.mockReturnValue(of({ revoked: true }) as any);
+        await expect(svc.validateToken('tok')).rejects.toBeInstanceOf(UnauthorizedException);
+      });
+
+      it('fails open (allows) when the sessions.isRevoked probe transport errors', async () => {
+        jwt.verifyUser.mockReturnValue({
+          sub: 'u:9',
+          type: 'user',
+          email: 'u@example.com',
+          scopes: [],
+          sid: 'sess-uuid-9',
+        } as never);
+        backend.send.mockReturnValue(throwError(() => new Error('tcp down')) as any);
+        const out = await svc.validateToken('tok');
+        expect(out).toMatchObject({ sub: 'u:9', sid: 'sess-uuid-9' });
+      });
     });
   });
 });

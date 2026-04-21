@@ -49,6 +49,12 @@ class FakeSessionsRepository implements SessionsRepositoryPort {
     this.rows[idx] = { ...this.rows[idx], revokedAt: new Date() };
     return { revoked: true };
   }
+
+  async isRevoked(sessionId: string): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === sessionId);
+    if (!row) return true; // fail-closed
+    return row.revokedAt != null;
+  }
 }
 
 const USER = 42;
@@ -142,6 +148,23 @@ describe('SessionsService', () => {
       await svc.revoke({ id: row.id, userId: USER });
       const out = await svc.revoke({ id: row.id, userId: USER });
       expect(out).toEqual({ revoked: false });
+    });
+  });
+
+  describe('isRevoked', () => {
+    it('returns false for an existing, non-revoked session', async () => {
+      const row = await svc.recordLogin({ userId: USER });
+      await expect(svc.isRevoked(row.id)).resolves.toBe(false);
+    });
+
+    it('returns true once the session is revoked', async () => {
+      const row = await svc.recordLogin({ userId: USER });
+      await svc.revoke({ id: row.id, userId: USER });
+      await expect(svc.isRevoked(row.id)).resolves.toBe(true);
+    });
+
+    it('returns true (fail-closed) for an unknown session id', async () => {
+      await expect(svc.isRevoked('no-such-uuid')).resolves.toBe(true);
     });
   });
 });

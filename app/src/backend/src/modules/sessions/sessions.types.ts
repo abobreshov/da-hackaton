@@ -46,6 +46,14 @@ export interface SessionsRepositoryPort {
   insertOnLogin(input: RecordLoginInput): Promise<SessionRow>;
   listForUser(userId: number): Promise<SessionRow[]>;
   revoke(input: RevokeInput): Promise<{ revoked: boolean }>;
+  /**
+   * Fast "is this session id revoked?" probe — used by auth-service
+   * `validateToken` to short-circuit a JWT-valid-but-revoked cookie. Returns
+   * `true` if the row is missing OR `revoked_at IS NOT NULL` (fail-closed:
+   * an unknown sid must not pass). Returns `false` only for an existing
+   * non-revoked row.
+   */
+  isRevoked(sessionId: string): Promise<boolean>;
 }
 
 export const SESSIONS_REPOSITORY = 'SESSIONS_REPOSITORY';

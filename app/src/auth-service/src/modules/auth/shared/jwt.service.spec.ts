@@ -72,6 +72,18 @@ describe('JwtService — OIDC-shaped access tokens', () => {
     it('rejects sub that does not look like a user (u:...) principal', () => {
       expect(() => svc.signUser({ ...userClaims, sub: 'a:7' as never })).toThrow(/user/i);
     });
+
+    it('preserves the optional `sid` (session id) claim through sign + verify', () => {
+      const token = svc.signUser({ ...userClaims, sid: 'sess-uuid-123' });
+      const decoded = svc.verifyUser(token);
+      expect(decoded.sid).toBe('sess-uuid-123');
+    });
+
+    it('omits `sid` when caller does not supply one (back-compat)', () => {
+      const token = svc.signUser(userClaims);
+      const decoded = svc.verifyUser(token);
+      expect(decoded.sid).toBeUndefined();
+    });
   });
 
   describe('expiration', () => {

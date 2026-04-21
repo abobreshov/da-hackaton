@@ -13,6 +13,7 @@ function makeService(): jest.Mocked<SessionsService> {
     recordLogin: jest.fn(),
     listActive: jest.fn(),
     revoke: jest.fn(),
+    isRevoked: jest.fn(),
   } as unknown as jest.Mocked<SessionsService>;
 }
 
@@ -114,5 +115,24 @@ describe('SessionsTcpController', () => {
     service.revoke.mockResolvedValue({ revoked: false });
     const out = await controller.revoke({ id: 'no-such', userId: 7 });
     expect(out).toEqual({ revoked: false });
+  });
+
+  it('sessions.isRevoked forwards sessionId and wraps result as { revoked }', async () => {
+    service.isRevoked.mockResolvedValue(false);
+    const out = await controller.isRevoked({ sessionId: 'uuid-1' });
+    expect(service.isRevoked).toHaveBeenCalledWith('uuid-1');
+    expect(out).toEqual({ revoked: false });
+  });
+
+  it('sessions.isRevoked returns { revoked: true } for revoked / unknown ids', async () => {
+    service.isRevoked.mockResolvedValue(true);
+    const out = await controller.isRevoked({ sessionId: 'no-such' });
+    expect(out).toEqual({ revoked: true });
+  });
+
+  it('sessions.isRevoked tolerates `_sys` and forwards only the domain field', async () => {
+    service.isRevoked.mockResolvedValue(false);
+    await controller.isRevoked({ sessionId: 'uuid-1', _sys: 'secret' } as any);
+    expect(service.isRevoked).toHaveBeenCalledWith('uuid-1');
   });
 });

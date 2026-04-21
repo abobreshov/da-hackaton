@@ -9,9 +9,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom, timeout } from 'rxjs';
 import { createHash, randomBytes } from 'crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
-import { ErrorCode, WireError, makeSub, parseSub } from '@app/contracts';
+import { ErrorCode, TcpCmd, WireError, makeSub, parseSub } from '@app/contracts';
 import { DATABASE } from '../../../database/database.module';
 import { Db } from '../../../database/connection';
 import { passwordResets, users } from '../../../database/schema';
@@ -76,30 +77,35 @@ export class CustomerAuthService {
       }
     }
 
-    const tokens = await this.issueTokens(user);
-    // EPIC-02 §2.2.4 — persist a row on the active-sessions surface. Best-effort:
-    // login itself must never fail when the tracker hiccups (network, backend
-    // restart, etc). Catches both sync throws and observable errors and logs.
-    this.recordLoginBestEffort({
+    // EPIC-02 §2.2.4 — persist a row on the active-sessions surface and bind
+    // its id into the access token's `sid` claim so revoke takes effect on the
+    // next BFF round-trip (M5 review). Synchronous (`send` + first-value) so
+    // we get the id back, but best-effort: if backend is offline / TCP errors
+    // we log and still mint tokens without sid (back-compat path through
+    // `validateToken`, which only enforces revoke when sid is present).
+    const sessionId = await this.recordLoginBestEffort({
       userId: user.id,
       userAgent: dto.userAgent ?? null,
       ip: dto.ip ?? null,
     });
-    return tokens;
+    return this.issueTokens(user, sessionId);
   }
 
-  private recordLoginBestEffort(payload: {
+  private async recordLoginBestEffort(payload: {
     userId: number;
     userAgent: string | null;
     ip: string | null;
-  }): void {
+  }): Promise<string | undefined> {
     try {
-      this.backend.emit<unknown>({ cmd: 'sessions.recordLogin' }, withSys(payload)).subscribe({
-        error: (err) =>
-          this.logger.warn(`sessions.recordLogin emit failed: ${(err as Error).message}`),
-      });
+      const row$ = this.backend.send<{ id: string }>(
+        { cmd: TcpCmd.sessions.recordLogin },
+        withSys(payload),
+      );
+      const row = await firstValueFrom(row$.pipe(timeout(2000)));
+      return row?.id;
     } catch (err) {
-      this.logger.warn(`sessions.recordLogin emit threw: ${(err as Error).message}`);
+      this.logger.warn(`sessions.recordLogin send failed: ${(err as Error).message}`);
+      return undefined;
     }
   }
 
@@ -383,31 +389,56 @@ export class CustomerAuthService {
    * controllers keep working until they migrate to `sub` + `parseSub`.
    */
   async validateToken(token: string) {
+    let claims;
     try {
-      const claims = this.jwtService.verifyUser(token);
-      const { numericId } = parseSub(claims.sub);
-      return {
-        sub: claims.sub,
-        type: claims.type,
-        userId: numericId, // deprecated — use parseSub(sub).numericId
-        email: claims.email,
-        name: claims.name,
-        scopes: claims.scopes ?? [],
-      };
+      claims = this.jwtService.verifyUser(token);
     } catch {
       throw new UnauthorizedException('Invalid token');
     }
+
+    // M5 review fix — when the access token carries a `sid` claim, ask backend
+    // whether the underlying user_sessions row is revoked. If so, reject the
+    // cookie path immediately instead of waiting for the JWT to expire (15m).
+    // Tokens minted before this field shipped have no `sid` → behaviour
+    // unchanged (back-compat). Backend transport failure is fail-OPEN: the JWT
+    // already verified, and we'd rather serve a slightly-stale auth than 401
+    // every request when the tracker hiccups. Logged at warn for visibility.
+    if (claims.sid) {
+      try {
+        const probe$ = this.backend.send<{ revoked: boolean }>(
+          { cmd: TcpCmd.sessions.isRevoked },
+          withSys({ sessionId: claims.sid }),
+        );
+        const { revoked } = await firstValueFrom(probe$.pipe(timeout(2000)));
+        if (revoked) throw new UnauthorizedException('Session revoked');
+      } catch (err) {
+        if (err instanceof UnauthorizedException) throw err;
+        this.logger.warn(`sessions.isRevoked probe failed: ${(err as Error).message}`);
+      }
+    }
+
+    const { numericId } = parseSub(claims.sub);
+    return {
+      sub: claims.sub,
+      type: claims.type,
+      userId: numericId, // deprecated — use parseSub(sub).numericId
+      email: claims.email,
+      name: claims.name,
+      scopes: claims.scopes ?? [],
+      ...(claims.sid ? { sid: claims.sid } : {}),
+    };
   }
 
   // ---- helpers ----
 
-  private async issueTokens(user: typeof users.$inferSelect) {
+  private async issueTokens(user: typeof users.$inferSelect, sid?: string) {
     const accessToken = this.jwtService.signUser({
       sub: makeSub('user', user.id),
       type: 'user',
       email: user.email,
       name: user.name,
       scopes: user.scopes ?? [],
+      ...(sid ? { sid } : {}),
     });
     const refreshToken = await this.refreshTokenService.create('u', user.id);
 

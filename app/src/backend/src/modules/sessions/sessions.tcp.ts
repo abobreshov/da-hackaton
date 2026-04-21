@@ -39,6 +39,11 @@ interface RevokePayload {
   _sys?: string;
 }
 
+interface IsRevokedPayload {
+  sessionId: string;
+  _sys?: string;
+}
+
 @Controller()
 export class SessionsTcpController {
   constructor(private readonly service: SessionsService) {}
@@ -62,5 +67,11 @@ export class SessionsTcpController {
   @MessagePattern({ cmd: TcpCmd.sessions.revoke })
   revoke(@Payload() data: RevokePayload): Promise<{ revoked: boolean }> {
     return this.service.revoke({ id: data.id, userId: data.userId });
+  }
+
+  @MessagePattern({ cmd: TcpCmd.sessions.isRevoked })
+  async isRevoked(@Payload() data: IsRevokedPayload): Promise<{ revoked: boolean }> {
+    const revoked = await this.service.isRevoked(data.sessionId);
+    return { revoked };
   }
 }
