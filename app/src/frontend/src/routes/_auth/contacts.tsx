@@ -47,7 +47,15 @@ export function ContactsRoute() {
   const [username, setUsername] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
-  const presence = usePresenceMap();
+  const presenceIds = useMemo<number[]>(() => {
+    if (state.status !== 'ok') return [];
+    const ids = new Set<number>();
+    for (const f of state.data.friends) ids.add(f.userId);
+    for (const r of state.data.incoming) ids.add(r.from.userId);
+    for (const r of state.data.outgoing) ids.add(r.to.userId);
+    return [...ids];
+  }, [state]);
+  const presence = usePresenceMap(presenceIds);
   const { dms: dmUnread } = useUnread();
 
   const load = useCallback(async () => {

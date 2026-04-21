@@ -5,6 +5,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -51,7 +52,9 @@ import { WsConnectRateLimit } from './ws-connect-rate-limit.service';
     credentials: true,
   },
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
+export class ChatGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, OnModuleInit
+{
   private readonly logger = new Logger(ChatGateway.name);
 
   @WebSocketServer()
@@ -73,49 +76,60 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     // in every Nest version — we want deterministic 4403.
   }
 
+  /**
+   * Socket.IO server middleware — runs BEFORE the namespace fires
+   * `connection`, so it's the only place we can authenticate the socket
+   * synchronously enough to guarantee `client.data.userId` is set before
+   * any event handler can dispatch. Without this, a client that emits
+   * `room.join` immediately on connect can race the async work in
+   * `handleConnection` (rate-limit + redis subscribe) and hit the
+   * "unauthenticated" guard inside the message handler.
+   */
+  afterInit(server: Server): void {
+    server.use((client, next) => {
+      // 1. Origin check
+      const originOk = this.originGuard.canActivate({
+        switchToWs: () => ({ getClient: () => client }),
+      } as any);
+      if (!originOk) {
+        return next(new Error('Origin not allowed'));
+      }
+      // 2. Cookie → session
+      const identity = this.authenticator.authenticate(client as any);
+      if (!identity) {
+        return next(new Error('Unauthenticated'));
+      }
+      client.data.userId = identity.userId;
+      client.data.sessionId = identity.sessionId;
+      next();
+    });
+  }
+
   // -------------------------------------------------------------- connect
   async handleConnection(client: Socket): Promise<void> {
-    this.logger.warn(
-      `[handleConnection] sid=${client.id} origin=${client.handshake.headers.origin} hasCookie=${!!client.handshake.headers.cookie}`,
-    );
-    // 1. Origin check (4403)
-    const originOk = this.originGuard.canActivate({
-      switchToWs: () => ({ getClient: () => client }),
-    } as any);
-    if (!originOk) {
-      this.logger.warn(`[handleConnection] sid=${client.id} rejected originGuard`);
-      // Guard already disconnected + emitted 'error' with 4403.
-      return;
-    }
-
-    // 2. Cookie → session, delegated.
-    const identity = this.authenticator.authenticate(client);
-    if (!identity) {
-      this.logger.warn(`[handleConnection] sid=${client.id} rejected auth null identity`);
+    // Identity already set by the middleware. We only need to do the
+    // book-keeping that's safe to run async (rate-limit + redis subscribe)
+    // — message handlers can dispatch in parallel without seeing
+    // `userId === undefined`.
+    const userId = client.data.userId as number | undefined;
+    const sessionId = client.data.sessionId as string | undefined;
+    if (!userId || !sessionId) {
+      // Should be unreachable (middleware refused the handshake) but bail
+      // safely if a future refactor breaks the invariant.
       this.reject(client, 4401, 'Unauthenticated');
       return;
     }
 
-    // 3. Per-user connect rate-limit (AC-14-12, 10/60 s). Runs BEFORE
-    // subscriber bookkeeping so a rejected socket never gets registered.
-    const limit = await this.connectLimiter.check(identity.userId);
+    // Per-user connect rate-limit (AC-14-12, 10/60 s).
+    const limit = await this.connectLimiter.check(userId);
     if (!limit.ok) {
-      this.logger.warn(`[handleConnection] sid=${client.id} userId=${identity.userId} rate-limited`);
       this.rejectRateLimited(client, limit.retryAfterMs);
       return;
     }
-    this.logger.warn(
-      `[handleConnection] sid=${client.id} userId=${identity.userId} OK about to set client.data`,
-    );
 
-    // 4. Attach identity + register in the subscriber's interest graph.
-    client.data.userId = identity.userId;
-    client.data.sessionId = identity.sessionId;
     this.subscriber.registerSocket(client as any);
-    // Every authenticated socket cares about its own user channel
-    // (for server-pushed events addressed to that user).
     try {
-      await this.subscriber.subscribeFor(client.id, RedisChannel.user(identity.userId));
+      await this.subscriber.subscribeFor(client.id, RedisChannel.user(userId));
     } catch (e) {
       this.logger.error(`user-channel subscribe failed: ${(e as Error).message}`);
     }
@@ -284,6 +298,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
   }
 
+  // ------------------------------------------------- presence.subscribe
+  /**
+   * Register the caller's presence-interest set. Client emits this with the
+   * list of userIds it currently renders (friends + room members etc.) so
+   * `RedisSubscriberService.fanoutPresence` knows which deltas to forward
+   * back over the socket. Idempotent — re-emitting unions with the existing
+   * set rather than replacing it.
+   */
+  @UseGuards(WsOriginGuard)
+  @SubscribeMessage(WsEvent.client.presenceSubscribe)
+  async onPresenceSubscribe(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { userIds?: Array<number | string> },
+  ): Promise<{ ok: boolean }> {
+    const userId = client.data?.userId as number | undefined;
+    if (!userId) return { ok: false };
+    const ids = Array.isArray(body?.userIds) ? body.userIds : [];
+    if (ids.length === 0) return { ok: true };
+    await this.subscriber.watchPresenceOf(client.id, ids);
+    return { ok: true };
+  }
+
   // ------------------------------------------------------ message.send
   @UseGuards(WsOriginGuard)
   @SubscribeMessage(WsEvent.client.messageSend)
@@ -357,11 +393,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (!userId) return { ok: false, error: 'unauthenticated' };
 
     try {
-      const message = await this.proxy.forward<any>(
+      // Backend `MessagesTcpController.edit` reads `actorId` from the payload
+      // (`messages.service.ts:223` checks `existing.authorId !== params.actorId`).
+      // Sending `editorId` left actorId as undefined which always failed the
+      // ownership check — so every WS edit returned "only the author can edit
+      // this message" even for the message's real author.
+      const result = await this.proxy.forward<any>(
         this.backend,
         { cmd: TcpCmd.messages.edit },
-        { editorId: userId, id: body.id, body: body.body },
+        { actorId: userId, id: body.id, body: body.body },
       );
+      // Backend returns `{ message: MessageRow }` — unwrap so `target` and the
+      // FE both see a flat MessageRow (matches `message.send`'s shape).
+      const message = result?.message ?? result;
       const target = this.broadcastTarget(message);
       if (target) {
         this.server.to(target.room).emit(WsEvent.server.messageEdited, { message });

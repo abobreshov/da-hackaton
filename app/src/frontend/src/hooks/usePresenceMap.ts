@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import { useSocket } from './useSocket';
+import { getSocket } from '@/lib/socket';
 import { WsEvent } from '@/lib/ws-events';
 
 export type PresenceStatus = 'online' | 'afk' | 'offline';
@@ -62,7 +63,9 @@ function parseDelta(raw: unknown): PresenceDelta | null {
  * Both shapes are accepted; malformed payloads are dropped silently — the
  * socket layer is untrusted input.
  */
-export function usePresenceMap(): Map<number, PresenceStatus> {
+export function usePresenceMap(
+  userIds?: ReadonlyArray<number>,
+): Map<number, PresenceStatus> {
   const map = presenceMapStore((s) => s.map);
 
   useSocket(WsEvent.server.presenceUpdate, (payload) => {
@@ -82,13 +85,29 @@ export function usePresenceMap(): Map<number, PresenceStatus> {
     if (single) applyDelta(single);
   });
 
-  // Cleanup: nothing to tear down here — the `useSocket` hook manages its
-  // listener, and the store outlives any single component.
+  // Emit `presence.subscribe` so the BFF registers this socket's interest
+  // set — without it the per-socket fanout filter (`presenceOf`) stays
+  // empty and every `presence.update` is dropped before reaching us.
+  // Re-emits whenever the caller's id set changes (sort-join key keeps the
+  // effect stable across order-only reshuffles).
+  const key =
+    userIds && userIds.length > 0
+      ? [...userIds].sort((a, b) => a - b).join(',')
+      : '';
   useEffect(() => {
-    return () => {
-      // no-op; intentional hook for future lifecycle tie-ins
+    if (!key) return;
+    const socket = getSocket();
+    if (!socket) return;
+    const ids = key.split(',').map(Number);
+    const emit = (): void => {
+      socket.emit(WsEvent.client.presenceSubscribe, { userIds: ids });
     };
-  }, []);
+    if (socket.connected) emit();
+    socket.on('connect', emit);
+    return () => {
+      socket.off('connect', emit);
+    };
+  }, [key]);
 
   return map;
 }

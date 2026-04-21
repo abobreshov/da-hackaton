@@ -6,6 +6,7 @@ export const WsEvent = {
     roomJoin: 'room.join',
     roomLeave: 'room.leave',
     presencePing: 'presence.ping',
+    presenceSubscribe: 'presence.subscribe',
     syncSince: 'sync.since',
   },
   server: {

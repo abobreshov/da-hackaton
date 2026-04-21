@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useParams, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getSocket } from '@/lib/socket';
 import { WsEvent } from '@/lib/ws-events';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
@@ -97,7 +98,14 @@ export function RoomRoute() {
   const [manageOpen, setManageOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
-  const presence = usePresenceMap();
+  // Room members drive presence subscription. Without passing their ids the
+  // BFF fanout filter drops every delta and dots stay gray.
+  const memberIds = useMemo<number[]>(
+    () =>
+      state.status === 'ok' ? state.members.map((m) => m.userId) : [],
+    [state],
+  );
+  const presence = usePresenceMap(memberIds);
   const session = useSession((s) => s.session);
   const currentUserId = session?.type === 'user' ? (session.id ?? null) : null;
 
@@ -528,115 +536,125 @@ export function RoomRoute() {
         />
       ) : null}
 
-      {/* Delete-confirmation dialog. Bare-bones <dialog> equivalent — a
-          centred surface-card overlay with a Cancel + Delete button pair.
-          Deliberately not a portal'd Radix dialog yet; MVP focus. */}
-      {confirmDelete ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="confirm-delete-title"
-          data-testid="confirm-delete-dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setConfirmDelete(null);
-          }}
-        >
-          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
-            <h2
-              id="confirm-delete-title"
-              className="font-display text-title-md font-semibold text-on-surface"
+      {/* Delete-confirmation dialog. Portal'd to document.body so it escapes
+          the animated ancestor's transform containing-block — otherwise
+          `position:fixed` anchors to the inner `<div className="animate-fade-up …">`
+          and the modal appears mid-conversation instead of centred on the
+          viewport (CSS spec: any non-`none` `transform` creates a new
+          containing block for fixed descendants). */}
+      {confirmDelete
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="confirm-delete-title"
+              data-testid="confirm-delete-dialog"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setConfirmDelete(null);
+              }}
             >
-              Delete this message?
-            </h2>
-            <p className="mt-2 font-body text-body-md text-on-surface-variant">
-              The message will be replaced with a tombstone for everyone.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setConfirmDelete(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                onClick={() => {
-                  void handleConfirmDelete();
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+                <h2
+                  id="confirm-delete-title"
+                  className="font-display text-title-md font-semibold text-on-surface"
+                >
+                  Delete this message?
+                </h2>
+                <p className="mt-2 font-body text-body-md text-on-surface-variant">
+                  The message will be replaced with a tombstone for everyone.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setConfirmDelete(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      void handleConfirmDelete();
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
 
-      {/* Report-message dialog. Plain modal for MVP; calls reportUser with
-          targetType='message'. */}
-      {reportTarget ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="report-message-title"
-          data-testid="report-message-dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setReportTarget(null);
-          }}
-        >
-          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
-            <h2
-              id="report-message-title"
-              className="font-display text-title-md font-semibold text-on-surface"
+      {/* Report-message dialog. Same portal treatment as the delete
+          confirmation — escape the animated wrapper's transform so
+          `position:fixed` anchors to the viewport, not the chat column. */}
+      {reportTarget
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="report-message-title"
+              data-testid="report-message-dialog"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setReportTarget(null);
+              }}
             >
-              Report message
-            </h2>
-            <p className="mt-2 font-body text-body-sm text-on-surface-variant">
-              Tell the moderators what&apos;s wrong with this message.
-            </p>
-            <textarea
-              aria-label="Reason"
-              data-testid="report-message-reason"
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value)}
-              className="mt-3 min-h-[6rem] w-full resize-y rounded-[1rem] bg-surface-container-low px-4 py-3 font-body text-body-md text-on-surface focus:bg-surface-container focus:outline-none"
-              placeholder="What's the problem?"
-            />
-            {reportError && (
-              <p className="mt-2 font-body text-body-sm text-error" role="alert">
-                {reportError}
-              </p>
-            )}
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setReportTarget(null)}
-                disabled={reportSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  void handleSubmitReport();
-                }}
-                disabled={reportSubmitting || reportReason.trim().length === 0}
-              >
-                Submit report
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+                <h2
+                  id="report-message-title"
+                  className="font-display text-title-md font-semibold text-on-surface"
+                >
+                  Report message
+                </h2>
+                <p className="mt-2 font-body text-body-sm text-on-surface-variant">
+                  Tell the moderators what&apos;s wrong with this message.
+                </p>
+                <textarea
+                  aria-label="Reason"
+                  data-testid="report-message-reason"
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="mt-3 min-h-[6rem] w-full resize-y rounded-[1rem] bg-surface-container-low px-4 py-3 font-body text-body-md text-on-surface focus:bg-surface-container focus:outline-none"
+                  placeholder="What's the problem?"
+                />
+                {reportError && (
+                  <p className="mt-2 font-body text-body-sm text-error" role="alert">
+                    {reportError}
+                  </p>
+                )}
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setReportTarget(null)}
+                    disabled={reportSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      void handleSubmitReport();
+                    }}
+                    disabled={reportSubmitting || reportReason.trim().length === 0}
+                  >
+                    Submit report
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

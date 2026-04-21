@@ -1,5 +1,6 @@
 import { createFileRoute, useParams } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ErrorCode } from '@app/contracts';
 import { PresenceDot } from '@/components/presence-dot';
 import { usePresenceMap, type PresenceStatus } from '@/hooks/usePresenceMap';
@@ -35,7 +36,7 @@ export const Route = createFileRoute('/_auth/dm/$userId')({
 export function DmRoute() {
   const { userId: userIdRaw } = useParams({ from: '/_auth/dm/$userId' });
   const userId = Number(userIdRaw);
-  const presence = usePresenceMap();
+  const presence = usePresenceMap(Number.isFinite(userId) ? [userId] : []);
   const session = useSession((s) => s.session);
   const currentUserId = session?.type === 'user' ? (session.id ?? null) : null;
   const [frozen, setFrozen] = useState(false);
@@ -247,110 +248,121 @@ export function DmRoute() {
         </div>
       </GlassCard>
 
-      {confirmDelete ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="confirm-delete-title"
-          data-testid="confirm-delete-dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setConfirmDelete(null);
-          }}
-        >
-          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
-            <h2
-              id="confirm-delete-title"
-              className="font-display text-title-md font-semibold text-on-surface"
+      {/* Both modals portal'd to document.body — the parent wrapper uses
+          `animate-fade-up` which applies a non-`none` transform and that
+          creates a new containing block for `position:fixed` descendants.
+          Result without portal: modal centres over the chat column mid-
+          scroll instead of the viewport. */}
+      {confirmDelete
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="confirm-delete-title"
+              data-testid="confirm-delete-dialog"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setConfirmDelete(null);
+              }}
             >
-              Delete this message?
-            </h2>
-            <p className="mt-2 font-body text-body-md text-on-surface-variant">
-              The message will be replaced with a tombstone for everyone.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setConfirmDelete(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                onClick={() => {
-                  void handleConfirmDelete();
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+                <h2
+                  id="confirm-delete-title"
+                  className="font-display text-title-md font-semibold text-on-surface"
+                >
+                  Delete this message?
+                </h2>
+                <p className="mt-2 font-body text-body-md text-on-surface-variant">
+                  The message will be replaced with a tombstone for everyone.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setConfirmDelete(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      void handleConfirmDelete();
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
 
-      {reportTarget ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="report-message-title"
-          data-testid="report-message-dialog"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setReportTarget(null);
-          }}
-        >
-          <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
-            <h2
-              id="report-message-title"
-              className="font-display text-title-md font-semibold text-on-surface"
+      {reportTarget
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="report-message-title"
+              data-testid="report-message-dialog"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setReportTarget(null);
+              }}
             >
-              Report message
-            </h2>
-            <p className="mt-2 font-body text-body-sm text-on-surface-variant">
-              Tell the moderators what&apos;s wrong with this message.
-            </p>
-            <textarea
-              aria-label="Reason"
-              data-testid="report-message-reason"
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value)}
-              className="mt-3 min-h-[6rem] w-full resize-y rounded-[1rem] bg-surface-container-low px-4 py-3 font-body text-body-md text-on-surface focus:bg-surface-container focus:outline-none"
-              placeholder="What's the problem?"
-            />
-            {reportError && (
-              <p className="mt-2 font-body text-body-sm text-error" role="alert">
-                {reportError}
-              </p>
-            )}
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setReportTarget(null)}
-                disabled={reportSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  void handleSubmitReport();
-                }}
-                disabled={reportSubmitting || reportReason.trim().length === 0}
-              >
-                Submit report
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              <div className="mx-4 w-full max-w-md rounded-[1.5rem] bg-surface-container px-6 py-5 shadow-ambient">
+                <h2
+                  id="report-message-title"
+                  className="font-display text-title-md font-semibold text-on-surface"
+                >
+                  Report message
+                </h2>
+                <p className="mt-2 font-body text-body-sm text-on-surface-variant">
+                  Tell the moderators what&apos;s wrong with this message.
+                </p>
+                <textarea
+                  aria-label="Reason"
+                  data-testid="report-message-reason"
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="mt-3 min-h-[6rem] w-full resize-y rounded-[1rem] bg-surface-container-low px-4 py-3 font-body text-body-md text-on-surface focus:bg-surface-container focus:outline-none"
+                  placeholder="What's the problem?"
+                />
+                {reportError && (
+                  <p className="mt-2 font-body text-body-sm text-error" role="alert">
+                    {reportError}
+                  </p>
+                )}
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setReportTarget(null)}
+                    disabled={reportSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      void handleSubmitReport();
+                    }}
+                    disabled={reportSubmitting || reportReason.trim().length === 0}
+                  >
+                    Submit report
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
