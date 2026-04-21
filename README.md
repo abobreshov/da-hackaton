@@ -320,6 +320,233 @@ Dev secrets in `docker-compose.yml` are **intentional placeholders** so the stac
 - [ ] Log aggregation + alerting (liveness + 5xx rate + auth failure spike)
 - [ ] Seed data removed from prod DB
 
+## Key features
+
+15 EPICs scoped for the MVP (full status in `mng/implementation-status.md`; EPIC-13 deferred post-MVP):
+
+| EPIC | Surface |
+|---|---|
+| 01 accounts-auth | Register, login, password reset (Mailpit), change/delete account, JWT + TOTP 2FA, refresh-token rotation with family invalidation |
+| 02 sessions-presence | Redis-backed presence (`presence:sessions:{id}` + `presence:state:{id}`), eager publish + 10s scheduler, AFK threshold |
+| 03 realtime-transport | Socket.IO over `/ws` with cookie handshake, interest-graph presence fan-out, room-message fan-out via redis-adapter |
+| 04 contacts-friends | Friends list, pending requests, atomic ban transaction, block-UX in UserPopover |
+| 05 rooms | Catalog + detail, owner-only PATCH, Manage Room modal, username-resolve invite (fail-silent ADR-005) |
+| 06 moderation | Reports + audit log via Observer/IEventPublisher, AdminGuard, admin layout |
+| 07 messaging | Room + DM messages, edit/delete, send/edit/delete WS, atomic DM-frozen guard, keyset pagination |
+| 08 attachments | Multipart upload (rooms + DMs), magic-byte sniff, 20 MiB / 3 MiB caps, RFC 5987 download, paste handler, inline image view |
+| 09 notifications-unread | Per-user unread store, auto-mark-read on visibility, badge cap (99+), DM badges keyed by peer userId |
+| 10 ui-shell | All FE routes: login/register/reset/2FA, dashboard, rooms catalog+detail, contacts, chat, DM, admin |
+| 11 scale-reliability | BullMQ workers + scheduler, throttle on register/login/reset, nightly retention prune, sliding-window rate-limit |
+| 12 deployment | docker-compose stack: postgres, redis, Mailpit, Dozzle, attachments volume, mTLS certs, graceful shutdown |
+| 13 xmpp-federation | Deferred post-MVP |
+| 14 security-nfrs | CSRF + OriginGuard, mTLS + `_sys` envelope, WS connect limit, message-spam limits, global RpcExceptionFilter |
+| 15 contracts | `@app/contracts` shared package, ErrorCode enum, MessageScope XOR, inline-drift CI gate |
+| design-system | Kinetic Playground tokens (partial retheme of UI primitives) |
+
+## Architecture at a glance
+
+C4 diagrams, flow sketches, and Architecture Decision Records live under [`mng/architecture/`](mng/architecture/) — start with `architecture.md` for the system overview, then drop into `flow/` for sequence diagrams. Per-EPIC ADRs (presence source-of-truth, async cascade delete, WS handshake, message fan-out, invite enumeration, fan-out scaling envelope) are indexed at the bottom of `mng/implementation-status.md`.
+
+## Test status
+
+**1584 unit tests** (auth-service 192, backend 490, bff 371, frontend 466, contracts 65) plus **28 Playwright E2E specs** + 3 testcontainers integration tests. Live counts and coverage notes in `mng/implementation-status.md`.
+
+## Manual QA walkthrough
+
+End-to-end manual-test recipe for every major flow. Assumes stack is up (`./dev.sh` or `./dev-local.sh`) and seed accounts are loaded.
+
+**Tooling:**
+- Frontend: http://localhost:3007
+- Mailpit inbox: http://localhost:8025 (all outgoing emails land here — no SendGrid needed)
+- BFF direct (for `curl`): http://localhost:3006/api/v1
+
+All `curl` examples below require `-H "Origin: http://localhost:3007"` — the BFF's OriginGuard rejects state-changing requests without an allowlisted origin.
+
+### 1. Register a new user + email-verify
+
+**UI path:**
+1. Open http://localhost:3007/register.
+2. Fill email, name, password (≥ 10 chars, mixed case + digit + symbol per OWASP V2.1), confirm password.
+3. Submit → page shows "Check your inbox" confirmation. **You are NOT logged in yet.**
+4. Open http://localhost:8025 in another tab. Inbox shows the verification email within ~1 s.
+5. Click the `Verify my email` link (or copy the `verify-email?token=<64-hex>` URL into the browser).
+6. Browser lands on the dashboard — session cookie was minted on successful verification.
+
+**curl path (scripted):**
+```bash
+EMAIL="qa-$(date +%s)@example.com"
+# 1. POST register → 202 Accepted (verification email dispatched)
+curl -s -X POST http://localhost:3006/api/v1/auth/register \
+  -H 'Content-Type: application/json' -H 'Origin: http://localhost:3007' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"QaTest123!Xy\",\"name\":\"QA User\"}" -w '\nSTATUS=%{http_code}\n'
+
+# 2. Pull verify token from Mailpit
+TOKEN=$(curl -s "http://localhost:8025/api/v1/search?query=to:$EMAIL" \
+  | jq -r '.messages[0].ID' \
+  | xargs -I{} curl -s "http://localhost:8025/api/v1/message/{}" \
+  | grep -oE 'verify-email\?token=[a-f0-9]{64}' | head -1 | cut -d= -f2)
+echo "token=$TOKEN"
+
+# 3. POST verify-email → 200 + session cookie jar
+curl -s -c /tmp/jar.txt -X POST http://localhost:3006/api/v1/auth/verify-email \
+  -H 'Content-Type: application/json' -H 'Origin: http://localhost:3007' \
+  -d "{\"token\":\"$TOKEN\"}" -w '\nSTATUS=%{http_code}\n'
+
+# 4. Session endpoint confirms login
+curl -s -b /tmp/jar.txt http://localhost:3006/api/v1/auth/session
+```
+
+### 2. Login (and 2FA branch)
+
+**Plain login:**
+1. http://localhost:3007/login → `user@example.com` / `User1234!` → **Let's Go** → `/dashboard`.
+2. Session persists across reload (silent refresh via cookie).
+
+**2FA login:**
+1. http://localhost:3007/login → `user2fa@example.com` / `Secure2FA!` → **Let's Go**.
+2. UI transitions to TOTP step ("Confirm it's really you").
+3. Read the seeded TOTP secret from `app/.seed-admin-totp.txt` (written by the seeder) or generate from the QR row in `app/src/auth-service/scripts/seed.ts`. Use any authenticator app (`oathtool --totp -b "<secret>"` from CLI).
+4. Enter the 6-digit code → **Verify** → `/dashboard`.
+
+### 3. Password reset
+
+1. http://localhost:3007/login → **Forgot it?** link.
+2. Enter a registered email → submit. UI shows neutral "if the email exists" copy (enumeration-safe).
+3. Open http://localhost:8025 → click the reset email → `reset-password?token=<hex>`.
+4. Set a new password → redirected to `/login` → log in with the new password.
+
+### 4. Create a room + invite / join / leave
+
+1. Login as `admin@example.com`.
+2. Go to `/rooms` → **+ New room** → fill name + description + visibility (public) → create.
+3. Room appears in the catalog immediately (redis-backed).
+4. In a second browser/incognito, login as `user@example.com` → open `/rooms` → click the new room → **Join**.
+5. Back as admin: `/rooms/<id>` → **Manage Room** → Members tab shows user now present; Admins tab allows promote; Banned tab empty.
+6. User clicks **Leave Room** → admin's Members tab updates within ~2 s via WS fan-out.
+
+### 5. Send + edit + delete messages
+
+1. Both browsers in the same room.
+2. Admin types in the composer → Enter → bubble appears in both viewports within ~1 s.
+3. Admin hovers own bubble → **Edit** → change text → save → "edited" tag appears on both sides.
+4. Admin **Delete** → bubble replaced by tombstone for both viewers.
+5. User replies via **Reply** icon → quote block shown; delete the parent → reply keeps showing but the quote turns into an "original message deleted" orphan marker.
+
+### 6. DM + block → frozen
+
+1. Admin → `/contacts` → click user row → **Open DM**.
+2. Send a message → user sees it live.
+3. User opens admin's popover → **Block**. `dm_channel.frozen_at` gets set server-side.
+4. Admin tries another message → composer shows frozen banner; DB guard rejects at insert (no ghost writes).
+
+### 7. Attachment upload + ban revoke
+
+1. Admin in a shared room → click **+ Attach** in composer → pick a PNG/JPG ≤ 3 MiB → send.
+2. Thumbnail renders inline in both viewports.
+3. User clicks the image → file downloads with correct `Content-Disposition` filename (RFC 5987 encoded).
+4. Admin → Manage Room → Members → **Ban** user.
+5. User retries the file URL → `403 Forbidden` (access-revoke-on-ban per brief §2.6.4). Admin still `200`.
+
+### 8. Unread badge
+
+1. User on `/contacts` page (not in DM).
+2. Admin sends a DM → user's `/contacts` shows a numbered badge on admin's row within ~1 s.
+3. User clicks the row → DM opens → `useAutoMarkRead` fires when the tab is visible → badge clears.
+
+### 9. Admin moderation + audit log
+
+1. User opens admin's message → **Report** → submit.
+2. Switch to admin (an admin-scope session) → `/_admin/reports` queue shows the new report.
+3. Click **Resolve** → report moves out of the pending queue.
+4. Navigate to `/_admin/audit-log` → row recording the resolution is present (stamped by `AuditSubscriber`).
+
+### 10. Delete account + cascade
+
+1. Register + verify a throwaway account (see §1).
+2. Create one room and send one message from that account.
+3. Settings → **Delete account** (or `curl -X DELETE http://localhost:3006/api/v1/auth/account -b /tmp/jar.txt -H "Origin: http://localhost:3007"`).
+4. Session cookies clear; redirected to `/login`.
+5. As admin: poll `/rooms/catalog` for 15 s — the throwaway-owned room disappears as the BullMQ `user.cascade.delete` job fires (ADR-002).
+6. `GET /api/v1/users/<deletedId>` → 404.
+
+### 11. Debug endpoints (while building)
+
+```bash
+# Session shape
+curl -s -b /tmp/jar.txt http://localhost:3006/api/v1/auth/session | jq
+
+# Full catalog
+curl -s -b /tmp/jar.txt http://localhost:3006/api/v1/rooms/catalog | jq
+
+# Current unread counters
+curl -s -b /tmp/jar.txt http://localhost:3006/api/v1/unread | jq
+
+# Mailpit inbox for an address
+curl -s "http://localhost:8025/api/v1/search?query=to:user@example.com" | jq '.messages[].Subject'
+```
+
+### 12. Reset the DB between runs
+
+```bash
+cd app
+docker compose -f docker-compose.infra.yml down -v      # wipe postgres + redis volumes
+docker compose -f docker-compose.infra.yml up -d
+yarn workspace @app/auth-service seed                   # reseed canonical accounts
+```
+
+## Demo walkthrough
+
+Five-to-ten minute reviewer journey covering the full MVP feature surface. Run from a clean stack — no prior state needed.
+
+### 1. Setup
+
+```bash
+cd app
+./scripts/gen-certs.sh   # first run only
+./dev.sh                 # or ./dev-local.sh for infra-only Docker
+```
+
+Wait until logs show `frontend → http://localhost:3007`. Open that URL.
+
+### 2. Two-browser presence
+
+Open Chrome and Firefox (or Chrome + an incognito window — different cookie jars matter).
+
+| Browser | Login |
+|---|---|
+| Chrome | `admin@example.com` / `Admin123!` |
+| Firefox / incognito | `user@example.com` / `User1234!` |
+
+Both navigate to `/contacts`. Watch the presence dots flip from grey to green within ~2s of login (eager publish) and again on tab focus changes (10s scheduler).
+
+### 3. Room messaging
+
+From the rooms catalog, both users join the same room (admin can use Manage Room → Invite by username if the room is private). Admin types a message in the composer; user sees it appear live via the Socket.IO `room:{id}` channel — no refresh.
+
+### 4. Attachments
+
+In the same room, admin clicks **+ Attach** and uploads any image (PNG / JPG / WebP, ≤ 3 MiB). Verify the thumbnail renders inline in the user's view. Click the image to download via the RFC 5987 `Content-Disposition` route.
+
+### 5. Unread badges
+
+User navigates away from the DM (e.g. back to `/contacts`). Admin opens the UserPopover on the user's row → **Open DM** → sends a message. User sees the unread badge bump on admin's row in `/contacts`. User clicks through to open the DM; `useAutoMarkRead` clears the badge once the tab is visible.
+
+### 6. Sessions
+
+User navigates to `/sessions` and sees the active session row(s). Log in from a third browser as the same user to get a second row. Click **Revoke** on the other session — that browser is logged out on next request: the access token's `sid` claim is checked against `user_sessions.revoked_at` on every `validateToken` round-trip, so the cookie path is invalidated within one BFF→auth-service hop (no JWT-expiry wait).
+
+### 7. Friend ban → DM frozen
+
+User opens the UserPopover on admin's row → **Block**. Admin tries to send a DM to user → composer shows the frozen banner; INSERT is rejected by the atomic DM-frozen guard at the DB layer.
+
+### 8. Admin moderation
+
+Admin navigates to `/_admin/reports`, processes an outstanding report (resolve / dismiss). Then `/_admin/audit-log` to see the action recorded by `AuditSubscriber` via `IEventPublisher`.
+
+### 9. Account delete
+
+Register a throwaway account from `/register`. Log in, open settings → **Delete account**. Auth-service enqueues `users.cascade.enqueue` over TCP → BullMQ `user.cascade.delete` consumer (EPIC-11) wipes domain rows asynchronously per ADR-002.
+
 ## Further reading
 
 - `CLAUDE.md` — project-root guidance for Claude Code sessions.
