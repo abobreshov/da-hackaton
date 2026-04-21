@@ -9,10 +9,10 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # NestJS backend — /metrics endpoint NOT yet implemented. Prometheus will
-  # log scrape failures (404 / connection refused) every 15s; that is expected
-  # until the app starts emitting metrics. Listed here so dashboards have a
-  # named target to bind to once it is wired.
+  # NestJS app services — /metrics is wired via @willsoto/nestjs-prometheus,
+  # exposing default Node + process metrics at the root path (the global
+  # `api/v1` prefix excludes /metrics). Custom domain metrics will be added
+  # later; for now scrape returns the default registry only.
   - job_name: backend
     metrics_path: /metrics
     static_configs:
