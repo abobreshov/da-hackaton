@@ -128,12 +128,21 @@ export class RpcErrorInterceptor implements NestInterceptor {
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       catchError((err) => {
-        const payload =
+        // Nest's TCP ClientProxy surfaces upstream RpcExceptions as a shape
+        // `{error: {status, message, code?}, message}` — `.error` is the
+        // RpcException payload, `.message` is a flattened copy. Peel `.error`
+        // when present so `buildEnvelope` sees the structured fields.
+        const rawPayload =
           err instanceof RpcException
             ? err.getError()
             : isUpstreamRpcPayload(err)
               ? (err as Record<string, unknown>)
               : null;
+
+        const payload =
+          rawPayload && typeof (rawPayload as any).error === 'object' && (rawPayload as any).error
+            ? ((rawPayload as any).error as Record<string, unknown>)
+            : rawPayload;
 
         if (payload === null) return throwError(() => err);
 

@@ -75,11 +75,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   // -------------------------------------------------------------- connect
   async handleConnection(client: Socket): Promise<void> {
+    this.logger.warn(
+      `[handleConnection] sid=${client.id} origin=${client.handshake.headers.origin} hasCookie=${!!client.handshake.headers.cookie}`,
+    );
     // 1. Origin check (4403)
     const originOk = this.originGuard.canActivate({
       switchToWs: () => ({ getClient: () => client }),
     } as any);
     if (!originOk) {
+      this.logger.warn(`[handleConnection] sid=${client.id} rejected originGuard`);
       // Guard already disconnected + emitted 'error' with 4403.
       return;
     }
@@ -87,6 +91,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     // 2. Cookie → session, delegated.
     const identity = this.authenticator.authenticate(client);
     if (!identity) {
+      this.logger.warn(`[handleConnection] sid=${client.id} rejected auth null identity`);
       this.reject(client, 4401, 'Unauthenticated');
       return;
     }
@@ -95,9 +100,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     // subscriber bookkeeping so a rejected socket never gets registered.
     const limit = await this.connectLimiter.check(identity.userId);
     if (!limit.ok) {
+      this.logger.warn(`[handleConnection] sid=${client.id} userId=${identity.userId} rate-limited`);
       this.rejectRateLimited(client, limit.retryAfterMs);
       return;
     }
+    this.logger.warn(
+      `[handleConnection] sid=${client.id} userId=${identity.userId} OK about to set client.data`,
+    );
 
     // 4. Attach identity + register in the subscriber's interest graph.
     client.data.userId = identity.userId;
