@@ -92,11 +92,16 @@ export class MessagesTcpController {
 
   @MessagePattern({ cmd: TcpCmd.messages.delete })
   async delete(@Payload() data: DeletePayload) {
-    return this.service.delete({
+    const routing = await this.service.delete({
       id: data.id,
       actorId: data.actorId,
       isRoomAdmin: data.isRoomAdmin,
     });
+    // BFF gateway fans out `message.deleted` using the routing tuple; the
+    // original contract was `{ ok: true }`. Return both so callers that only
+    // care about ack get truthy, while the fan-out path can still read the
+    // room/dm id off the response.
+    return { ok: true, ...(routing ?? {}) };
   }
 
   @MessagePattern({ cmd: TcpCmd.messages.list })

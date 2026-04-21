@@ -220,10 +220,15 @@ describe('PresenceService', () => {
 
   describe('evaluate', () => {
     it('stale freshest ts (> AFK threshold) → afk + publish when changed', async () => {
-      const staleTs = String(NOW - 120_000); // 2 min ago
+      const staleTs = String(NOW - 120_000); // 2 min ago — past AFK, inside offline window
       // SCAN returns one matching user key, cursor=0 terminates.
       redis.scan.mockResolvedValueOnce(['0', ['presence:sessions:42']]);
-      redis.hgetall.mockResolvedValueOnce({ sessA: staleTs });
+      // `evaluate()` reads the sessions HASH twice: once inside pruneStaleEntries,
+      // then again under Promise.all with redis.get. Both see the same data here
+      // because the entry is still inside the offline window (no HDEL).
+      redis.hgetall
+        .mockResolvedValueOnce({ sessA: staleTs })
+        .mockResolvedValueOnce({ sessA: staleTs });
       redis.get.mockResolvedValueOnce('online');
 
       await service.evaluate();
@@ -245,7 +250,10 @@ describe('PresenceService', () => {
 
     it('fresh session ts → online, no publish if already online', async () => {
       redis.scan.mockResolvedValueOnce(['0', ['presence:sessions:42']]);
-      redis.hgetall.mockResolvedValueOnce({ sessA: String(NOW) });
+      // evaluate() reads sessions twice — prune pass + derive pass.
+      redis.hgetall
+        .mockResolvedValueOnce({ sessA: String(NOW) })
+        .mockResolvedValueOnce({ sessA: String(NOW) });
       redis.get.mockResolvedValueOnce('online');
 
       await service.evaluate();

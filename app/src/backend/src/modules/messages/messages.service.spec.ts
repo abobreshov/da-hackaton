@@ -692,7 +692,10 @@ describe('MessagesService', () => {
     });
 
     it('room admin can delete any message in that room', async () => {
-      const svc = make();
+      // Cross-author delete authority is resolved server-side via rooms.roleOf
+      // (see commit e619b2b). Stub the rooms auth so the actor shows as admin.
+      const rooms = makeRoomsAuth(true, 'admin');
+      const svc = make(rooms);
       const { message } = await svc.create({ authorId: AUTHOR, roomId: 1, body: 'hi' });
       await svc.delete({ id: message.id, actorId: ADMIN, isRoomAdmin: true });
       const row = repo.messages.find((m) => m.id === message.id)!;

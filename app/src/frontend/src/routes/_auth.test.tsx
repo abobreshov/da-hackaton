@@ -18,6 +18,14 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  // AppHeader consumes useRouterState for the active-link highlight — stub it
+  // to a stable snapshot so the mock doesn't break rendering.
+  useRouterState: (opts?: { select?: (s: unknown) => unknown }) => {
+    const state = { location: { pathname: '/dashboard', href: '/dashboard' } };
+    return opts?.select ? opts.select(state) : state;
+  },
+  useRouter: () => ({ navigate: vi.fn() }),
+  useNavigate: () => vi.fn(),
 }));
 
 // Socket singleton is mounted by `<PresenceHeartbeat />` inside AuthLayout —

@@ -6,5 +6,9 @@ WORKDIR /app
 # install. Bind mounts in compose overlay `src/**/src` for hot-reload.
 COPY . .
 RUN yarn install --no-immutable
+# @app/contracts is consumed via `main` + `types` (dist/*); service tsconfigs
+# use `moduleResolution: node` and won't read the `exports.default` src path.
+# Build the workspace dep once so service tsc --watch can resolve it.
+RUN yarn workspace @app/contracts build
 WORKDIR /app/src/auth-service
 CMD ["yarn", "nest", "start", "--watch"]

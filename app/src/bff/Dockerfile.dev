@@ -3,5 +3,6 @@ RUN corepack enable && corepack prepare yarn@4.9.1 --activate
 WORKDIR /app
 COPY . .
 RUN yarn install --no-immutable
+RUN yarn workspace @app/contracts build
 WORKDIR /app/src/bff
 CMD ["yarn", "nest", "start", "--watch"]

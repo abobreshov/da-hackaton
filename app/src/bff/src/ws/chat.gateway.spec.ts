@@ -171,17 +171,18 @@ describe('ChatGateway', () => {
       expect(authenticator.authenticate).not.toHaveBeenCalled();
     });
 
-    it('delegates to WsAuthenticator; attaches {userId, sessionId} on success', async () => {
+    it('registers socket + subscribes user-channel once identity is pinned', async () => {
+      // Identity is attached by the `afterInit` server middleware in production
+      // (tested separately). Simulate the post-middleware state so the
+      // handleConnection path gets exercised directly.
       const client = makeClient();
-      authenticator.authenticate.mockReturnValue({ userId: 42, sessionId: client.id });
+      client.data = { userId: 42, sessionId: client.id };
+      connectLimiter.check.mockResolvedValueOnce({ ok: true });
 
       await gateway.handleConnection(client as any);
 
-      expect(authenticator.authenticate).toHaveBeenCalledWith(client);
       expect(client.disconnect).not.toHaveBeenCalled();
-      expect(client.data).toMatchObject({ userId: 42, sessionId: client.id });
       expect(subscriber.registerSocket).toHaveBeenCalledWith(client);
-      // Still subscribes the user-channel (kept per spec — user:{id} stays).
       expect(subscriber.subscribeFor).toHaveBeenCalledWith(client.id, 'user:42');
     });
 
@@ -198,7 +199,7 @@ describe('ChatGateway', () => {
     // AC-14-12 — rate-limit burst of WS connects per user (10 per 60 s).
     it('WsConnectRateLimit reject → disconnects with 4429 + emits WireError RATE_LIMITED', async () => {
       const client = makeClient();
-      authenticator.authenticate.mockReturnValue({ userId: 42, sessionId: client.id });
+      client.data = { userId: 42, sessionId: client.id };
       connectLimiter.check.mockResolvedValueOnce({ ok: false, retryAfterMs: 12_345 });
 
       await gateway.handleConnection(client as any);
@@ -220,7 +221,7 @@ describe('ChatGateway', () => {
 
     it('WsConnectRateLimit ok → proceeds to register the socket', async () => {
       const client = makeClient();
-      authenticator.authenticate.mockReturnValue({ userId: 42, sessionId: client.id });
+      client.data = { userId: 42, sessionId: client.id };
       connectLimiter.check.mockResolvedValueOnce({ ok: true });
 
       await gateway.handleConnection(client as any);
@@ -503,7 +504,8 @@ describe('ChatGateway', () => {
       expect(proxy.forward).toHaveBeenCalledWith(
         backend,
         { cmd: 'messages.edit' },
-        { editorId: 7, id: 101, body: 'fixed' },
+        // Backend TCP schema expects `actorId` for authority on edit/delete.
+        { actorId: 7, id: 101, body: 'fixed' },
       );
       expect(server.__to).toHaveBeenCalledWith('room:5');
       expect(server.__emit).toHaveBeenCalledWith('message.edited', { message: edited });

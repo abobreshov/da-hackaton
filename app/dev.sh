@@ -21,31 +21,31 @@ command -v docker >/dev/null 2>&1 || { echo "docker not found"; exit 1; }
 
 cleanup() {
   info "Stopping..."
-  docker compose -f "$ROOT/docker-compose.dev.yml" down
+  docker compose -f "$ROOT/docker-compose.dev.yml" -f "$ROOT/docker-compose.override.yml" down
 }
 trap cleanup EXIT INT TERM
 
 info "Starting all services in Docker..."
-docker compose -f "$ROOT/docker-compose.dev.yml" up -d $BUILD_FLAG
+docker compose -f "$ROOT/docker-compose.dev.yml" -f "$ROOT/docker-compose.override.yml" up -d $BUILD_FLAG
 
 info "Waiting for postgres..."
-until docker compose -f "$ROOT/docker-compose.dev.yml" exec -T postgres \
+until docker compose -f "$ROOT/docker-compose.dev.yml" -f "$ROOT/docker-compose.override.yml" exec -T postgres \
     pg_isready -U postgres -q 2>/dev/null; do
   sleep 1
 done
 
 if [ "$NO_SEED" = false ]; then
   info "Seeding database..."
-  docker compose -f "$ROOT/docker-compose.dev.yml" exec auth-service \
+  docker compose -f "$ROOT/docker-compose.dev.yml" -f "$ROOT/docker-compose.override.yml" exec auth-service \
     sh -c "cd /app && yarn seed" 2>/dev/null || \
-  docker compose -f "$ROOT/docker-compose.dev.yml" exec auth-service \
+  docker compose -f "$ROOT/docker-compose.dev.yml" -f "$ROOT/docker-compose.override.yml" exec auth-service \
     sh -c "node /app/scripts/seed.mjs" 2>/dev/null || \
   info "Seed skipped (service may still be starting)"
 fi
 
 if [ "$NO_SEED" = false ]; then
   info "Seeding demo rooms..."
-  docker compose -f "$ROOT/docker-compose.dev.yml" exec backend \
+  docker compose -f "$ROOT/docker-compose.dev.yml" -f "$ROOT/docker-compose.override.yml" exec backend \
     sh -c "cd /app && yarn seed:demo" 2>/dev/null || \
   info "Demo-room seed skipped (backend may still be starting)"
 fi
@@ -65,4 +65,4 @@ echo ""
 echo "  Logs:  docker compose -f docker-compose.dev.yml logs -f [service]"
 info "Press Ctrl+C to stop."
 
-docker compose -f "$ROOT/docker-compose.dev.yml" logs -f
+docker compose -f "$ROOT/docker-compose.dev.yml" -f "$ROOT/docker-compose.override.yml" logs -f

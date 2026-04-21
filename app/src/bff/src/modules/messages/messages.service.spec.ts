@@ -143,7 +143,8 @@ describe('MessagesService (BFF)', () => {
       expect(proxy.forward).toHaveBeenCalledWith(
         client,
         { cmd: 'messages.edit' },
-        { messageId: '101', actorId: 7, body: 'fix' },
+        // BFF translates wire `messageId` → backend schema `id`.
+        { id: '101', actorId: 7, body: 'fix' },
       );
       expect(result).toEqual({ id: '101', body: 'fix' });
     });
@@ -164,7 +165,7 @@ describe('MessagesService (BFF)', () => {
       expect(proxy.forward).toHaveBeenCalledWith(
         client,
         { cmd: 'messages.delete' },
-        { messageId: '101', actorId: 7 },
+        { id: '101', actorId: 7 },
       );
     });
 

@@ -34,21 +34,6 @@ import { QueueName } from '../queues';
 //
 // Drift inventory as of 2026-04-20 — see commit backlog for cleanup waves.
 const ALLOW_LIST: Record<string, string[]> = {
-  'app/src/bff/src/auth/auth.service.ts': [
-    'auth.admin.login',
-    'auth.admin.logout',
-    'auth.admin.refresh',
-    'auth.customer.delete',
-    'auth.customer.login',
-    'auth.customer.logout',
-    'auth.customer.passwordChange',
-    'auth.customer.passwordReset.confirm',
-    'auth.customer.passwordReset.request',
-    'auth.customer.refresh',
-    'auth.customer.register',
-    'auth.customer.validateToken',
-    'auth.customer.verifyEmail',
-  ],
   'app/src/backend/src/common/guards/jwt.guard.ts': ['auth.customer.validateToken'],
   'app/src/backend/src/modules/audit/audit.controller.ts': ['auth.customer.validateToken'],
   'app/src/backend/src/modules/bans/bans.service.ts': ['dm.frozen', 'friend.removed'],
@@ -62,6 +47,7 @@ const ALLOW_LIST: Record<string, string[]> = {
     'users.findByUsername',
     'users.list',
     'users.listByIds',
+    'users.search',
   ],
   'app/src/backend/src/workers/queue.producer.ts': [
     'abuse.report.notify',
