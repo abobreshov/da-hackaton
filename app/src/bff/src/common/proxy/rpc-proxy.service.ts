@@ -37,8 +37,14 @@ export class RpcProxyService {
   ): Promise<T> {
     const ms = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     try {
+      // Void-returning backend TCP handlers emit an empty Observable which
+      // makes `firstValueFrom` throw `EmptyError`, bubbling as a generic
+      // 500 at the HTTP layer. Supplying a defaultValue lets those flows
+      // resolve to `null` — the BFF controllers that call us already treat
+      // `204 No Content` as success, so `null` round-trips cleanly.
       return await firstValueFrom(
         client.send<T>(pattern as never, withSys(payload)).pipe(timeout(ms)),
+        { defaultValue: null as unknown as T },
       );
     } catch (err) {
       if (err instanceof TimeoutError) {

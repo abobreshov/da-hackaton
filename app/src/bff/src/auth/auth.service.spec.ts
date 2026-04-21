@@ -1,5 +1,7 @@
-import { of, throwError } from 'rxjs';
+import { EMPTY, NEVER, of, throwError } from 'rxjs';
 import { RpcException } from '@nestjs/microservices';
+import { HttpException } from '@nestjs/common';
+import { ErrorCode } from '@app/contracts';
 import { AuthService } from './auth.service';
 
 // Mock env so withSys stamps a deterministic key.
@@ -218,6 +220,78 @@ describe('AuthService — new proxy methods', () => {
       const rpc = new RpcException({ status: 500, message: 'redis down' });
       client.send.mockReturnValue(throwError(() => rpc));
       await expect(svc.logoutUser('u:rt')).rejects.toBe(rpc);
+    });
+  });
+
+  describe('upstream unavailability — EmptyError + TimeoutError', () => {
+    function expectUpstream503(err: unknown) {
+      expect(err).toBeInstanceOf(HttpException);
+      const httpErr = err as HttpException;
+      expect(httpErr.getStatus()).toBe(503);
+      const body = httpErr.getResponse() as { code: string; message: string };
+      expect(body.code).toBe(ErrorCode.UPSTREAM_UNAVAILABLE);
+      expect(body.message).toMatch(/unavailable/i);
+    }
+
+    it('loginUser: completes-empty observable (auth-service rebuild kills socket) → HttpException 503 UPSTREAM_UNAVAILABLE', async () => {
+      // EMPTY completes without emitting → firstValueFrom rejects with EmptyError.
+      client.send.mockReturnValue(EMPTY);
+      const err = await svc.loginUser('a@b', 'pw').catch((e: unknown) => e);
+      expectUpstream503(err);
+    });
+
+    it('loginAdmin: completes-empty observable → 503 UPSTREAM_UNAVAILABLE', async () => {
+      client.send.mockReturnValue(EMPTY);
+      const err = await svc.loginAdmin('ad@x', 'pw').catch((e: unknown) => e);
+      expectUpstream503(err);
+    });
+
+    it('refreshUser: hung TCP (no emission) → 503 after 5s timeout', async () => {
+      jest.useFakeTimers();
+      try {
+        client.send.mockReturnValue(NEVER);
+        const promise = svc.refreshUser('rt');
+        const caught = promise.catch((e: unknown) => e);
+        await jest.advanceTimersByTimeAsync(5000);
+        const err = await caught;
+        expectUpstream503(err);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('register: completes-empty → 503', async () => {
+      client.send.mockReturnValue(EMPTY);
+      const err = await svc
+        .register('a@b.com', 'alice', 'pw12345678')
+        .catch((e: unknown) => e);
+      expectUpstream503(err);
+    });
+
+    it('validateUserToken: hung TCP → 503 after timeout', async () => {
+      jest.useFakeTimers();
+      try {
+        client.send.mockReturnValue(NEVER);
+        const promise = svc.validateUserToken('tok');
+        const caught = promise.catch((e: unknown) => e);
+        await jest.advanceTimersByTimeAsync(5000);
+        const err = await caught;
+        expectUpstream503(err);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('logoutUser: completes-empty → 503 (auth-service mid-restart on logout)', async () => {
+      client.send.mockReturnValue(EMPTY);
+      const err = await svc.logoutUser('rt').catch((e: unknown) => e);
+      expectUpstream503(err);
+    });
+
+    it('does NOT mask upstream RpcException as 503 — real auth errors still bubble', async () => {
+      const rpc = new RpcException({ status: 401, message: 'bad creds' });
+      client.send.mockReturnValue(throwError(() => rpc));
+      await expect(svc.loginUser('a@b', 'pw')).rejects.toBe(rpc);
     });
   });
 

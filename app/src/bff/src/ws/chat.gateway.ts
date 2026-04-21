@@ -12,6 +12,7 @@ import {
 import type { Server, Socket } from 'socket.io';
 import { ErrorCode, RedisChannel, TcpCmd, WireError, WsEvent } from '@app/contracts';
 import { AUTH_SERVICE, BACKEND_SERVICE } from '../common/microservice.module';
+import { resolveAllowedWsOrigins } from '../config/environment';
 import { RpcProxyService } from '../common/proxy/rpc-proxy.service';
 import { WsOriginGuard } from './origin.guard';
 import { RedisSubscriberService } from './redis-subscriber.service';
@@ -42,7 +43,11 @@ import { WsConnectRateLimit } from './ws-connect-rate-limit.service';
 @WebSocketGateway({
   namespace: '/ws',
   cors: {
-    origin: (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3007').split(','),
+    // Single source of truth — see {@link resolveAllowedWsOrigins} doc-comment.
+    // WsOriginGuard reads the same resolver, so the upgrade-time CORS check
+    // and per-event guard cannot disagree (the bug that caused "WS connects
+    // then dies on first room.join").
+    origin: resolveAllowedWsOrigins(),
     credentials: true,
   },
 })

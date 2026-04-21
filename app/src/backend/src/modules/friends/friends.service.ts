@@ -159,6 +159,10 @@ export class FriendsService {
       accepterId: userId,
       requesterId: row.requestedBy,
     });
+    // Return a concrete object so the TCP transport emits a value — RxJS
+    // `firstValueFrom` on the BFF side treats `undefined` as an empty stream
+    // and throws `EmptyError`.
+    return { ok: true as const };
   }
 
   /**
@@ -186,6 +190,7 @@ export class FriendsService {
     }
 
     await this.db.delete(friendships).where(eq(friendships.id, requestId));
+    return { ok: true as const };
   }
 
   /**
@@ -211,6 +216,7 @@ export class FriendsService {
       .where(and(eq(friendships.userA, low), eq(friendships.userB, high)));
 
     this.events.emit('friend.removed', { userId, otherUserId });
+    return { ok: true as const };
   }
 
   /**

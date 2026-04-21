@@ -9,8 +9,8 @@
  *     fan-out through Socket.IO rooms (no custom redis subscribe for msgs).
  *   - sync.since — forward to backend, return ack, no broadcast.
  */
-jest.mock('../config/environment', () => ({
-  env: {
+jest.mock('../config/environment', () => {
+  const env = {
     NODE_ENV: 'test',
     SYSTEM_KEY: 'test-sys-key',
     TLS_ENABLED: false,
@@ -19,12 +19,33 @@ jest.mock('../config/environment', () => ({
     SESSION_COOKIE_TTL: 900,
     REFRESH_COOKIE_TTL: 604_800,
     ALLOWED_ORIGINS: 'http://localhost:3007',
+    ALLOWED_WS_ORIGINS: undefined as string | undefined,
     BACKEND_TCP_HOST: '127.0.0.1',
     BACKEND_TCP_PORT: 4004,
     AUTH_TCP_HOST: '127.0.0.1',
     AUTH_TCP_PORT: 4003,
-  },
-}));
+  };
+  return {
+    env,
+    // Mirror the real resolver so both gateway decorator + guard read the
+    // same canonical list. Re-evaluates on each call so per-test mutations
+    // to `env.ALLOWED_WS_ORIGINS` / `env.ALLOWED_ORIGINS` take effect.
+    resolveAllowedWsOrigins: () => {
+      const raw =
+        env.ALLOWED_WS_ORIGINS && env.ALLOWED_WS_ORIGINS.length > 0
+          ? env.ALLOWED_WS_ORIGINS
+          : env.ALLOWED_ORIGINS;
+      return Array.from(
+        new Set(
+          (raw ?? '')
+            .split(',')
+            .map((o: string) => o.trim())
+            .filter(Boolean),
+        ),
+      );
+    },
+  };
+});
 
 import { ChatGateway } from './chat.gateway';
 import { WsOriginGuard } from './origin.guard';
@@ -604,6 +625,37 @@ describe('ChatGateway', () => {
       const ack = await gateway.onSyncSince(client as any, { roomId: 5, lastSeenId: 0 });
       expect(ack).toMatchObject({ ok: false });
       expect(proxy.forward).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------- canonical origin source (sys-arch LOW #6)
+  // The @WebSocketGateway cors.origin and WsOriginGuard MUST resolve through
+  // the same source (`resolveAllowedWsOrigins`). Two sources of truth caused
+  // the classic "WS connects then dies on first room.join" — the upgrade
+  // accepted the origin but the guard rejected on the first frame.
+  describe('origin allow-list — gateway and guard share one source', () => {
+    it('@WebSocketGateway cors.origin equals WsOriginGuard allow-list', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { resolveAllowedWsOrigins } = require('../config/environment');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { GATEWAY_OPTIONS } = require('@nestjs/websockets/constants');
+
+      const opts = Reflect.getMetadata(GATEWAY_OPTIONS, ChatGateway);
+      expect(opts).toBeDefined();
+      expect(opts.cors).toBeDefined();
+      const cors = opts.cors as { origin: string[]; credentials: boolean };
+
+      // 1. Decorator must NOT inline raw process.env (string fallback) —
+      // it must call the canonical resolver and store an array.
+      expect(Array.isArray(cors.origin)).toBe(true);
+      // 2. The decorator-recorded list must match resolveAllowedWsOrigins().
+      expect(cors.origin).toEqual(resolveAllowedWsOrigins());
+      // 3. WsOriginGuard, constructed fresh, must accept exactly the same set.
+      const guard = new WsOriginGuard();
+      const allowed = (guard as any).allowed as Set<string>;
+      expect(Array.from(allowed).sort()).toEqual([...cors.origin].sort());
+      // 4. Sanity: known dev origin is in there.
+      expect(allowed.has('http://localhost:3007')).toBe(true);
     });
   });
 

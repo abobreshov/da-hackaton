@@ -1,13 +1,17 @@
 import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
-import { env } from '../config/environment';
+import { resolveAllowedWsOrigins } from '../config/environment';
 
 /**
- * WebSocket Origin guard skeleton. Mount on the WS gateway once it lands.
- * Rejects the handshake with Socket.IO close code 4403 when the Origin
- * header is missing or not in ALLOWED_WS_ORIGINS.
+ * WebSocket Origin guard. Rejects the handshake (and any subsequent guarded
+ * event) with Socket.IO close code 4403 when the Origin header is missing or
+ * not in the allow-list.
  *
- * ALLOWED_WS_ORIGINS falls back to ALLOWED_ORIGINS when unset so the BFF
- * doesn't require a second env var during early bring-up.
+ * Source of truth is {@link resolveAllowedWsOrigins} — the same resolver the
+ * `@WebSocketGateway({cors:{origin}})` decorator consumes, so the upgrade
+ * CORS check and the per-event guard cannot diverge. A previous version of
+ * this guard read `process.env.ALLOWED_WS_ORIGINS` directly while the
+ * gateway decorator inlined `process.env.ALLOWED_ORIGINS`, which produced
+ * the symptom: socket connects, then disconnects on the first `room.join`.
  */
 @Injectable()
 export class WsOriginGuard implements CanActivate {
@@ -15,16 +19,7 @@ export class WsOriginGuard implements CanActivate {
   private readonly allowed: ReadonlySet<string>;
 
   constructor() {
-    const raw =
-      (process.env.ALLOWED_WS_ORIGINS && process.env.ALLOWED_WS_ORIGINS.length > 0
-        ? process.env.ALLOWED_WS_ORIGINS
-        : env.ALLOWED_ORIGINS) ?? '';
-    this.allowed = new Set(
-      raw
-        .split(',')
-        .map((o) => o.trim())
-        .filter(Boolean),
-    );
+    this.allowed = new Set(resolveAllowedWsOrigins());
   }
 
   canActivate(context: ExecutionContext): boolean {

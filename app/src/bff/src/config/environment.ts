@@ -17,6 +17,13 @@ const schema = z
     SESSION_COOKIE_TTL: z.coerce.number().default(3600),
     REFRESH_COOKIE_TTL: z.coerce.number().default(172800),
     ALLOWED_ORIGINS: z.string().default('http://localhost:3007'),
+    // Optional override for WS handshake origin allow-list. When unset (or
+    // empty) the WS layer falls back to ALLOWED_ORIGINS so prod doesn't need
+    // a second knob. Both the @WebSocketGateway cors config and WsOriginGuard
+    // MUST resolve through {@link resolveAllowedWsOrigins} so the upgrade
+    // and the per-event guard agree on the same source of truth — otherwise
+    // the WS connects then dies on the first room.join.
+    ALLOWED_WS_ORIGINS: z.string().optional(),
     SYSTEM_KEY: z.string().min(32),
     // Comma-separated list of upstream proxy IPs / CIDR blocks Fastify will
     // trust for X-Forwarded-For. Empty / unset → loopback-only in production.
@@ -40,3 +47,34 @@ const schema = z
 
 export type Env = z.infer<typeof schema>;
 export const env = schema.parse(process.env);
+
+/**
+ * Canonical resolver for the WS handshake + per-event origin allow-list.
+ *
+ * Both `@WebSocketGateway({cors:{origin}})` (handshake / upgrade time) and
+ * {@link WsOriginGuard} (per-event canActivate) MUST consume this so the two
+ * gates agree. Splitting the source — e.g. raw `process.env.ALLOWED_ORIGINS`
+ * in the decorator while the guard reads zod-parsed `env.ALLOWED_WS_ORIGINS`
+ * — produces the classic "WS connects then disconnects on first frame"
+ * symptom because the upgrade succeeds but the first guarded message rejects.
+ *
+ * Resolution order:
+ *   1. ALLOWED_WS_ORIGINS (when set + non-empty)
+ *   2. ALLOWED_ORIGINS (always defaulted by the schema)
+ *
+ * Returns a deduped array of trimmed origin strings.
+ */
+export function resolveAllowedWsOrigins(): string[] {
+  const raw =
+    env.ALLOWED_WS_ORIGINS && env.ALLOWED_WS_ORIGINS.length > 0
+      ? env.ALLOWED_WS_ORIGINS
+      : env.ALLOWED_ORIGINS;
+  return Array.from(
+    new Set(
+      (raw ?? '')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean),
+    ),
+  );
+}
