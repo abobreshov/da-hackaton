@@ -37,6 +37,11 @@ test.describe('Rooms catalog — populated catalog + logout', () => {
     const firstRoomLink = page.locator('a[href^="/rooms/"]').first();
     await expect(firstRoomLink).toBeVisible();
 
+    // Member-count regression — see commit 1723d7b. Seeded rooms must not all
+    // show "0 members"; at least one card should report a non-zero count.
+    const nonZeroMemberCount = page.getByText(/\b[1-9]\d*\s+members?\b/).first();
+    await expect(nonZeroMemberCount).toBeVisible();
+
     // 3. Logout clears session + refresh cookies and returns to /login.
     await dashboardPage.clickLogout();
     await page.waitForURL(/\/login$/);
