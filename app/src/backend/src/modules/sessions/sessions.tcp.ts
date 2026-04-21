@@ -84,4 +84,20 @@ export class SessionsTcpController {
   touch(@Payload() data: TouchPayload): Promise<{ touched: boolean }> {
     return this.service.touch(data.sessionId);
   }
+
+  /**
+   * Bulk revoke. Payload `exceptSessionId` is optional — caller passes
+   * its own sid to spare the calling device. When omitted every session
+   * for the user is revoked (full logout).
+   */
+  @MessagePattern({ cmd: TcpCmd.sessions.revokeAll })
+  revokeAll(
+    @Payload()
+    data: { userId: number; exceptSessionId?: string | null; _sys?: string },
+  ): Promise<{ revokedCount: number }> {
+    return this.service.revokeAll({
+      userId: data.userId,
+      exceptSessionId: data.exceptSessionId ?? null,
+    });
+  }
 }

@@ -124,5 +124,13 @@ export const TcpCmd = {
      * the auth probe. No-op when the row is missing or already revoked.
      */
     touch: 'sessions.touch',
+    /**
+     * Bulk revoke for a user. When `exceptSessionId` is provided it's
+     * preserved (the caller's current session), so the FE "Log out
+     * everywhere else" button stays authenticated. When omitted it
+     * revokes every session for that user — the shape auth-service
+     * already uses at password-change / account-delete time.
+     */
+    revokeAll: 'sessions.revokeAll',
   },
 } as const;

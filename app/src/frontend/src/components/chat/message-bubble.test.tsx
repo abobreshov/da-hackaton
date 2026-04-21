@@ -27,9 +27,9 @@ describe('<MessageBubble />', () => {
     expect(bubble.querySelector('time')).toHaveAttribute('datetime', '2026-04-20T10:00:00.000Z');
   });
 
-  it('hides the author label on "me" bubbles (implicit self)', () => {
+  it('renders the author label on "me" bubbles too so group chats stay legible', () => {
     render(<MessageBubble message={baseMessage()} isMe={true} />);
-    expect(screen.queryByText('alice')).not.toBeInTheDocument();
+    expect(screen.getByText('alice')).toBeInTheDocument();
     expect(screen.getByText('hello')).toBeInTheDocument();
   });
 

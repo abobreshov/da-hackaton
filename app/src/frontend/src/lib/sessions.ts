@@ -31,3 +31,12 @@ export const listSessions = (): Promise<SessionsResponse> =>
 /** Revoke a single session by id. Resolves on 204. */
 export const revokeSession = (id: string): Promise<void> =>
   apiFetch<void>(`/api/v1/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+/**
+ * Revoke every active session for the caller — including the current
+ * browser. Caller should chain a `logout()` + redirect so the UI does
+ * not wait on the next validateToken probe to 401. Returns the number
+ * of sessions that were flipped to revoked.
+ */
+export const revokeAllSessions = (): Promise<{ revokedCount: number }> =>
+  apiFetch<{ revokedCount: number }>('/api/v1/sessions/revoke-all', { method: 'POST' });

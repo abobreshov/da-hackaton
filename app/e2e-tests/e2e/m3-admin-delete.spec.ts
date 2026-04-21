@@ -13,8 +13,12 @@ import { AdminPage } from '../pages/admin.page';
  * `message.delete` entry recorded under their username.
  */
 
-const USER = { email: 'user@example.com', password: 'User1234!', username: 'user' };
-const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'admin' };
+// Note: usernames here match `users.name` (what FE renders + what the BFF
+// stamps onto each message as `author.username`). The seeded users have
+// display names "Dev User" / "Dev Admin" — the earlier literal "user" /
+// "admin" values predated the auth-service seed rename.
+const USER = { email: 'user@example.com', password: 'User1234!', username: 'Dev User' };
+const ADMIN = { email: 'admin@example.com', password: 'Admin123!', username: 'Dev Admin' };
 // FE route is `/rooms/$roomId` (numeric). Demo seed inserts #general first
 // into a clean `rooms` table → bigserial id 1. See backend/scripts/seed-demo.ts.
 const ROOM_ID = '1';

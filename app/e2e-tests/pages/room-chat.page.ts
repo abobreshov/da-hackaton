@@ -145,7 +145,7 @@ export class RoomChatPage extends RoomDetailPage {
     await expect(
       this.messageList
         .getByTestId('message-bubble')
-        .filter({ hasText: /message deleted|deleted message/i })
+        .filter({ hasText: /this message was deleted|message deleted|deleted message/i })
         .first(),
     ).toBeVisible();
   }

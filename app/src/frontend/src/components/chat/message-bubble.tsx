@@ -170,9 +170,14 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
           )}
 
           <div className="flex flex-col gap-0.5">
-            {/* Author surfaces on "them" bubbles; for "me" it's implicit. */}
-            {!isMe && !tombstoned && (
-              <p className="font-display text-label-md font-semibold text-on-surface-variant">
+            {/* Author surfaces on every live bubble so group chats are legible. */}
+            {!tombstoned && (
+              <p
+                className={cn(
+                  'font-display text-label-md font-semibold',
+                  isMe ? 'text-on-primary/80' : 'text-on-surface-variant',
+                )}
+              >
                 {message.author.username}
               </p>
             )}

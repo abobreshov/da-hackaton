@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -102,5 +103,25 @@ export class SessionsController {
   @HttpCode(204)
   async revoke(@Param('id') id: string, @Req() req: SessionRequest): Promise<void> {
     await this.service.revoke({ sessionId: id, userId: getUserId(req) });
+  }
+
+  /**
+   * FE "Revoke all sessions" button. Revokes every non-revoked row for
+   * the caller (their current session included — the BFF cookie has no
+   * `sid` claim today so we can't spare a specific row). The FE is
+   * expected to chain its logout flow right after to clear local state;
+   * the cookie is effectively invalidated within one validateToken
+   * probe either way.
+   *
+   * Returns `{ revokedCount }` so the UI can show "Signed out of N
+   * devices". Declared BEFORE `@Delete(':id')` style routes not
+   * because of ordering (different verbs) but to keep the bulk op
+   * visibly separate in the class body.
+   */
+  @Post('revoke-all')
+  @HttpCode(200)
+  async revokeAll(@Req() req: SessionRequest): Promise<{ revokedCount: number }> {
+    const result = await this.service.revokeAll(getUserId(req));
+    return { revokedCount: result?.revokedCount ?? 0 };
   }
 }

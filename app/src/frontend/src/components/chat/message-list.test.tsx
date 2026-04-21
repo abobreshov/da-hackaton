@@ -77,8 +77,8 @@ describe('<MessageList />', () => {
         onLoadOlder={() => {}}
       />,
     );
-    // "me" bubble hides the author label.
-    expect(screen.queryByText('user7')).not.toBeInTheDocument();
+    // "me" bubble still renders the author label so group chats stay legible.
+    expect(screen.getByText('user7')).toBeInTheDocument();
     expect(screen.getByText('mine')).toBeInTheDocument();
   });
 

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   RecordLoginInput,
+  RevokeAllInput,
   RevokeInput,
   SESSIONS_REPOSITORY,
   SessionRow,
@@ -34,6 +35,16 @@ export class SessionsService {
 
   revoke(input: RevokeInput): Promise<{ revoked: boolean }> {
     return this.repo.revoke(input);
+  }
+
+  /**
+   * Bulk revoke for the "Log out everywhere else" button. Forwards to the
+   * repo; caller decides whether to preserve its current session via
+   * `exceptSessionId`. Used by the FE sessions page AND (without an
+   * exception) by auth-service on account-delete / password-change.
+   */
+  revokeAll(input: RevokeAllInput): Promise<{ revokedCount: number }> {
+    return this.repo.revokeAll(input);
   }
 
   /**

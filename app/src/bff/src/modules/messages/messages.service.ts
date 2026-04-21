@@ -77,11 +77,23 @@ export class MessagesService {
   }
 
   edit(input: EditMessageInput) {
-    return this.proxy.forward(this.client, { cmd: TcpCmd.messages.edit }, { ...input });
+    // Backend TCP expects `id` (schema column). See delete() comment.
+    return this.proxy.forward(
+      this.client,
+      { cmd: TcpCmd.messages.edit },
+      { id: input.messageId, actorId: input.actorId, body: input.body },
+    );
   }
 
   delete(input: DeleteMessageInput) {
-    return this.proxy.forward(this.client, { cmd: TcpCmd.messages.delete }, { ...input });
+    // Backend TCP expects `id` (matches the messages schema column name).
+    // BFF's DeleteMessageInput keeps the verbose `messageId` alias for
+    // controller readability; translate here rather than divergent DTOs.
+    return this.proxy.forward(
+      this.client,
+      { cmd: TcpCmd.messages.delete },
+      { id: input.messageId, actorId: input.actorId },
+    );
   }
 
   getById(input: GetMessageByIdInput) {

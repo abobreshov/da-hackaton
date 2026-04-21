@@ -33,6 +33,19 @@ export interface RevokeInput {
   userId: number;
 }
 
+export interface RevokeAllInput {
+  /** Owning user id — every non-revoked row with this userId is flipped. */
+  userId: number;
+  /**
+   * Optional session id to PRESERVE. When set, the caller's current
+   * session stays active so the "Log out everywhere else" flow does not
+   * log the caller out. Omit / pass `null` to revoke every session
+   * including the caller's (full logout — used by account-delete +
+   * password-change paths).
+   */
+  exceptSessionId?: string | null;
+}
+
 /**
  * Repository port. Drizzle adapter + in-memory fake both satisfy this.
  *
@@ -61,6 +74,13 @@ export interface SessionsRepositoryPort {
    * safe to fire-and-forget from auth-service `validateToken`.
    */
   touch(sessionId: string): Promise<{ touched: boolean }>;
+  /**
+   * Bulk revoke for a user. Flips `revoked_at = NOW()` on every row where
+   * `userId` matches and `revoked_at IS NULL`. When `exceptSessionId` is
+   * provided that one row is preserved (for the "Log out everywhere
+   * else" flow). Returns the number of rows revoked.
+   */
+  revokeAll(input: RevokeAllInput): Promise<{ revokedCount: number }>;
 }
 
 export const SESSIONS_REPOSITORY = 'SESSIONS_REPOSITORY';

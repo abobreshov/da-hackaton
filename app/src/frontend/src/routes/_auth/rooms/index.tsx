@@ -50,7 +50,7 @@ export function RoomsCatalog() {
   }, [load]);
 
   return (
-    <div className="animate-fade-up flex max-w-3xl flex-col gap-8">
+    <div className="animate-fade-up flex flex-col gap-8">
       <header className="flex items-start justify-between gap-4">
         <div>
           <SectionHeading level="h1" eyebrow="Community" title="Rooms" />

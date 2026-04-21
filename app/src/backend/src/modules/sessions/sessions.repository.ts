@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.module';
 import { Db } from '../../database/connection';
 import { userSessions } from '../../database/schema';
 import {
   RecordLoginInput,
+  RevokeAllInput,
   RevokeInput,
   SessionRow,
   SessionsRepositoryPort,
@@ -80,6 +81,22 @@ export class DrizzleSessionsRepository implements SessionsRepositoryPort {
       )
       .returning({ id: userSessions.id });
     return { revoked: updated.length > 0 };
+  }
+
+  async revokeAll(input: RevokeAllInput): Promise<{ revokedCount: number }> {
+    const whereParts = [
+      eq(userSessions.userId, input.userId),
+      isNull(userSessions.revokedAt),
+    ];
+    if (input.exceptSessionId) {
+      whereParts.push(ne(userSessions.id, input.exceptSessionId));
+    }
+    const updated = await this.db
+      .update(userSessions)
+      .set({ revokedAt: new Date() })
+      .where(and(...whereParts))
+      .returning({ id: userSessions.id });
+    return { revokedCount: updated.length };
   }
 }
 

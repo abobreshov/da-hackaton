@@ -64,6 +64,23 @@ class FakeSessionsRepository implements SessionsRepositoryPort {
     this.rows[idx] = { ...this.rows[idx], lastSeenAt: new Date() };
     return { touched: true };
   }
+
+  async revokeAll(input: {
+    userId: number;
+    exceptSessionId?: string | null;
+  }): Promise<{ revokedCount: number }> {
+    let revokedCount = 0;
+    const now = new Date();
+    for (let i = 0; i < this.rows.length; i++) {
+      const r = this.rows[i];
+      if (r.userId !== input.userId) continue;
+      if (r.revokedAt != null) continue;
+      if (input.exceptSessionId && r.id === input.exceptSessionId) continue;
+      this.rows[i] = { ...r, revokedAt: now };
+      revokedCount++;
+    }
+    return { revokedCount };
+  }
 }
 
 const USER = 42;

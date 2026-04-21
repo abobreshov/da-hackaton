@@ -44,4 +44,20 @@ export class SessionsService {
       { id: input.sessionId, userId: input.userId },
     );
   }
+
+  /**
+   * Bulk revoke. Backing the FE "Revoke all sessions" button. No
+   * `exceptSessionId` today because the BFF session cookie does not yet
+   * carry a `sid` claim — every session (including the caller's) gets
+   * revoked. The FE then runs its normal logout flow so the UI
+   * transitions cleanly instead of waiting for the next validateToken
+   * probe to 401.
+   */
+  revokeAll(userId: number, exceptSessionId: string | null = null) {
+    return this.proxy.forward<{ revokedCount: number }>(
+      this.client,
+      { cmd: TcpCmd.sessions.revokeAll },
+      { userId, exceptSessionId },
+    );
+  }
 }

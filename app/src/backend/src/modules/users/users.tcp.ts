@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { UsersService } from './users.service';
 
 @Controller()
@@ -46,5 +46,22 @@ export class UsersTcpController {
       data?.excludeUserId ?? null,
       data?.limit ?? 8,
     );
+  }
+
+  /**
+   * Account-cascade fan-out, invoked by auth-service immediately after it
+   * soft-deletes the users row. Drops friendships, room memberships, and
+   * clears the presence keys so other clients stop seeing the user.
+   *
+   * MUST be `@EventPattern`, not `@MessagePattern`: auth-service publishes
+   * this with `ClientProxy.emit(...)` (fire-and-forget event dispatch),
+   * and `emit` matches ONLY `@EventPattern` handlers. Binding this to
+   * `@MessagePattern` looks right at read time but never fires at run
+   * time — the cascade silently no-ops, which is how a deleted user
+   * lingered in other users' friend lists + member panes.
+   */
+  @EventPattern({ cmd: 'users.cascade.enqueue' })
+  async cascadeDelete(@Payload() data: { userId: number; _sys?: string }): Promise<void> {
+    await this.service.cascadeDelete(data.userId);
   }
 }
