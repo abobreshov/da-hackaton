@@ -52,3 +52,7 @@ secrets/
 
 # Dev-only seeded TOTP secret (for local Playwright runs)
 **/.seed-totp.txt
+
+# demo-verify.sh report output (local only)
+app/demo-reports/*.md
+!app/demo-reports/README.md
