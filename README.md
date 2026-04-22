@@ -53,6 +53,17 @@ Stop with `Ctrl-C`. Recovery: `./dev-doctor.sh --clean` if ports get stuck.
 
 Re-seed: `yarn workspace @app/auth-service seed`.
 
+### 1.6 Run DB migrations (required once after first boot)
+
+Rooms and all domain tables are created by Drizzle migrations — they do **not** run automatically on startup.
+
+```bash
+cd app
+yarn workspace @app/backend db:migrate
+```
+
+Re-run any time you pull new migrations (after `db:generate` or a `git pull` that adds migration files).
+
 ---
 
 ## 2. Walkthrough — try it in 5 minutes
@@ -190,6 +201,7 @@ yarn workspace @app/tests test         # Playwright E2E against the live stack
 
 | Symptom | Fix |
 |---|---|
+| Rooms page shows "Couldn't load rooms" | Migrations not applied — run `yarn workspace @app/backend db:migrate` |
 | `EADDRINUSE` on boot | `cd app && ./dev-doctor.sh --clean` (or `--force` if SIGTERM stalls) |
 | Mailpit inbox empty | Check `app/.dev-logs/auth-service.log` for `SMTP_HOST`; confirm Mailpit container up |
 | `TLS_ENABLED=true but cert files are missing` | `cd app && ./scripts/gen-certs.sh` |
